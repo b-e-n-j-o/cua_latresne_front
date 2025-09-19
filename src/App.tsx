@@ -49,6 +49,13 @@ export default function App() {
   const t0 = useRef<number | null>(null);
   const [activeStep, setActiveStep] = useState(0);
 
+  // --- Nouvel état pour le mode "direct" ---
+  const [parcelRef, setParcelRef] = useState("");
+  const [insee, setInsee] = useState("");
+  const [commune, setCommune] = useState("");
+  const [statusDirect, setStatusDirect] = useState<Status>("idle");
+  const [errorDirect, setErrorDirect] = useState<string | null>(null);
+
   // --- Destinataires supplémentaires ---
   const [showExtra, setShowExtra] = useState(false);
   const [extraInput, setExtraInput] = useState("");
@@ -87,7 +94,9 @@ export default function App() {
   const resetAll = () => {
     setFile(null); setIsOver(false); setStatus("idle"); setError(null);
     setReportUrl(null); setMapUrl(null); setElapsed(0); setActiveStep(0);
-    // on garde extraInput (destinataires) pour rester “visibles discrètement”
+    // Reset du mode direct
+    setParcelRef(""); setInsee(""); setCommune(""); setStatusDirect("idle"); setErrorDirect(null);
+    // on garde extraInput (destinataires) pour rester "visibles discrètement"
   };
 
   const onDrop = useCallback((e: React.DragEvent) => {
@@ -172,6 +181,53 @@ export default function App() {
       setStatus("error");
     }
   }, [file, parsedEmails.valid, parsedEmails.invalid]);
+
+  const launchDirect = useCallback(async () => {
+    try {
+      if (!parcelRef || !insee || !commune) {
+        setErrorDirect("Veuillez remplir les trois champs.");
+        return;
+      }
+      setErrorDirect(null);
+      setReportUrl(null);
+      setMapUrl(null);
+
+      const { data: sess } = await supabase.auth.getSession();
+      const userId = sess.session?.user?.id || "";
+      const userEmail = sess.session?.user?.email || "";
+
+      const base = ENV_API_BASE.replace(/\/$/,"");
+      if (!base) { setErrorDirect("URL backend manquante"); return; }
+
+      setStatusDirect("running");
+      const res = await fetch(`${base}/cua/direct`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(ENV_API_KEY ? {"X-API-Key": ENV_API_KEY} : {})
+        },
+        body: JSON.stringify({
+          parcel: parcelRef,
+          insee,
+          commune,
+          user_id: userId,
+          user_email: userEmail,
+          notify_emails: parsedEmails.valid.join(",")
+        })
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data?.status !== "processing") {
+        throw new Error(data?.detail || data?.error || `Échec (HTTP ${res.status})`);
+      }
+
+      // Ici aussi tu peux faire du polling comme pour le CERFA
+      setStatusDirect("done");
+    } catch (e:any) {
+      setErrorDirect(e?.message || "Erreur lors du lancement direct");
+      setStatusDirect("error");
+    }
+  }, [parcelRef, insee, commune, parsedEmails.valid]);
 
   const progressPct = useMemo(() => {
     if (status==="done") return 100;
@@ -372,6 +428,49 @@ export default function App() {
                 style={{ backgroundColor: PAL.primaryDark }}
               >
                 {status === "uploading"?"Envoi…": status === "running"?"Analyse en cours…":"Lancer l'analyse"}
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* Uploader direct par référence */}
+        <section className="mt-8">
+          <div className="rounded-2xl border bg-white p-4" style={{ borderColor: PAL.mint }}>
+            <h3 className="text-sm font-semibold" style={{ color: PAL.primaryDark }}>
+              Lancer sans CERFA (parcelle directe)
+            </h3>
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <input
+                type="text"
+                placeholder="Référence (ex. AC 0494)"
+                value={parcelRef}
+                onChange={e => setParcelRef(e.target.value)}
+                className="w-full rounded-xl border px-3 py-2 text-sm"
+              />
+              <input
+                type="text"
+                placeholder="Code INSEE (ex. 33234)"
+                value={insee}
+                onChange={e => setInsee(e.target.value)}
+                className="w-full rounded-xl border px-3 py-2 text-sm"
+              />
+              <input
+                type="text"
+                placeholder="Commune (ex. Latresne)"
+                value={commune}
+                onChange={e => setCommune(e.target.value)}
+                className="w-full rounded-xl border px-3 py-2 text-sm"
+              />
+            </div>
+            {errorDirect && <p className="mt-2 text-sm text-red-600">{errorDirect}</p>}
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={launchDirect}
+                disabled={statusDirect==="running"}
+                className="rounded-full px-5 py-2 text-sm font-medium text-white transition"
+                style={{ backgroundColor: PAL.primaryDark }}
+              >
+                {statusDirect==="running" ? "Analyse en cours…" : "Lancer l'analyse directe"}
               </button>
             </div>
           </div>
