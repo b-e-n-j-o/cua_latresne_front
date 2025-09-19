@@ -72,14 +72,15 @@ export default function App() {
   }, [extraInput]);
 
   useEffect(() => {
-    if (status !== "running") return; setActiveStep(0);
+    if (status !== "running" && statusDirect !== "running") return; 
+    setActiveStep(0);
     const timer = window.setInterval(() => setActiveStep((s)=>Math.min(s+1, STEP_LABELS.length-1)), 1100);
     return () => window.clearInterval(timer);
-  }, [status]);
+  }, [status, statusDirect]);
 
   useEffect(() => {
     let id: number | null = null;
-    if (status === "uploading" || status === "running") {
+    if (status === "uploading" || status === "running" || statusDirect === "running") {
       t0.current = performance.now();
       id = window.setInterval(()=>{
         if (t0.current) setElapsed(Math.round((performance.now()-t0.current)/1000));
@@ -89,7 +90,7 @@ export default function App() {
       t0.current = null;
     }
     return () => { if (id) window.clearInterval(id as any); };
-  }, [status]);
+  }, [status, statusDirect]);
 
   const resetAll = () => {
     setFile(null); setIsOver(false); setStatus("idle"); setError(null);
@@ -200,6 +201,7 @@ export default function App() {
       if (!base) { setErrorDirect("URL backend manquante"); return; }
 
       setStatusDirect("running");
+
       const res = await fetch(`${base}/cua/direct`, {
         method: "POST",
         headers: {
@@ -221,8 +223,38 @@ export default function App() {
         throw new Error(data?.detail || data?.error || `Échec (HTTP ${res.status})`);
       }
 
-      // Ici aussi tu peux faire du polling comme pour le CERFA
-      setStatusDirect("done");
+      // ⚡ récupération du job_id
+      const jobId = data.job_id;
+      if (!jobId) {
+        setErrorDirect("Job ID manquant dans la réponse backend.");
+        setStatusDirect("error");
+        return;
+      }
+
+      // ⏳ Polling toutes les 5s
+      const interval = setInterval(async () => {
+        try {
+          const r = await fetch(`${base}/jobs/${jobId}`, {
+            headers: ENV_API_KEY ? {"X-API-Key": ENV_API_KEY} : undefined
+          });
+          const j = await r.json();
+          if (j.status === "success") {
+            clearInterval(interval);
+            setReportUrl(j.report_docx_path);
+            setMapUrl(j.map_html_path);
+            setStatusDirect("done");
+          } else if (j.status === "error") {
+            clearInterval(interval);
+            setErrorDirect("Erreur lors du traitement direct.");
+            setStatusDirect("error");
+          }
+        } catch (e) {
+          clearInterval(interval);
+          setErrorDirect("Impossible de suivre le job direct.");
+          setStatusDirect("error");
+        }
+      }, 5000);
+
     } catch (e:any) {
       setErrorDirect(e?.message || "Erreur lors du lancement direct");
       setStatusDirect("error");
@@ -230,12 +262,17 @@ export default function App() {
   }, [parcelRef, insee, commune, parsedEmails.valid]);
 
   const progressPct = useMemo(() => {
-    if (status==="done") return 100;
-    if (status==="idle"||status==="error") return 0;
-    const base = status==="uploading"?12:20;
+    // Progression pour PDF ou Direct
+    const isRunning = status === "running" || statusDirect === "running";
+    const isDone = status === "done" || statusDirect === "done";
+    const isIdle = (status === "idle" || status === "error") && (statusDirect === "idle" || statusDirect === "error");
+    
+    if (isDone) return 100;
+    if (isIdle) return 0;
+    const base = status === "uploading" ? 12 : 20;
     const stepSpan = 80/STEP_LABELS.length;
     return Math.min(95, Math.round(base + activeStep*stepSpan));
-  }, [status, activeStep]);
+  }, [status, statusDirect, activeStep]);
 
   // Affichage compact des destinataires valides (toujours visible)
   const extraChipsCompact = (
@@ -403,16 +440,16 @@ export default function App() {
                 className="inline-block h-2 w-2 rounded-full"
                 style={{
                   backgroundColor:
-                    status==="done" ? "#10B981" :
-                    status==="error" ? "#EF4444" :
-                    (status==="uploading"||status==="running") ? PAL.mustard : "#D1D5DB"
+                    (status==="done" || statusDirect==="done") ? "#10B981" :
+                    (status==="error" || statusDirect==="error") ? "#EF4444" :
+                    (status==="uploading"||status==="running"||statusDirect==="running") ? PAL.mustard : "#D1D5DB"
                 }}
               />
-              {status === "idle" && <span>Prêt à lancer l'analyse</span>}
+              {(status === "idle" && statusDirect === "idle") && <span>Prêt à lancer l'analyse</span>}
               {status === "uploading" && <span>Envoi du PDF…</span>}
-              {status === "running" && <span>Analyse en cours… {elapsed ? `(${elapsed}s)` : null}</span>}
-              {status === "done" && <span>Analyse terminée</span>}
-              {status === "error" && <span>Erreur d'analyse</span>}
+              {(status === "running" || statusDirect === "running") && <span>Analyse en cours… {elapsed ? `(${elapsed}s)` : null}</span>}
+              {(status === "done" || statusDirect === "done") && <span>Analyse terminée</span>}
+              {(status === "error" || statusDirect === "error") && <span>Erreur d'analyse</span>}
             </div>
             <div className="flex items-center gap-3">
               {/* rappel discret destinataires */}
@@ -462,7 +499,15 @@ export default function App() {
                 className="w-full rounded-xl border px-3 py-2 text-sm"
               />
             </div>
-            {errorDirect && <p className="mt-2 text-sm text-red-600">{errorDirect}</p>}
+            
+            {/* Affichage d'état */}
+            <div className="mt-3 text-sm">
+              {statusDirect === "idle" && <span className="text-gray-600">Prêt à lancer</span>}
+              {statusDirect === "running" && <span className="text-blue-600">Analyse en cours…</span>}
+              {statusDirect === "done" && <span className="text-green-600">Analyse terminée ✅</span>}
+              {statusDirect === "error" && <span className="text-red-600">{errorDirect}</span>}
+            </div>
+            
             <div className="mt-4 flex justify-end">
               <button
                 onClick={launchDirect}
@@ -515,8 +560,8 @@ export default function App() {
                 download
                 onClick={(e)=>{ if(!reportUrl) e.preventDefault(); }}
                 className={cx("rounded-full px-4 py-2 text-sm font-medium",
-                  status==="done" && reportUrl?"text-white":"text-gray-500 cursor-not-allowed")}
-                style={{ backgroundColor: status==="done" && reportUrl ? PAL.primaryDark : "#E5E7EB" }}
+                  (status==="done" || statusDirect==="done") && reportUrl?"text-white":"text-gray-500 cursor-not-allowed")}
+                style={{ backgroundColor: (status==="done" || statusDirect==="done") && reportUrl ? PAL.primaryDark : "#E5E7EB" }}
               >
                 Télécharger le rapport
               </a>
@@ -525,8 +570,8 @@ export default function App() {
                 target="_blank" rel="noreferrer"
                 onClick={(e)=>{ if(!mapUrl) e.preventDefault(); }}
                 className={cx("rounded-full px-4 py-2 text-sm font-medium",
-                  status==="done" && mapUrl?"text-white":"text-gray-500 cursor-not-allowed")}
-                style={{ backgroundColor: status==="done" && mapUrl ? PAL.coral : "#E5E7EB" }}
+                  (status==="done" || statusDirect==="done") && mapUrl?"text-white":"text-gray-500 cursor-not-allowed")}
+                style={{ backgroundColor: (status==="done" || statusDirect==="done") && mapUrl ? PAL.coral : "#E5E7EB" }}
               >
                 Ouvrir la carte (HTML)
               </a>
