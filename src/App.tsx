@@ -144,8 +144,8 @@ export default function App() {
       });
 
       setStatus("running");
-      const data = await res.json().catch(()=>({}));
-      if (!res.ok || !data?.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data?.status !== "processing") {
         const msg = data?.detail || data?.error || `Échec (HTTP ${res.status})`;
         throw new Error(msg);
       }
