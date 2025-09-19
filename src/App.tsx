@@ -109,28 +109,16 @@ export default function App() {
       if (!file) { setError("Ajoutez d'abord un PDF."); return; }
       setError(null); setReportUrl(null); setMapUrl(null);
 
-      // Récup utilisateur pour notifier & tracer
       const { data: sess } = await supabase.auth.getSession();
       const userId = sess.session?.user?.id || "";
       const userEmail = sess.session?.user?.email || "";
 
       const base = ENV_API_BASE.replace(/\/$/,"");
-      if (!base) { setError("URL du backend non configurée dans les variables d'environnement."); return; }
-
-      // Avertissement léger si emails invalides
-      if (parsedEmails.invalid.length) {
-        setError(`Ces emails seront ignorés (non valides) : ${parsedEmails.invalid.join(", ")}`);
-      }
+      if (!base) { setError("URL du backend non configurée"); return; }
 
       setStatus("uploading");
       const form = new FormData();
       form.append("file", file);
-      form.append("schema_whitelist","public");
-      form.append("make_report","1");
-      form.append("make_map","1");
-
-      // Notifications
-      form.append("notify", "1"); // on notifie par défaut
       form.append("user_id", userId);
       form.append("user_email", userEmail);
       if (parsedEmails.valid.length) {
@@ -143,23 +131,44 @@ export default function App() {
         headers: ENV_API_KEY ? {"X-API-Key": ENV_API_KEY} : undefined
       });
 
-      setStatus("running");
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data?.status !== "processing") {
-        const msg = data?.detail || data?.error || `Échec (HTTP ${res.status})`;
-        throw new Error(msg);
+        throw new Error(data?.detail || data?.error || `Échec (HTTP ${res.status})`);
       }
 
-      const mkUrl = (rel?: string | null) => rel ? `${base}${rel}` : null;
-      setReportUrl(mkUrl(data.report_docx_url || data.report_markdown_url));
-      setMapUrl(mkUrl(data.map_html_url));
-      setStatus("done");
+      // ✅ on passe en "running" mais pas "done"
+      setStatus("running");
 
-      // (Optionnel) tu peux recharger l'historique si tu veux tout de suite le voir en bas
-      // -> si tu as exposé une méthode globale pour refresh, sinon ignore pour rester simple
+      // On récupère le job_id
+      const jobId = data.job_id;
+      if (!jobId) return;
+
+      // Polling toutes les 5s
+      const interval = setInterval(async () => {
+        try {
+          const r = await fetch(`${base}/jobs/${jobId}`, {
+            headers: ENV_API_KEY ? {"X-API-Key": ENV_API_KEY} : undefined
+          });
+          const j = await r.json();
+          if (j.status === "success") {
+            clearInterval(interval);
+            setReportUrl(j.report_docx_path);
+            setMapUrl(j.map_html_path);
+            setStatus("done");
+          } else if (j.status === "error") {
+            clearInterval(interval);
+            setError("Erreur lors du traitement.");
+            setStatus("error");
+          }
+        } catch (e) {
+          clearInterval(interval);
+          setError("Impossible de suivre le job.");
+          setStatus("error");
+        }
+      }, 5000);
 
     } catch (e:any) {
-      setError(e?.message || "Une erreur est survenue pendant l'analyse.");
+      setError(e?.message || "Une erreur est survenue.");
       setStatus("error");
     }
   }, [file, parsedEmails.valid, parsedEmails.invalid]);
