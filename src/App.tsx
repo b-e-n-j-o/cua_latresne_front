@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import supabase from "./supabaseClient";
 import LogoutButton from "./LogoutButton";
 import HistoryPanel from "./HistoryPanel";
+import { useMeta } from "./hooks/useMeta";
 
 /**
  * CUA Demo Front — Pro v2 (React + Tailwind) — Thème Latresne
@@ -39,6 +40,12 @@ function prettySize(bytes?: number | null) {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 
 export default function App() {
+  // Métadonnées de la page
+  useMeta({
+    title: "Kerelia – Automatisation des certificats d’urbanisme",
+    description:
+      "Générez vos certificats d’urbanisme (CU) à partir d’un PDF CERFA ou d’une référence parcellaire, avec rapports DOCX et cartes interactives.",
+  });
   const [file, setFile] = useState<File | null>(null);
   const [isOver, setIsOver] = useState(false);
   const [status, setStatus] = useState<Status>("idle");

@@ -1,12 +1,48 @@
 <!doctype html>
-<html lang="en">
+<html lang="fr">
   <head>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="icon" type="image/png" href="/logo_latresne.png" />
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <!-- Titre & description (affichés dans Google) -->
+    <title>Kerelia – Automatisation des certificats d’urbanisme (CU)</title>
+    <meta name="description" content="Kerelia automatise l’analyse parcellaire et la génération de certificats d’urbanisme : PLU/PLUi, SUP, PPRI, Natura 2000, cartes interactives et rapports DOCX." />
+
+    <!-- Canonical (évite les doublons vercel.app) -->
+    <link rel="canonical" href="https://kerelia.fr/" />
+
+    <!-- Open Graph / Twitter -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Kerelia" />
+    <meta property="og:title" content="Kerelia – Automatisation des certificats d’urbanisme (CU)" />
+    <meta property="og:description" content="Analyses parcellaires, cartes, rapports DOCX, tout-en-un." />
+    <meta property="og:url" content="https://kerelia.fr/" />
+    <meta property="og:image" content="https://kerelia.fr/og.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- Couleur d’UI mobile -->
+    <meta name="theme-color" content="#78B7A6" />
+
+    <!-- Favicon / icônes -->
+    <link rel="icon" type="image/png" href="/logo_latresne.png" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vite + React + TS</title>
+
+    <!-- (facultatif) JSON-LD pour un meilleur contexte marque -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Kerelia",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web",
+      "url": "https://kerelia.fr/",
+      "description": "Automatisation des certificats d’urbanisme avec analyses parcellaires, cartes et rapports.",
+      "publisher": { "@type": "Organization", "name": "Kerelia" }
+    }
+    </script>
+
+    <!-- Tailwind (si tu tiens à la CDN ici) -->
+    <script src="https://cdn.tailwindcss.com"></script>
   </head>
   <body>
     <div id="root"></div>
