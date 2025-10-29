@@ -8,16 +8,32 @@ export default function MapsViewer() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Lecture des paramètres URL
+  // Lecture et décodage du token `t`
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const url2d = params.get("carte2d") || "";
-    const url3d = params.get("carte3d") || "";
-    setCarte2d(url2d);
-    setCarte3d(url3d);
+    const token = params.get("t");
+
+    if (!token) {
+      setError("Aucun token de carte fourni.");
+      return;
+    }
+
+    try {
+      // Décodage Base64 (UTF-8 safe)
+      const decoded = JSON.parse(atob(token));
+      if (decoded.carte2d && decoded.carte3d) {
+        setCarte2d(decoded.carte2d);
+        setCarte3d(decoded.carte3d);
+      } else {
+        setError("Token invalide : données manquantes.");
+      }
+    } catch (err: any) {
+      console.error("Erreur de décodage du token :", err);
+      setError("Le lien fourni est invalide ou corrompu.");
+    }
   }, []);
 
-  // Chargement de la carte
+  // Chargement de la carte selon l’onglet sélectionné
   useEffect(() => {
     async function loadMap() {
       const url = selected === "2d" ? carte2d : carte3d;
@@ -33,6 +49,7 @@ export default function MapsViewer() {
         const blobUrl = URL.createObjectURL(blob);
         setIframeSrc(blobUrl);
       } catch (err: any) {
+        console.error("Erreur de chargement :", err);
         setError(err.message);
       } finally {
         setLoading(false);
@@ -114,6 +131,8 @@ export default function MapsViewer() {
             transform: "translate(-50%, -50%)",
             fontSize: 16,
             color: "red",
+            textAlign: "center",
+            padding: "0 1rem",
           }}
         >
           {error}
