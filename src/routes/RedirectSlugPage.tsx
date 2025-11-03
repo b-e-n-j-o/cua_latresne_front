@@ -1,5 +1,5 @@
-import { useEffect } from "react";
 import { useParams } from "react-router-dom";
+import { useEffect } from "react";
 
 export default function RedirectSlugPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -20,14 +20,12 @@ export default function RedirectSlugPage() {
         );
 
         const data = await res.json();
-        if (data.length > 0) {
-          const target = data[0].target_url;
-          window.location.href = target;
+        if (data.length > 0 && data[0].target_url) {
+          window.location.href = data[0].target_url;
         } else {
-          document.body.innerHTML = "<h2>❌ Lien inconnu ou expiré</h2>";
+          console.error("Aucun lien trouvé pour ce slug.");
         }
       } catch (err) {
-        document.body.innerHTML = "<h2>⚠️ Erreur de redirection</h2>";
         console.error("Erreur lors de la redirection :", err);
       }
     }
