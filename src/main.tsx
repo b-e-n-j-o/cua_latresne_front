@@ -5,7 +5,8 @@ import "./index.css";
 import App from "./App";
 import HistoryPage from "./HistoryPanel";
 import AuthGate from "./AuthGate";
-import MapsViewer from "./routes/MapsViewer"; // 🆕 Import ici
+import MapsViewer from "./routes/MapsViewer";
+import RedirectSlugPage from "./routes/RedirectSlugPage"; // 🆕 ajout ici
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
@@ -14,7 +15,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         <Routes>
           <Route path="/" element={<App />} />
           <Route path="/history" element={<HistoryPage />} />
-          <Route path="/maps" element={<MapsViewer />} /> {/* 🆕 ajout ici */}
+          <Route path="/maps" element={<MapsViewer />} />
+          <Route path="/m/:slug" element={<RedirectSlugPage />} /> {/* 🆕 ajout ici */}
         </Routes>
       </AuthGate>
     </BrowserRouter>
