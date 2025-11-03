@@ -1,4 +1,13 @@
+"use client";
+
 import { useEffect, useState } from "react";
+
+/**
+ * Page publique /maps
+ * - Lit le paramètre `t` dans l’URL (token encodé en base64)
+ * - Décode le JSON { id, carte2d, carte3d }
+ * - Affiche les cartes 2D / 3D dans des iframes
+ */
 
 export default function MapsViewer() {
   const [carte2d, setCarte2d] = useState<string>("");
@@ -7,25 +16,29 @@ export default function MapsViewer() {
   const [iframeSrc, setIframeSrc] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [id, setId] = useState<string>("");
 
-  // Lecture et décodage du token `t`
+  // 🧩 Étape 1 : Lecture et décodage du token base64
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get("t");
 
     if (!token) {
-      setError("Aucun token de carte fourni.");
+      setError("Aucun token de carte fourni dans l’URL.");
       return;
     }
 
     try {
-      // Décodage Base64 (UTF-8 safe)
-      const decoded = JSON.parse(atob(token));
+      // Décodage UTF-8 safe
+      const jsonStr = decodeURIComponent(escape(window.atob(token)));
+      const decoded = JSON.parse(jsonStr);
+
       if (decoded.carte2d && decoded.carte3d) {
         setCarte2d(decoded.carte2d);
         setCarte3d(decoded.carte3d);
+        setId(decoded.id || "Inconnue");
       } else {
-        setError("Token invalide : données manquantes.");
+        setError("Token invalide ou incomplet.");
       }
     } catch (err: any) {
       console.error("Erreur de décodage du token :", err);
@@ -33,7 +46,7 @@ export default function MapsViewer() {
     }
   }, []);
 
-  // Chargement de la carte selon l’onglet sélectionné
+  // 🗺️ Étape 2 : Chargement de la carte selon l’onglet sélectionné
   useEffect(() => {
     async function loadMap() {
       const url = selected === "2d" ? carte2d : carte3d;
@@ -45,12 +58,13 @@ export default function MapsViewer() {
         const res = await fetch(url);
         if (!res.ok) throw new Error(`Erreur ${res.status}`);
         const html = await res.text();
+
         const blob = new Blob([html], { type: "text/html" });
         const blobUrl = URL.createObjectURL(blob);
         setIframeSrc(blobUrl);
       } catch (err: any) {
         console.error("Erreur de chargement :", err);
-        setError(err.message);
+        setError("Impossible de charger la carte.");
       } finally {
         setLoading(false);
       }
@@ -59,55 +73,76 @@ export default function MapsViewer() {
     loadMap();
   }, [selected, carte2d, carte3d]);
 
+  // 🧭 Interface utilisateur
   return (
     <div
       style={{
         height: "100vh",
         width: "100vw",
         margin: 0,
-        background: "#f4f4f4",
-        overflow: "hidden",
+        background: "#0f172a",
+        color: "white",
         fontFamily: "system-ui, sans-serif",
+        overflow: "hidden",
         position: "relative",
       }}
     >
-      {/* Toolbar */}
+      {/* 🔹 Header */}
+      <header
+        style={{
+          padding: "1rem",
+          textAlign: "center",
+          borderBottom: "1px solid #334155",
+          background: "#1e293b",
+        }}
+      >
+        <h2 style={{ margin: 0, fontWeight: 600 }}>
+          Unité foncière {id || "inconnue"}
+        </h2>
+      </header>
+
+      {/* 🔹 Toolbar */}
       <div
         style={{
           position: "absolute",
-          top: 10,
+          top: 15,
           left: "50%",
           transform: "translateX(-50%)",
-          zIndex: 999,
-          background: "rgba(255,255,255,0.95)",
-          borderRadius: 10,
-          boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-          padding: "6px 14px",
+          zIndex: 10,
           display: "flex",
-          alignItems: "center",
-          gap: 10,
-          backdropFilter: "blur(8px)",
+          background: "rgba(255,255,255,0.1)",
+          borderRadius: 8,
+          overflow: "hidden",
+          border: "1px solid rgba(255,255,255,0.2)",
         }}
       >
-        <label htmlFor="mapSelector">🗺️ Carte :</label>
-        <select
-          id="mapSelector"
-          value={selected}
-          onChange={(e) => setSelected(e.target.value as "2d" | "3d")}
+        <button
+          onClick={() => setSelected("2d")}
           style={{
-            fontSize: 14,
-            padding: "4px 8px",
-            border: "1px solid #ccc",
-            borderRadius: 6,
-            background: "#fff",
+            padding: "0.5rem 1rem",
+            background: selected === "2d" ? "#334155" : "transparent",
+            color: "white",
+            border: "none",
+            cursor: "pointer",
           }}
         >
-          <option value="2d">Vue 2D</option>
-          <option value="3d">Vue 3D</option>
-        </select>
+          🗺️ Plan réglementaire 2D
+        </button>
+        <button
+          onClick={() => setSelected("3d")}
+          style={{
+            padding: "0.5rem 1rem",
+            background: selected === "3d" ? "#334155" : "transparent",
+            color: "white",
+            border: "none",
+            cursor: "pointer",
+          }}
+        >
+          ⛰️ Topographie 3D
+        </button>
       </div>
 
-      {/* Loader / Erreur */}
+      {/* 🔹 Loader / Erreur */}
       {loading && (
         <div
           style={{
@@ -115,13 +150,13 @@ export default function MapsViewer() {
             top: "50%",
             left: "50%",
             transform: "translate(-50%, -50%)",
-            fontSize: 16,
-            color: "#333",
+            color: "#e2e8f0",
           }}
         >
           Chargement de la carte...
         </div>
       )}
+
       {error && (
         <div
           style={{
@@ -129,29 +164,29 @@ export default function MapsViewer() {
             top: "50%",
             left: "50%",
             transform: "translate(-50%, -50%)",
-            fontSize: 16,
-            color: "red",
+            color: "#f87171",
             textAlign: "center",
-            padding: "0 1rem",
+            maxWidth: 400,
           }}
         >
           {error}
         </div>
       )}
 
-      {/* Carte */}
+      {/* 🔹 Carte */}
       {!error && (
         <iframe
-          key={selected} // force le re-render quand on change
+          key={selected}
           src={iframeSrc}
           sandbox="allow-scripts allow-same-origin"
           style={{
             width: "100%",
-            height: "100%",
+            height: "calc(100vh - 60px)",
             border: "none",
-            background: "white",
             display: loading ? "none" : "block",
+            background: "white",
           }}
+          title={`Carte ${selected}`}
         />
       )}
     </div>
