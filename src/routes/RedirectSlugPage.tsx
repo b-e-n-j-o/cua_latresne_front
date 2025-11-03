@@ -1,7 +1,7 @@
-import { useParams } from "react-router-dom";
 import { useEffect } from "react";
+import { useParams } from "react-router-dom";
 
-export default function RedirectPage() {
+export default function RedirectSlugPage() {
   const { slug } = useParams<{ slug: string }>();
 
   useEffect(() => {
@@ -24,9 +24,10 @@ export default function RedirectPage() {
           const target = data[0].target_url;
           window.location.href = target;
         } else {
-          console.error("Aucun lien trouvé pour ce slug.");
+          document.body.innerHTML = "<h2>❌ Lien inconnu ou expiré</h2>";
         }
       } catch (err) {
+        document.body.innerHTML = "<h2>⚠️ Erreur de redirection</h2>";
         console.error("Erreur lors de la redirection :", err);
       }
     }

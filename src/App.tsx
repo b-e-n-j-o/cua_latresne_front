@@ -1,16 +1,15 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import MainApp from "./routes/MainApp";
 import MapsViewer from "./routes/MapsViewer";
+import RedirectSlugPage from "./routes/RedirectSlugPage"; // 👈 ajout
 
 export default function App() {
   return (
     <Router>
       <Routes>
-        {/* Portail Kerelia - nécessite login */}
         <Route path="/" element={<MainApp />} />
-
-        {/* Nouvelle page publique */}
         <Route path="/maps" element={<MapsViewer />} />
+        <Route path="/m/:slug" element={<RedirectSlugPage />} /> {/* 👈 ajout */}
       </Routes>
     </Router>
   );
