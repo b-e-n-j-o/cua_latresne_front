@@ -18,7 +18,7 @@ const PAL = {
   ink: "#1F2937",
 };
 
-const ENV_API_BASE = (import.meta as any)?.env?.VITE_API_BASE || "";
+const ENV_API_BASE = import.meta.env.VITE_API_BASE || "";
 const ENV_API_KEY  = (import.meta as any)?.env?.VITE_API_KEY  || "";
 
 type Status = "idle" | "uploading" | "running" | "done" | "error";
