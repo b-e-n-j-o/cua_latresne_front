@@ -56,6 +56,10 @@ export default function MainApp() {
   const t0 = useRef<number | null>(null);
   const [activeStep, setActiveStep] = useState(0);
 
+  // Informations utilisateur
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+
   // Destinataires supplémentaires
   const [showExtra, setShowExtra] = useState(false);
   const [extraInput, setExtraInput] = useState("");
@@ -70,6 +74,18 @@ export default function MainApp() {
     const invalid = items.filter(i => !i.valid).map(i => i.value);
     return { items, valid, invalid };
   }, [extraInput]);
+
+  // Récupération des infos utilisateur au montage
+  useEffect(() => {
+    (async () => {
+      const { data: sess } = await supabase.auth.getSession();
+      const user = sess.session?.user;
+      if (user) {
+        setUserEmail(user.email || null);
+        setUserId(user.id || null);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     if (status !== "running") return; 
@@ -225,7 +241,19 @@ export default function MainApp() {
               <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "#9ACF8A" }} />
             </span>
           </div>
-          <LogoutButton />
+
+          {/* ✅ Bloc utilisateur visible à côté du bouton logout */}
+          <div className="flex items-center gap-4">
+            {userEmail ? (
+              <div className="text-xs text-gray-700 text-right leading-tight">
+                <div><strong>{userEmail}</strong></div>
+                <div className="text-[11px] text-gray-500">ID: {userId?.slice(0, 8)}…</div>
+              </div>
+            ) : (
+              <div className="text-xs text-gray-400 italic">Non connecté</div>
+            )}
+            <LogoutButton />
+          </div>
         </div>
       </div>
 
