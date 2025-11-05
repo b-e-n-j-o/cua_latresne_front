@@ -6,16 +6,16 @@ import { useMeta } from "../hooks/useMeta";
 
 /**
  * CUA Demo Front — Pro v2 (React + Tailwind) — Thème Latresne
+ * Adapté pour backend /analyze-cerfa + /status/{job_id}
  */
 
-// Palette (arbitraire proche du site)
 const PAL = {
-  primary: "#78B7A6",       // vert sauge (boutons, barres)
-  primaryDark: "#2E6E62",   // hover / bords
-  coral: "#E98C7E",         // accent (CTA secondaire)
-  mustard: "#E8B45C",       // petits points
-  mint: "#BEE3D2",          // fonds clairs
-  ink: "#1F2937",           // texte
+  primary: "#78B7A6",
+  primaryDark: "#2E6E62",
+  coral: "#E98C7E",
+  mustard: "#E8B45C",
+  mint: "#BEE3D2",
+  ink: "#1F2937",
 };
 
 const ENV_API_BASE = (import.meta as any)?.env?.VITE_API_BASE || "";
@@ -40,12 +40,12 @@ function prettySize(bytes?: number | null) {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 
 export default function MainApp() {
-  // Métadonnées de la page
   useMeta({
-    title: "Kerelia – Automatisation des certificats d’urbanisme",
+    title: "Kerelia – Automatisation des certificats d'urbanisme",
     description:
-      "Générez vos certificats d’urbanisme (CU) à partir d’un PDF CERFA ou d’une référence parcellaire, avec rapports DOCX et cartes interactives.",
+      "Générez vos certificats d'urbanisme (CU) à partir d'un PDF CERFA ou d'une référence parcellaire, avec rapports DOCX et cartes interactives.",
   });
+
   const [file, setFile] = useState<File | null>(null);
   const [isOver, setIsOver] = useState(false);
   const [status, setStatus] = useState<Status>("idle");
@@ -56,19 +56,12 @@ export default function MainApp() {
   const t0 = useRef<number | null>(null);
   const [activeStep, setActiveStep] = useState(0);
 
-  // --- Nouvel état pour le mode "direct" ---
-  const [parcelRef, setParcelRef] = useState("");
-  const [insee, setInsee] = useState("");
-  const [commune, setCommune] = useState("");
-  const [statusDirect, setStatusDirect] = useState<Status>("idle");
-  const [errorDirect, setErrorDirect] = useState<string | null>(null);
-
-  // --- Destinataires supplémentaires ---
+  // Destinataires supplémentaires
   const [showExtra, setShowExtra] = useState(false);
   const [extraInput, setExtraInput] = useState("");
   const parsedEmails = useMemo(() => {
     const raw = extraInput
-      .split(/[,\s;]+/)   // virgule / espace / point-virgule
+      .split(/[,\s;]+/)
       .map(s => s.trim())
       .filter(Boolean);
     const unique = Array.from(new Set(raw));
@@ -79,15 +72,15 @@ export default function MainApp() {
   }, [extraInput]);
 
   useEffect(() => {
-    if (status !== "running" && statusDirect !== "running") return; 
+    if (status !== "running") return; 
     setActiveStep(0);
     const timer = window.setInterval(() => setActiveStep((s)=>Math.min(s+1, STEP_LABELS.length-1)), 1100);
     return () => window.clearInterval(timer);
-  }, [status, statusDirect]);
+  }, [status]);
 
   useEffect(() => {
     let id: number | null = null;
-    if (status === "uploading" || status === "running" || statusDirect === "running") {
+    if (status === "uploading" || status === "running") {
       t0.current = performance.now();
       id = window.setInterval(()=>{
         if (t0.current) setElapsed(Math.round((performance.now()-t0.current)/1000));
@@ -97,14 +90,11 @@ export default function MainApp() {
       t0.current = null;
     }
     return () => { if (id) window.clearInterval(id as any); };
-  }, [status, statusDirect]);
+  }, [status]);
 
   const resetAll = () => {
     setFile(null); setIsOver(false); setStatus("idle"); setError(null);
     setReportUrl(null); setMapUrl(null); setElapsed(0); setActiveStep(0);
-    // Reset du mode direct
-    setParcelRef(""); setInsee(""); setCommune(""); setStatusDirect("idle"); setErrorDirect(null);
-    // on garde extraInput (destinataires) pour rester "visibles discrètement"
   };
 
   const onDrop = useCallback((e: React.DragEvent) => {
@@ -113,6 +103,7 @@ export default function MainApp() {
     if (f.type!=="application/pdf") { setError("Veuillez déposer un fichier PDF."); return; }
     setFile(f); setError(null);
   }, []);
+
   const onChooseFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]||null; if (!f) return;
     if (f.type!=="application/pdf") { setError("Veuillez sélectionner un fichier PDF."); return; }
@@ -135,46 +126,45 @@ export default function MainApp() {
 
       setStatus("uploading");
       const form = new FormData();
-      form.append("file", file);
-      form.append("user_id", userId);
-      form.append("user_email", userEmail);
-      if (parsedEmails.valid.length) {
-        form.append("notify_emails", parsedEmails.valid.join(","));
-      }
+      form.append("pdf", file);
+      
+      // Optionnel : ajouter code_insee si besoin
+      // form.append("code_insee", "33234");
 
-      const res = await fetch(`${base}/cua`, {
+      const res = await fetch(`${base}/analyze-cerfa`, {
         method:"POST",
         body:form,
         headers: ENV_API_KEY ? {"X-API-Key": ENV_API_KEY} : undefined
       });
 
       const data = await res.json().catch(() => ({}));
-      if (!res.ok || data?.status !== "processing") {
-        throw new Error(data?.detail || data?.error || `Échec (HTTP ${res.status})`);
+      if (!res.ok || !data?.job_id) {
+        throw new Error(data?.error || `Échec (HTTP ${res.status})`);
       }
 
-      // ✅ on passe en "running" mais pas "done"
       setStatus("running");
-
-      // On récupère le job_id
       const jobId = data.job_id;
       if (!jobId) return;
 
       // Polling toutes les 5s
       const interval = setInterval(async () => {
         try {
-          const r = await fetch(`${base}/jobs/${jobId}`, {
+          const r = await fetch(`${base}/status/${jobId}`, {
             headers: ENV_API_KEY ? {"X-API-Key": ENV_API_KEY} : undefined
           });
           const j = await r.json();
+          
           if (j.status === "success") {
             clearInterval(interval);
-            setReportUrl(j.report_docx_path);
-            setMapUrl(j.map_html_path);
+            
+            // Adapter selon la structure de j.result
+            // Exemple : j.result contient { report_docx_path: "...", map_html_path: "..." }
+            setReportUrl(j.result?.report_docx_path || j.result?.report_url || null);
+            setMapUrl(j.result?.map_html_path || j.result?.map_url || null);
             setStatus("done");
-          } else if (j.status === "error") {
+          } else if (j.status === "error" || j.status === "timeout") {
             clearInterval(interval);
-            setError("Erreur lors du traitement.");
+            setError(j.error || "Erreur lors du traitement.");
             setStatus("error");
           }
         } catch (e) {
@@ -188,99 +178,17 @@ export default function MainApp() {
       setError(e?.message || "Une erreur est survenue.");
       setStatus("error");
     }
-  }, [file, parsedEmails.valid, parsedEmails.invalid]);
-
-  const launchDirect = useCallback(async () => {
-    try {
-      if (!parcelRef || !insee || !commune) {
-        setErrorDirect("Veuillez remplir les trois champs.");
-        return;
-      }
-      setErrorDirect(null);
-      setReportUrl(null);
-      setMapUrl(null);
-
-      const { data: sess } = await supabase.auth.getSession();
-      const userId = sess.session?.user?.id || "";
-      const userEmail = sess.session?.user?.email || "";
-
-      const base = ENV_API_BASE.replace(/\/$/,"");
-      if (!base) { setErrorDirect("URL backend manquante"); return; }
-
-      setStatusDirect("running");
-
-      const res = await fetch(`${base}/cua/direct`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(ENV_API_KEY ? {"X-API-Key": ENV_API_KEY} : {})
-        },
-        body: JSON.stringify({
-          parcel: parcelRef,
-          insee,
-          commune,
-          user_id: userId,
-          user_email: userEmail,
-          notify_emails: parsedEmails.valid.join(",")
-        })
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || data?.status !== "processing") {
-        throw new Error(data?.detail || data?.error || `Échec (HTTP ${res.status})`);
-      }
-
-      // ⚡ récupération du job_id
-      const jobId = data.job_id;
-      if (!jobId) {
-        setErrorDirect("Job ID manquant dans la réponse backend.");
-        setStatusDirect("error");
-        return;
-      }
-
-      // ⏳ Polling toutes les 5s
-      const interval = setInterval(async () => {
-        try {
-          const r = await fetch(`${base}/jobs/${jobId}`, {
-            headers: ENV_API_KEY ? {"X-API-Key": ENV_API_KEY} : undefined
-          });
-          const j = await r.json();
-          if (j.status === "success") {
-            clearInterval(interval);
-            setReportUrl(j.report_docx_path);
-            setMapUrl(j.map_html_path);
-            setStatusDirect("done");
-          } else if (j.status === "error") {
-            clearInterval(interval);
-            setErrorDirect("Erreur lors du traitement direct.");
-            setStatusDirect("error");
-          }
-        } catch (e) {
-          clearInterval(interval);
-          setErrorDirect("Impossible de suivre le job direct.");
-          setStatusDirect("error");
-        }
-      }, 5000);
-
-    } catch (e:any) {
-      setErrorDirect(e?.message || "Erreur lors du lancement direct");
-      setStatusDirect("error");
-    }
-  }, [parcelRef, insee, commune, parsedEmails.valid]);
+  }, [file]);
 
   const progressPct = useMemo(() => {
-    // Progression pour PDF ou Direct
-    const isDone = status === "done" || statusDirect === "done";
-    const isIdle = (status === "idle" || status === "error") && (statusDirect === "idle" || statusDirect === "error");
-    
-    if (isDone) return 100;
-    if (isIdle) return 0;
+    if (status === "done") return 100;
+    if (status === "idle" || status === "error") return 0;
     const base = status === "uploading" ? 12 : 20;
     const stepSpan = 80/STEP_LABELS.length;
     return Math.min(95, Math.round(base + activeStep*stepSpan));
-  }, [status, statusDirect, activeStep]);
+  }, [status, activeStep]);
 
-  // Affichage compact des destinataires valides (toujours visible)
+  // Affichage compact des destinataires valides
   const extraChipsCompact = (
     parsedEmails.valid.length > 0 && (
       <div className="flex flex-wrap items-center gap-1">
@@ -318,7 +226,6 @@ export default function MainApp() {
 
       {/* Header */}
       <header className="bg-white">
-        {/* Hero bandeau Latresne */}
         <section className="relative">
           <img
             src="/home_latresne.png"
@@ -336,7 +243,6 @@ export default function MainApp() {
           />
         </section>
 
-        {/* En-tête fonctionnel (titre + config) */}
         <div className="mx-auto max-w-6xl px-4 py-6 border-b" style={{ borderColor: '#BEE3D2' }}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -399,7 +305,6 @@ export default function MainApp() {
                   Destinataires supplémentaires
                 </button>
 
-                {/* Aperçu compact (toujours visible) */}
                 {!showExtra && extraChipsCompact}
 
                 {showExtra && (
@@ -413,7 +318,6 @@ export default function MainApp() {
                     />
                     <div className="mt-1 text-xs text-gray-500">Séparez les adresses par des virgules.</div>
 
-                    {/* Chips + erreurs */}
                     {parsedEmails.items.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1">
                         {parsedEmails.items.map(i => (
@@ -446,19 +350,18 @@ export default function MainApp() {
                 className="inline-block h-2 w-2 rounded-full"
                 style={{
                   backgroundColor:
-                    (status==="done" || statusDirect==="done") ? "#10B981" :
-                    (status==="error" || statusDirect==="error") ? "#EF4444" :
-                    (status==="uploading"||status==="running"||statusDirect==="running") ? PAL.mustard : "#D1D5DB"
+                    status==="done" ? "#10B981" :
+                    status==="error" ? "#EF4444" :
+                    (status==="uploading"||status==="running") ? PAL.mustard : "#D1D5DB"
                 }}
               />
-              {(status === "idle" && statusDirect === "idle") && <span>Prêt à lancer l'analyse</span>}
+              {status === "idle" && <span>Prêt à lancer l'analyse</span>}
               {status === "uploading" && <span>Envoi du PDF…</span>}
-              {(status === "running" || statusDirect === "running") && <span>Analyse en cours… {elapsed ? `(${elapsed}s)` : null}</span>}
-              {(status === "done" || statusDirect === "done") && <span>Analyse terminée</span>}
-              {(status === "error" || statusDirect === "error") && <span>Erreur d'analyse</span>}
+              {status === "running" && <span>Analyse en cours… {elapsed ? `(${elapsed}s)` : null}</span>}
+              {status === "done" && <span>Analyse terminée</span>}
+              {status === "error" && <span>Erreur d'analyse</span>}
             </div>
             <div className="flex items-center gap-3">
-              {/* rappel discret destinataires */}
               {extraChipsCompact}
               <button onClick={resetAll} className="rounded-full border px-4 py-2 text-sm hover:bg-gray-50" title="Réinitialiser l'interface">
                 Réinitialiser
@@ -471,57 +374,6 @@ export default function MainApp() {
                 style={{ backgroundColor: PAL.primaryDark }}
               >
                 {status === "uploading"?"Envoi…": status === "running"?"Analyse en cours…":"Lancer l'analyse"}
-              </button>
-            </div>
-          </div>
-        </section>
-
-        {/* Uploader direct par référence */}
-        <section className="mt-8">
-          <div className="rounded-2xl border bg-white p-4" style={{ borderColor: PAL.mint }}>
-            <h3 className="text-sm font-semibold" style={{ color: PAL.primaryDark }}>
-              Lancer sans CERFA (parcelle directe)
-            </h3>
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
-              <input
-                type="text"
-                placeholder="Référence (ex. AC 0494)"
-                value={parcelRef}
-                onChange={e => setParcelRef(e.target.value)}
-                className="w-full rounded-xl border px-3 py-2 text-sm"
-              />
-              <input
-                type="text"
-                placeholder="Code INSEE (ex. 33234)"
-                value={insee}
-                onChange={e => setInsee(e.target.value)}
-                className="w-full rounded-xl border px-3 py-2 text-sm"
-              />
-              <input
-                type="text"
-                placeholder="Commune (ex. Latresne)"
-                value={commune}
-                onChange={e => setCommune(e.target.value)}
-                className="w-full rounded-xl border px-3 py-2 text-sm"
-              />
-            </div>
-            
-            {/* Affichage d'état */}
-            <div className="mt-3 text-sm">
-              {statusDirect === "idle" && <span className="text-gray-600">Prêt à lancer</span>}
-              {statusDirect === "running" && <span className="text-blue-600">Analyse en cours…</span>}
-              {statusDirect === "done" && <span className="text-green-600">Analyse terminée ✅</span>}
-              {statusDirect === "error" && <span className="text-red-600">{errorDirect}</span>}
-            </div>
-            
-            <div className="mt-4 flex justify-end">
-              <button
-                onClick={launchDirect}
-                disabled={statusDirect==="running"}
-                className="rounded-full px-5 py-2 text-sm font-medium text-white transition"
-                style={{ backgroundColor: PAL.primaryDark }}
-              >
-                {statusDirect==="running" ? "Analyse en cours…" : "Lancer l'analyse directe"}
               </button>
             </div>
           </div>
@@ -566,8 +418,8 @@ export default function MainApp() {
                 download
                 onClick={(e)=>{ if(!reportUrl) e.preventDefault(); }}
                 className={cx("rounded-full px-4 py-2 text-sm font-medium",
-                  (status==="done" || statusDirect==="done") && reportUrl?"text-white":"text-gray-500 cursor-not-allowed")}
-                style={{ backgroundColor: (status==="done" || statusDirect==="done") && reportUrl ? PAL.primaryDark : "#E5E7EB" }}
+                  status==="done" && reportUrl?"text-white":"text-gray-500 cursor-not-allowed")}
+                style={{ backgroundColor: status==="done" && reportUrl ? PAL.primaryDark : "#E5E7EB" }}
               >
                 Télécharger le rapport
               </a>
@@ -576,8 +428,8 @@ export default function MainApp() {
                 target="_blank" rel="noreferrer"
                 onClick={(e)=>{ if(!mapUrl) e.preventDefault(); }}
                 className={cx("rounded-full px-4 py-2 text-sm font-medium",
-                  (status==="done" || statusDirect==="done") && mapUrl?"text-white":"text-gray-500 cursor-not-allowed")}
-                style={{ backgroundColor: (status==="done" || statusDirect==="done") && mapUrl ? PAL.coral : "#E5E7EB" }}
+                  status==="done" && mapUrl?"text-white":"text-gray-500 cursor-not-allowed")}
+                style={{ backgroundColor: status==="done" && mapUrl ? PAL.coral : "#E5E7EB" }}
               >
                 Ouvrir la carte (HTML)
               </a>
