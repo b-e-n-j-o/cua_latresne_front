@@ -128,13 +128,15 @@ export default function MainApp() {
       const form = new FormData();
       form.append("pdf", file);
       
-      // Optionnel : ajouter code_insee si besoin
-      // form.append("code_insee", "33234");
+      // ✅ Ajout des métadonnées utiles
+      form.append("code_insee", "33234"); // tu peux le rendre dynamique si besoin
+      form.append("user_id", userId);
+      form.append("user_email", userEmail);
 
       const res = await fetch(`${base}/analyze-cerfa`, {
-        method:"POST",
-        body:form,
-        headers: ENV_API_KEY ? {"X-API-Key": ENV_API_KEY} : undefined
+        method: "POST",
+        body: form,
+        headers: ENV_API_KEY ? { "X-API-Key": ENV_API_KEY } : undefined,
       });
 
       const data = await res.json().catch(() => ({}));
@@ -157,10 +159,13 @@ export default function MainApp() {
           if (j.status === "success") {
             clearInterval(interval);
             
-            // Adapter selon la structure de j.result
-            // Exemple : j.result contient { report_docx_path: "...", map_html_path: "..." }
-            setReportUrl(j.result?.report_docx_path || j.result?.report_url || null);
-            setMapUrl(j.result?.map_html_path || j.result?.map_url || null);
+            // ✅ Utilisation de result_enhanced (cartes + CUA + QR) en priorité
+            const enhanced = j.result_enhanced || {};
+            const result = j.result || {};
+            
+            // Récupération des URLs depuis result_enhanced (ou fallback sur result)
+            setReportUrl(enhanced.output_cua || result?.report_docx_path || result?.report_url || null);
+            setMapUrl(enhanced.carte_2d_url || enhanced.carte_3d_url || result?.map_html_path || result?.map_url || null);
             setStatus("done");
           } else if (j.status === "error" || j.status === "timeout") {
             clearInterval(interval);
