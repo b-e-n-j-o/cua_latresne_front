@@ -240,7 +240,7 @@ export default function MainApp() {
       <div className="w-full" style={{ backgroundColor: 'rgb(190, 227, 210)' }}>
         <div className="mx-auto max-w-6xl px-4 py-2 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/logo_kerelia.png" alt="Kerelia — Certificats d’urbanisme automatisés" className="h-8 w-auto" />
+            <img src="/logo_kerelia_noir.png" alt="Kerelia — Certificats d’urbanisme automatisés" className="h-8 w-auto" />
             <span className="sr-only">Kerelia</span>
             <span className="hidden sm:inline-flex gap-1 ml-1">
               <span className="h-2 w-2 rounded-full" style={{ backgroundColor: THEME.mustard }} />
