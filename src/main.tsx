@@ -7,6 +7,7 @@ import HistoryPanel from "./HistoryPanel";
 import AuthGate from "./AuthGate";
 import MapsViewer from "./routes/MapsViewer";
 import RedirectSlugPage from "./routes/RedirectSlugPage";
+import SetPasswordPage from "./SetPassword";
 
 // Wrapper pour HistoryPanel avec les props nécessaires
 const HistoryPage = () => (
@@ -22,6 +23,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/maps" element={<MapsViewer />} />
           <Route path="/m/:slug" element={<RedirectSlugPage />} />
+          <Route path="/set-password" element={<SetPasswordPage />} />
         </Routes>
       </AuthGate>
     </BrowserRouter>
