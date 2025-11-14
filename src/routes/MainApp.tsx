@@ -1,22 +1,15 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import supabase from "../supabaseClient";
 import LogoutButton from "../LogoutButton";
 import HistoryPanel from "../HistoryPanel";
 import { useMeta } from "../hooks/useMeta";
+import UrbanHeroAnimation from "../components/UrbanHeroAnimation";
 
 /**
  * CUA Demo Front — Pro v2 (React + Tailwind) — Thème Kerelia
  * Adapté pour backend /analyze-cerfa + /status/{job_id}
  */
-
-const THEME = {
-  primary: "#78B7A6",
-  primaryDark: "#2E6E62",
-  coral: "#E98C7E",
-  mustard: "#E8B45C",
-  mint: "#BEE3D2",
-  ink: "#1F2937",
-};
 
 const ENV_API_BASE = import.meta.env.VITE_API_BASE || "";
 const ENV_API_KEY  = (import.meta as any)?.env?.VITE_API_KEY  || "";
@@ -43,8 +36,6 @@ function prettySize(bytes?: number | null) {
   const i = Math.min(Math.floor(Math.log(bytes)/Math.log(k)), sizes.length-1);
   return `${(bytes/Math.pow(k,i)).toFixed(1)} ${sizes[i]}`;
 }
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
-
 export default function MainApp() {
   useMeta({
     title: "Kerelia – Automatisation des certificats d'urbanisme",
@@ -58,28 +49,11 @@ export default function MainApp() {
   const [error, setError] = useState<string | null>(null);
   const [reportUrl, setReportUrl] = useState<string | null>(null);
   const [mapUrl, setMapUrl] = useState<string | null>(null);
-  const [elapsed, setElapsed] = useState(0);
-  const t0 = useRef<number | null>(null);
   const [activeStep, setActiveStep] = useState(0);
 
   // Informations utilisateur
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
-
-  // Destinataires supplémentaires
-  const [showExtra, setShowExtra] = useState(false);
-  const [extraInput, setExtraInput] = useState("");
-  const parsedEmails = useMemo(() => {
-    const raw = extraInput
-      .split(/[,\s;]+/)
-      .map(s => s.trim())
-      .filter(Boolean);
-    const unique = Array.from(new Set(raw));
-    const items = unique.map(v => ({ value: v, valid: EMAIL_RE.test(v) }));
-    const valid = items.filter(i => i.valid).map(i => i.value);
-    const invalid = items.filter(i => !i.valid).map(i => i.value);
-    return { items, valid, invalid };
-  }, [extraInput]);
 
   // Récupération des infos utilisateur au montage
   useEffect(() => {
@@ -93,23 +67,9 @@ export default function MainApp() {
     })();
   }, []);
 
-  useEffect(() => {
-    let id: number | null = null;
-    if (status === "uploading" || status === "running") {
-      t0.current = performance.now();
-      id = window.setInterval(()=>{
-        if (t0.current) setElapsed(Math.round((performance.now()-t0.current)/1000));
-      }, 500);
-    } else {
-      if (id) window.clearInterval(id);
-      t0.current = null;
-    }
-    return () => { if (id) window.clearInterval(id as any); };
-  }, [status]);
-
   const resetAll = () => {
     setFile(null); setIsOver(false); setStatus("idle"); setError(null);
-    setReportUrl(null); setMapUrl(null); setElapsed(0); setActiveStep(0);
+    setReportUrl(null); setMapUrl(null); setActiveStep(0);
   };
 
   const onDrop = useCallback((e: React.DragEvent) => {
@@ -217,270 +177,214 @@ export default function MainApp() {
     return Math.min(95, Math.round(base + activeStep*stepSpan));
   }, [status, activeStep]);
 
-  // Affichage compact des destinataires valides
-  const extraChipsCompact = (
-    parsedEmails.valid.length > 0 && (
-      <div className="flex flex-wrap items-center gap-1">
-        {parsedEmails.valid.slice(0, 5).map(e => (
-          <span key={e} className="inline-flex items-center rounded-full px-2 py-0.5 text-xs"
-                style={{ backgroundColor: "#EEF6F3", color: THEME.primaryDark, border: "1px solid #D1EAE2" }}>
-            {e}
-          </span>
-        ))}
-        {parsedEmails.valid.length > 5 && (
-          <span className="text-xs text-gray-500">+{parsedEmails.valid.length - 5}</span>
-        )}
-      </div>
-    )
-  );
+  const showProgress = status !== "idle";
 
   return (
-    <div className="min-h-screen" style={{ color: THEME.ink, backgroundColor: "#F6FAF8" }}>
-      {/* Brand strip */}
-      <div className="w-full" style={{ backgroundColor: 'rgb(190, 227, 210)' }}>
-        <div className="mx-auto max-w-6xl px-4 py-2 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src="/logo_kerelia_noir.png" alt="Kerelia — Certificats d’urbanisme automatisés" className="h-8 w-auto" />
-            <span className="sr-only">Kerelia</span>
-            <span className="hidden sm:inline-flex gap-1 ml-1">
-              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: THEME.mustard }} />
-              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: THEME.coral }} />
-              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: THEME.primary }} />
-              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "#9ACF8A" }} />
-            </span>
-          </div>
-
-          {/* ✅ Bloc utilisateur visible à côté du bouton logout */}
-          <div className="flex items-center gap-4">
-            {userEmail ? (
-              <div className="text-xs text-gray-700 text-right leading-tight">
-                <div><strong>{userEmail}</strong></div>
-                <div className="text-[11px] text-gray-500">ID: {userId?.slice(0, 8)}…</div>
-              </div>
-            ) : (
-              <div className="text-xs text-gray-400 italic">Non connecté</div>
-            )}
-            <LogoutButton />
-          </div>
-        </div>
+    <div className="min-h-screen bg-[#0b131f] text-[#d5e1e3] relative overflow-hidden">
+      <div className="absolute inset-0 pointer-events-none opacity-90">
+        <UrbanHeroAnimation />
       </div>
-
-      {/* Header */}
-      <header className="bg-white">
-        <section className="relative">
-          <img
-            src="/home_latresne.png"
-            alt="Bandeau urbain — Kerelia"
-            className="h-14 md:h-24 lg:h-36 w-full object-cover object-center select-none"
-            draggable={false}
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-transparent" />
-          <h2 className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white text-xl md:text-3xl font-semibold drop-shadow">
-            Certificats d’urbanisme automatisés
-          </h2>
-        </section>
-
-        <div className="mx-auto max-w-6xl px-4 py-6 border-b" style={{ borderColor: '#BEE3D2' }}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-semibold tracking-tight" style={{ color: THEME.primaryDark }}>
-                Kerelia — Certificats d’urbanisme automatisés
-              </h1>
-              <p className="mt-1 max-w-2xl text-sm text-gray-600">
-                Déposez un <span className="font-medium">CERFA (PDF)</span>, lancez l'analyse. À la fin : un
-                <span className="font-medium"> rapport (.docx)</span> et une <span className="font-medium">carte (HTML)</span>.
-              </p>
+      <div className="relative z-10 flex flex-col min-h-screen">
+        {/* ====== HEADER ====== */}
+        <header className="px-6 lg:px-10 pt-6">
+          <div className="w-full max-w-[1400px] mx-auto px-6 py-4 flex items-center justify-between rounded-2xl border border-white/15 bg-white/10 backdrop-blur-2xl">
+            <div className="flex items-center gap-3">
+              <img
+                src="/logo_kerelia_noir.png"
+                alt="Kerelia"
+                className="h-8 w-auto"
+              />
             </div>
-          </div>
-        </div>
-      </header>
 
-      {/* Content */}
-      <main className="mx-auto max-w-6xl px-4 py-8">
-        {/* Uploader */}
-        <section>
-          <div
-            onDragOver={(e)=>{e.preventDefault(); setIsOver(true);}}
-            onDragLeave={()=>setIsOver(false)}
-            onDrop={onDrop}
-            className={cx(
-              "relative flex flex-col items-center justify-center w-full rounded-2xl border-2 border-dashed bg-white p-8 transition",
-              isOver?"bg-[#F0FAF7]":""
-            )}
-            style={{ borderColor: isOver ? THEME.primary : "#D1D5DB" }}
-          >
-            <div className="text-center">
-              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full" style={{ backgroundColor: THEME.mint }}>
-                <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ color: THEME.primaryDark }}>
-                  <path d="M12 16V4m0 12l-3-3m3 3l3-3" strokeLinecap="round" strokeLinejoin="round" />
-                  <rect x="3" y="16" width="18" height="5" rx="1.5" />
-                </svg>
-              </div>
-              <h2 className="text-lg font-medium">Déposez votre CERFA (PDF)</h2>
-              <p className="mt-1 text-sm text-gray-600">ou</p>
-              <div className="mt-3">
-                <label className="inline-flex cursor-pointer items-center gap-2 rounded-full px-4 py-2 text-white hover:opacity-95" style={{ backgroundColor: THEME.primaryDark }}>
-                  <input type="file" accept="application/pdf" className="hidden" onChange={onChooseFile} />
-                  Choisir un fichier
-                </label>
-              </div>
-              {file && (
-                <div className="mt-3 text-sm text-gray-700">
-                  Sélectionné : <span className="font-medium">{file.name}</span>
-                  <span className="text-gray-500"> — {prettySize(file.size)}</span>
+            <div className="flex items-center gap-4 text-right">
+              {userEmail && (
+                <div className="text-xs leading-tight">
+                  <div className="font-semibold">{userEmail}</div>
+                  <div className="text-[11px] text-[#d5e1e3]/60">ID: {userId?.slice(0, 8)}…</div>
                 </div>
               )}
-
-              {/* Toggle destinataires supplémentaires */}
-              <div className="mt-4 text-sm">
-                <button
-                  type="button"
-                  onClick={() => setShowExtra(v => !v)}
-                  className="underline underline-offset-2"
-                  style={{ color: THEME.primaryDark }}
-                >
-                  Destinataires supplémentaires
-                </button>
-
-                {!showExtra && extraChipsCompact}
-
-                {showExtra && (
-                  <div className="mt-2 text-left">
-                    <input
-                      type="text"
-                      value={extraInput}
-                      onChange={e => setExtraInput(e.target.value)}
-                      placeholder="ex. urbanisme@commune.fr, jean.dupont@mairie.fr"
-                      className="w-full rounded-xl border px-3 py-2 text-sm"
-                    />
-                    <div className="mt-1 text-xs text-gray-500">Séparez les adresses par des virgules.</div>
-
-                    {parsedEmails.items.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {parsedEmails.items.map(i => (
-                          <span
-                            key={i.value}
-                            className="inline-flex items-center rounded-full px-2 py-0.5 text-xs border"
-                            style={{
-                              backgroundColor: i.valid ? "#EEF6F3" : "#FEF2F2",
-                              color: i.valid ? THEME.primaryDark : "#991B1B",
-                              borderColor: i.valid ? "#D1EAE2" : "#FECACA"
-                            }}
-                          >
-                            {i.value}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {error && (<p className="mt-3 text-sm" style={{ color: "#C2410C" }}>{error}</p>)}
+              <LogoutButton />
             </div>
           </div>
+        </header>
 
-          {/* Controls */}
-          <div className="mt-4 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <span
-                className="inline-block h-2 w-2 rounded-full"
-                style={{
-                  backgroundColor:
-                    status==="done" ? "#10B981" :
-                    status==="error" ? "#EF4444" :
-                    (status==="uploading"||status==="running") ? THEME.mustard : "#D1D5DB"
-                }}
-              />
-              {status === "idle" && <span>Prêt à lancer l'analyse</span>}
-              {status === "uploading" && <span>Envoi du PDF…</span>}
-              {status === "running" && <span>Analyse en cours… {elapsed ? `(${elapsed}s)` : null}</span>}
-              {status === "done" && <span>Analyse terminée</span>}
-              {status === "error" && <span>Erreur d'analyse</span>}
+        {/* ====== CONTENU ====== */}
+        <main
+          className={cx(
+            "flex-1 w-full max-w-[1400px] mx-auto px-6 lg:px-10 py-10 grid gap-10",
+            showProgress ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1"
+          )}
+        >
+          {/* ==== COLONNE GAUCHE — UPLOAD ==== */}
+          <div className="bg-transparent backdrop-blur-2xl rounded-2xl p-8">
+            <h2 className="text-2xl font-semibold mb-6">Déposer un CERFA (PDF)</h2>
+
+            {/* ZONE DROP */}
+            <div
+              onDragOver={(e) => { e.preventDefault(); setIsOver(true); }}
+              onDragLeave={() => setIsOver(false)}
+              onDrop={onDrop}
+              className={cx(
+                "flex flex-col items-center justify-center w-full rounded-2xl border-2 border-dashed p-8 transition bg-white/5",
+                isOver ? "border-[#ff4f3b] bg-white/10" : "border-white/20"
+              )}
+            >
+              <p className="text-lg mb-3">Déposez un fichier PDF</p>
+
+              {/* Bouton choisir */}
+              <label className="cursor-pointer inline-flex items-center gap-2 bg-[#1a2b42] px-4 py-2 rounded-lg hover:bg-[#1a2b42]/80 transition">
+                <input type="file" accept="application/pdf" className="hidden" onChange={onChooseFile} />
+                Choisir un fichier
+              </label>
+
+              {file && (
+                <p className="mt-4 text-sm">
+                  <span className="font-medium">{file.name}</span>
+                  <span className="text-[#d5e1e3]/60"> — {prettySize(file.size)}</span>
+                </p>
+              )}
+
+              {error && (
+                <p className="mt-4 text-sm text-[#ff4f3b]">{error}</p>
+              )}
             </div>
-            <div className="flex items-center gap-3">
-              {extraChipsCompact}
-              <button onClick={resetAll} className="rounded-full border px-4 py-2 text-sm hover:bg-gray-50" title="Réinitialiser l'interface">
+
+            {/* Actions */}
+            <div className="mt-6 flex flex-wrap justify-between items-center gap-4">
+              <button
+                onClick={resetAll}
+                className="px-4 py-2 border border-white/20 rounded-lg hover:bg-white/10 transition"
+              >
                 Réinitialiser
               </button>
+
               <button
                 onClick={launch}
                 disabled={disabled}
-                className={cx("rounded-full px-5 py-2 text-sm font-medium text-white transition",
-                  disabled?"opacity-60 cursor-not-allowed":"hover:brightness-95")}
-                style={{ backgroundColor: THEME.primaryDark }}
+                className={cx(
+                  "px-5 py-2 rounded-lg font-medium transition",
+                  disabled ? "opacity-50 bg-[#1a2b42]" : "bg-[#ff4f3b] hover:opacity-90"
+                )}
               >
-                {status === "uploading"?"Envoi…": status === "running"?"Analyse en cours…":"Lancer l'analyse"}
+                {status === "uploading"
+                  ? "Envoi…"
+                  : status === "running"
+                  ? "Analyse…"
+                  : "Lancer l'analyse"}
               </button>
             </div>
           </div>
-        </section>
 
-        {/* Progression & étapes */}
-        <section className="mt-6">
-          <div className="rounded-2xl border bg-white p-4" style={{ borderColor: THEME.mint }}>
-            <div className="mb-3 h-2 w-full overflow-hidden rounded-full" style={{ backgroundColor: "#EEF6F3" }}>
-              <div className="h-2 rounded-full transition-all" style={{ width: `${progressPct}%`, backgroundColor: THEME.primary }} />
-            </div>
-            <div className="grid gap-2 md:grid-cols-3 lg:grid-cols-6">
-              {STEP_LABELS.map((label, i) => (
-                <div key={label} className="flex items-center gap-2 text-xs">
-                  <span
-                    className="inline-flex h-5 w-5 items-center justify-center rounded-full border"
-                    style={{
-                      backgroundColor: i<activeStep?THEME.primary: i===activeStep? "#F0FAF7":"#F9FAFB",
-                      color: i<activeStep?"white": THEME.primaryDark,
-                      borderColor: THEME.mint
-                    }}
-                  >
-                    {i+1}
-                  </span>
-                  <span className={cx("truncate", i<=activeStep?"text-gray-800":"text-gray-400")}>{label}</span>
+          {/* ==== COLONNE DROITE — PROGRESSION ==== */}
+          <AnimatePresence>
+            {showProgress && (
+              <motion.div
+                key="progress-panel"
+                initial={{ opacity: 0, y: 20, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 20, scale: 0.98 }}
+                transition={{ duration: 0.3 }}
+                className="bg-white/10 backdrop-blur-2xl border border-white/15 rounded-2xl p-8"
+              >
+                <h2 className="text-2xl font-semibold mb-6">Progression</h2>
+
+                {/* Barre de progression */}
+                <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden mb-6">
+                  <div
+                    className="h-2 bg-[#ff4f3b] rounded-full transition-all"
+                    style={{ width: `${progressPct}%` }}
+                  />
                 </div>
-              ))}
-            </div>
+
+                {/* Étapes */}
+                <div className="space-y-4">
+                  {STEP_LABELS.map((label, i) => {
+                    const isActive = i === activeStep;
+                    return (
+                      <div key={label} className="flex items-center gap-3">
+                        <motion.div
+                          className={cx(
+                            "h-6 w-6 flex items-center justify-center rounded-full border text-sm",
+                            i < activeStep
+                              ? "bg-[#ff4f3b] text-white border-[#ff4f3b]"
+                              : isActive
+                              ? "bg-white/10 border-white/20"
+                              : "bg-transparent border-white/20"
+                          )}
+                          animate={
+                            isActive
+                              ? {
+                                  boxShadow: [
+                                    "0 0 0px rgba(255,79,59,0)",
+                                    "0 0 18px rgba(255,79,59,0.65)",
+                                    "0 0 0px rgba(255,79,59,0)",
+                                  ],
+                                  scale: [1, 1.08, 1],
+                                }
+                              : undefined
+                          }
+                          transition={
+                            isActive
+                              ? { duration: 1.8, repeat: Infinity, ease: "easeInOut" }
+                              : undefined
+                          }
+                        >
+                          {i + 1}
+                        </motion.div>
+                        <span
+                          className={cx(
+                            "transition-colors",
+                            isActive ? "text-white" : "text-[#d5e1e3]/70"
+                          )}
+                        >
+                          {label}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Résultats */}
+                <h3 className="text-xl font-semibold mt-8 mb-4">Résultats</h3>
+
+                <div className="flex flex-col gap-4">
+                  <a
+                    href={reportUrl || undefined}
+                    className={cx(
+                      "px-4 py-2 rounded-lg text-center transition",
+                      status === "done" && reportUrl
+                        ? "bg-[#1a2b42] text-white"
+                        : "bg-white/10 text-white/40 cursor-not-allowed"
+                    )}
+                  >
+                    Télécharger le rapport
+                  </a>
+
+                  <a
+                    href={mapUrl || undefined}
+                    target="_blank"
+                    className={cx(
+                      "px-4 py-2 rounded-lg text-center transition",
+                      status === "done" && mapUrl
+                        ? "bg-[#ff4f3b] text-white"
+                        : "bg-white/10 text-white/40 cursor-not-allowed"
+                    )}
+                  >
+                    Ouvrir la carte (HTML)
+                  </a>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </main>
+
+        {/* ====== HISTORIQUE ====== */}
+        <div className="w-full max-w-[1400px] mx-auto px-6 lg:px-10 pb-20">
+          <div className="bg-white/10 backdrop-blur-2xl border border-white/15 rounded-2xl p-6 mt-10">
+            <HistoryPanel apiBase={ENV_API_BASE} />
           </div>
-        </section>
-
-        {/* Résultats */}
-        <section className="mt-6">
-          <div className="rounded-2xl border bg-white p-4" style={{ borderColor: THEME.mint }}>
-            <h3 className="text-sm font-semibold" style={{ color: THEME.primaryDark }}>Résultats</h3>
-            <p className="mt-1 text-sm text-gray-600">
-              Une fois l'analyse terminée, récupérez le rapport (.docx ou .md) et ouvrez la carte (HTML).
-            </p>
-            <div className="mt-4 flex flex-wrap items-center gap-3">
-              <a
-                href={reportUrl || undefined}
-                download
-                onClick={(e)=>{ if(!reportUrl) e.preventDefault(); }}
-                className={cx("rounded-full px-4 py-2 text-sm font-medium",
-                  status==="done" && reportUrl?"text-white":"text-gray-500 cursor-not-allowed")}
-                style={{ backgroundColor: status==="done" && reportUrl ? THEME.primaryDark : "#E5E7EB" }}
-              >
-                Télécharger le rapport
-              </a>
-              <a
-                href={mapUrl || undefined}
-                target="_blank" rel="noreferrer"
-                onClick={(e)=>{ if(!mapUrl) e.preventDefault(); }}
-                className={cx("rounded-full px-4 py-2 text-sm font-medium",
-                  status==="done" && mapUrl?"text-white":"text-gray-500 cursor-not-allowed")}
-                style={{ backgroundColor: status==="done" && mapUrl ? THEME.coral : "#E5E7EB" }}
-              >
-                Ouvrir la carte (HTML)
-              </a>
-            </div>
-          </div>
-        </section>
-
-        {/* Historique inline */}
-        <HistoryPanel apiBase={ENV_API_BASE} className="mt-8" />
-
-        <footer className="mt-10 pb-10 text-center text-xs" style={{ color: "#6B7280" }}>
-          Démonstration — Kerelia · Intersection parcelle & couches urbanistiques (Supabase/PostGIS)
-        </footer>
-      </main>
+        </div>
+      </div>
     </div>
   );
 }

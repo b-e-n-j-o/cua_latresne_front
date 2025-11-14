@@ -55,27 +55,32 @@ export default function HistoryPanel({ apiBase, className }: Props) {
 
   return (
     <section className={className}>
-      <div className="rounded-2xl border bg-white p-4">
-        <h3 className="text-sm font-semibold mb-3">Mes analyses précédentes</h3>
-        <div className="grid gap-3">
+      <div className="rounded-2xl border border-white/15 bg-[#0b131f]/70 backdrop-blur-xl p-6 text-[#d5e1e3]">
+        <h3 className="text-base font-semibold mb-4 text-[#d5e1e3]">
+          Mes analyses précédentes
+        </h3>
+        <div className="grid gap-4">
           {rows.map((r) => (
-            <div key={r.slug} className="rounded-xl border p-4">
-              <div className="flex items-center justify-between">
+            <div
+              key={r.slug}
+              className="rounded-xl border border-white/10 bg-white/5 p-4"
+            >
+              <div className="flex items-center justify-between gap-4">
                 <div>
-                  <div className="text-xs text-gray-500">
+                  <div className="text-xs text-[#d5e1e3]/60">
                     {r.created_at ? new Date(r.created_at).toLocaleString() : ""}
                   </div>
-                  <div className="text-sm font-medium">
+                  <div className="text-sm font-medium text-[#d5e1e3]">
                     {r.commune || "Commune"} — INSEE {r.code_insee || "?"}
                   </div>
                 </div>
                 <span
-                  className={`text-xs rounded-full px-2 py-1 ${
+                  className={`text-xs rounded-full px-3 py-1 font-medium ${
                     r.status === "success"
-                      ? "bg-emerald-100 text-emerald-700"
+                      ? "bg-[#1a2b42] text-[#d5e1e3]"
                       : r.status === "error"
-                      ? "bg-red-100 text-red-700"
-                      : "bg-amber-100 text-amber-700"
+                      ? "bg-[#ff4f3b]/10 text-[#ff4f3b]"
+                      : "bg-white/10 text-[#d5e1e3]"
                   }`}
                 >
                   {r.status}
@@ -88,8 +93,8 @@ export default function HistoryPanel({ apiBase, className }: Props) {
                     href={r.output_cua}
                     target="_blank"
                     rel="noreferrer"
-                    className="rounded-full px-3 py-1.5 text-sm text-white"
-                    style={{ backgroundColor: "#2E6E62" }}
+                    className="rounded-full px-3 py-1.5 text-sm font-medium text-white"
+                    style={{ backgroundColor: "#1a2b42" }}
                   >
                     Rapport
                   </a>
@@ -99,8 +104,8 @@ export default function HistoryPanel({ apiBase, className }: Props) {
                     href={r.qr_url}
                     target="_blank"
                     rel="noreferrer"
-                    className="rounded-full px-3 py-1.5 text-sm text-white"
-                    style={{ backgroundColor: "#E98C7E" }}
+                    className="rounded-full px-3 py-1.5 text-sm font-medium text-white"
+                    style={{ backgroundColor: "#ff4f3b" }}
                   >
                     Carte
                   </a>
