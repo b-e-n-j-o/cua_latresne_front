@@ -3,6 +3,9 @@ import MainApp from "./routes/MainApp";
 import MapsViewer from "./routes/MapsViewer";
 import RedirectSlugPage from "./routes/RedirectSlugPage";
 import LandingPage from "./routes/LandingPage";
+import SetPasswordPage from "./SetPassword";
+import ResourcesPage from "./routes/ResourcesPage";
+
 
 export default function App() {
   return (
@@ -12,6 +15,9 @@ export default function App() {
       <Route path="/maps" element={<MapsViewer />} />
       <Route path="/m/:slug" element={<RedirectSlugPage />} />
       <Route path="*" element={<div>Page introuvable</div>} />
+      <Route path="/set-password" element={<SetPasswordPage />} />
+      <Route path="/ressources" element={<ResourcesPage />} />
+
     </Routes>
   );
 }

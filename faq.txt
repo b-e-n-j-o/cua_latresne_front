@@ -1,0 +1,86 @@
+❓ FAQ – Certificat d’Urbanisme & Automatisation
+1. Qu’est-ce qu’un Certificat d’Urbanisme ?
+
+Un certificat d’urbanisme (CU) est un document officiel délivré par la mairie qui indique les règles d’urbanisme applicables à une parcelle : zonage PLU, servitudes, droits à construire, réseaux, risques et autres contraintes. Il constitue la base de toute démarche de construction ou de projet immobilier.
+
+2. Quelle est la différence entre un CUa et un CUb ?
+
+Le CUa (certificat d’information) informe sur les règles applicables à un terrain.
+Le CUb (certificat opérationnel) apporte en plus une réponse sur la faisabilité d’une opération précise : construction, division, changement d’usage, etc.
+
+3. Pourquoi demander un Certificat d’Urbanisme ?
+
+Le CU permet :
+
+de connaître les droits à construire d’un terrain
+
+d’identifier les servitudes (SUP), risques (PPRI, mouvements de terrain...)
+
+de sécuriser un projet
+
+de figer certaines règles pendant 18 mois
+
+4. Quels documents sont nécessaires pour une demande de CU ?
+
+Selon le type de CU, il peut être demandé :
+
+un plan de situation
+
+un plan cadastral
+
+une description de l’opération
+
+des pièces complémentaires selon les communes
+
+5. Quels sont les délais pour obtenir un Certificat d’Urbanisme ?
+
+En règle générale :
+
+CUa : 1 mois
+
+CUb : 2 mois
+Les délais peuvent varier selon la complexité du dossier et les consultations nécessaires.
+
+6. Kerelia génère-t-il un Certificat d’Urbanisme officiel ?
+
+Kerelia automatise l’analyse parcellaire, les croisements PLU/SUP/risques et la rédaction d’un certificat d’urbanisme complet.
+La délivrance officielle reste effectuée par la mairie, conformément aux procédures administratives en vigueur.
+
+7. Comment fonctionne l’analyse parcellaire automatisée ?
+
+Kerelia centralise l’ensemble des données territoriales (PLU/PLUi, SUP, risques, cadastre, altimétrie…) et applique une logique d’analyse structurée pour produire un diagnostic complet de la parcelle.
+
+8. Quelles données sont prises en compte par Kerelia ?
+
+Selon les communes, Kerelia peut intégrer :
+
+zonage PLU/PLUi
+
+servitudes d’utilité publique (SUP)
+
+risques naturels (PPRI, inondations, mouvements de terrain)
+
+protections patrimoniales
+
+altimétrie et topographie
+
+données cadastrales
+
+9. Kerelia s’adresse-t-il aux particuliers ?
+
+Oui. Les particuliers peuvent utiliser Kerelia pour obtenir une vue claire, pédagogique et synthétique de la réglementation applicable à leur terrain.
+
+10. Kerelia remplace-t-il un instructeur ou un service urbanisme ?
+
+Non. Kerelia est un outil d’aide à la décision.
+Les instructeurs conservent la responsabilité d’analyser, valider et signer les certificats d’urbanisme.
+Kerelia accélère et fiabilise le travail.
+
+11. Kerelia couvre-t-il toute la France ?
+
+La couverture dépend de la disponibilité et de la qualité des données territoriales.
+Kerelia ajoute progressivement de nouvelles communes et intercommunalités.
+
+12. Comment essayer Kerelia ?
+
+Il est possible de demander une démonstration personnalisée via la page contact. Nous présentons l’outil, ses fonctionnalités et les cas d’usage adaptés à votre commune ou votre activité.

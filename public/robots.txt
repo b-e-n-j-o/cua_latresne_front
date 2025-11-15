@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+
+# Bloque les zones privées (auth / app interne)
+Disallow: /app
+Disallow: /history
+Disallow: /m/
+
+# Inclut ton sitemap pour Google
+Sitemap: https://kerelia.fr/sitemap.xml

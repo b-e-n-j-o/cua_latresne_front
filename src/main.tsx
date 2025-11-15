@@ -11,6 +11,8 @@ import SetPasswordPage from "./SetPassword";
 import MainApp from "./routes/MainApp";
 import HistoryPanel from "./HistoryPanel";
 import AuthGate from "./AuthGate";
+import ResourcesPage from "./routes/ResourcesPage";
+
 
 // Wrapper pour HistoryPanel
 const HistoryPage = () => (
@@ -18,7 +20,7 @@ const HistoryPage = () => (
 );
 
 // ROUTES PUBLIQUES
-const PUBLIC_EXACT_ROUTES = ["/", "/set-password", "/maps"];
+const PUBLIC_EXACT_ROUTES = ["/", "/set-password", "/maps", "/ressources"];
 const PUBLIC_PREFIX_ROUTES = ["/m/"];
 
 function RouterWithAuthGate() {
@@ -41,11 +43,13 @@ function RouterWithAuthGate() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/set-password" element={<SetPasswordPage />} />
         <Route path="/maps" element={<MapsViewer />} />
+        <Route path="/ressources" element={<ResourcesPage />} />
         <Route path="/m/:slug" element={<RedirectSlugPage />} />
         <Route path="*" element={<div>Page introuvable</div>} />
       </Routes>
     );
   }
+  
 
   // Routes protégées
   return (

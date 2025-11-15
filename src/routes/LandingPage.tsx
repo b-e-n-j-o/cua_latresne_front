@@ -1,6 +1,7 @@
 import { motion, useScroll, useTransform } from "framer-motion";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import UrbanHeroAnimation from "../components/UrbanHeroAnimation";
+import AudienceSmartForm from "../components/AudienceSmartForm";
 
 const solutionCards: { title: string; description: string }[] = [
   {
@@ -11,7 +12,7 @@ const solutionCards: { title: string; description: string }[] = [
   {
     title: "Cartes d'Identité Parcellaires",
     description:
-      "Synthèse foncière et réglementaire instantanée pour chaque parcelle : PLU, risques, servitudes, altimétrie."
+      "Synthèse foncière et réglementaire instantanée pour chaque parcelle : PLU, risques, servitudes, altimétrie et cartographie réglementaire."
   },
   {
     title: "Veille Juridique par IA Agentique",
@@ -53,72 +54,9 @@ const painPoints: { title: string; description: string }[] = [
   }
 ];
 
-const howItWorksSteps: { step: string; title: string; description: string }[] = [
-  {
-    step: "01",
-    title: "Analyse des dossiers",
-    description:
-    "Kerelia traite automatiquement le dossier et fait ressortir les informations essentielles, réduisant le temps d’analyse dès la première étape."  },
-  {
-    step: "02",
-    title: "Croisement avec les données du territoire",
-    description:
-    "Kerelia centralise les données territoriales pertinentes et les transforme en un diagnostic clair et exploitable."  },
-  {
-    step: "03",
-    title: "Génération du certificat & des cartes",
-    description:
-      "Un certificat d’urbanisme complet est généré : texte structuré selon les normes officielles, références juridiques, cartes intéractives 2D/3D des parcelles, disponibles en quelques minutes."
-  }
-];
-
-const stats: { label: string; value: string; detail: string }[] = [
-  {
-    label: "Temps de traitement",
-    value: "5min",
-    detail: "Des certificats d’urbanisme et des cartes d'identité parcellaire générés en moins de 5 minutes grâce à l’automatisation."
-  },
-  {
-    label: "Erreurs & oublis",
-    value: "-90%",
-    detail: "Réduction significative des incohérences et oublis réglementaires."
-  },
-  {
-    label: "Satisfaction",
-    value: "85%",
-    detail: "Des réponses plus claires et pédagogiques pour les usagers."
-  }
-];
-
-const audienceGroups: { title: string; bullets: string[] }[] = [
-  {
-    title: "Collectivités",
-    bullets: [
-      "Réduction des délais de délivrance",
-      "Conformité réglementaire documentée",
-      "Pilotage fin du territoire"
-    ]
-  },
-  {
-    title: "Architectes & Urbanistes",
-    bullets: [
-      "Pré-diagnostic automatique des parcelles",
-      "Accès simplifié aux données réglementaires",
-      "Meilleure anticipation des contraintes"
-    ]
-  },
-  {
-    title: "Particuliers",
-    bullets: [
-      "Informations compréhensibles et pédagogiques",
-      "Réponses plus rapides aux demandes",
-      "Vision claire des droits à construire"
-    ]
-  }
-];
-
 export default function LandingPage() {
   const heroRef = useRef<HTMLDivElement | null>(null);
+  const [selectedProfile, setSelectedProfile] = useState<string | null>(null);
   const { scrollY } = useScroll();
 
   // Fade-out de l’animation topographique au scroll
@@ -136,7 +74,7 @@ export default function LandingPage() {
           <a href="/" className="flex items-center gap-3">
             <img
               src="/kerelia_logo_gris_fond_bleu_fonce.png"
-              alt="Kerelia"
+              alt="Kerelia - Automatisation des certificats d’urbanisme et analyse parcellaire"
               className="h-10 w-auto"
               loading="lazy"
             />
@@ -194,10 +132,11 @@ export default function LandingPage() {
 
             <div className="p-6 md:p-8 backdrop-blur-sm rounded-2xl">
               <h1 className="text-5xl md:text-6xl font-bold text-[#d5e1e3] mb-6 leading-tight">
-                L’urbanisme intelligent<br />et automatique.
+              Certificats d'urbanisme intelligents<br />et automatisés.
               </h1>
               <p className="text-xl text-[#d5e1e3] mb-8">
-                Des solutions IA pour automatiser l'administratif des demandes d'urbanisme.
+                Des solutions IA pour automatiser l’administratif des demandes d’urbanisme,
+                la génération de certificats d’urbanisme et l’analyse parcellaire.
               </p>
 
               <div className="flex flex-wrap items-center gap-4">
@@ -212,6 +151,12 @@ export default function LandingPage() {
                   className="inline-block bg-[#D5E1E3] text-[#FF4F3B] px-8 py-4 rounded-xl text-lg font-semibold shadow-md hover:opacity-90 transition"
                 >
                   Comment ça marche
+                </a>
+                <a
+                  href="/ressources"
+                  className="text-sm text-[#FF4F3B] underline opacity-80"
+                >
+                  En savoir plus sur les Certificats d’Urbanisme →
                 </a>
               </div>
             </div>
@@ -238,7 +183,7 @@ export default function LandingPage() {
             </h2>
             <p className="text-lg text-[#1A2B42] leading-relaxed">
               Les services d’urbanisme jonglent entre PLU, SUP, risques,
-              cadastre, jurisprudence et exigences citoyennes. Kerelia part de
+              cadastre, données réglementaires et certificats d’urbanisme. Kerelia part de
               cette complexité pour la transformer en un processus fluide et
               maîtrisé.
             </p>
@@ -321,8 +266,8 @@ export default function LandingPage() {
       </h2>
 
       <p className="text-lg text-[#1A2B42] leading-relaxed">
-        L'outil de Kerelia transforme une procédure complexe en un parcours clair et continu,
-        du dépôt de la demande jusqu’à la production d’un certificat complet et fiable.
+        L’outil de Kerelia transforme une procédure complexe en un parcours clair et continu,
+        depuis l’analyse parcellaire jusqu’à la génération du certificat d’urbanisme final.
       </p>
     </motion.div>
 
@@ -389,7 +334,7 @@ export default function LandingPage() {
 
 
 
-      {/* ================= IMPACT / STATS ================= */}
+      {/* ================= IMPACT QUALITATIF ================= */}
       <section className="bg-white py-24">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-8 lg:px-12">
           <motion.div
@@ -400,67 +345,166 @@ export default function LandingPage() {
             className="text-center mb-12"
           >
             <h2 className="text-4xl font-bold text-[#0B131F] mb-4">
-              Un impact concret sur votre quotidien
+              Un impact concret, sans jamais perdre le contrôle
             </h2>
-            <p className="text-lg text-[#1A2B42]">
-              Kerelia libère du temps pour ce qui compte : l’aménagement du
-              territoire, la qualité des projets et le service aux citoyens.
+            <p className="text-lg text-[#1A2B42] leading-relaxed max-w-3xl mx-auto">
+              Kerelia automatise l’analyse, la consolidation des données et la rédaction technique —
+              tout en laissant les collectivités, professionnels et particuliers garder la main sur
+              les décisions finales. Une automatisation qui accélère, clarifie, mais ne remplace jamais
+              l’expertise humaine.
             </p>
           </motion.div>
 
           <div className="grid md:grid-cols-3 gap-8">
-            {stats.map(({ label, value, detail }) => (
-              <motion.div
-                key={label}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.4 }}
-                transition={{ duration: 0.6 }}
-                className="bg-[#F7FAFB] rounded-xl p-6 border border-[#D5E1E3]"
-              >
-                <div className="text-4xl font-bold text-[#0B131F] mb-2">
-                  {value}
-                </div>
-                <div className="text-sm font-semibold text-[#1A2B42] mb-2">
-                  {label}
-                </div>
-                <p className="text-sm text-[#030303]/80 leading-relaxed">
-                  {detail}
-                </p>
-              </motion.div>
-            ))}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.4 }}
+              transition={{ duration: 0.6 }}
+              className="bg-[#F7FAFB] rounded-xl p-6 border border-[#D5E1E3]"
+            >
+              <h3 className="text-xl font-semibold text-[#0B131F] mb-3">
+                Rapidité d’exécution
+              </h3>
+              <p className="text-sm text-[#030303]/80 leading-relaxed">
+                Les analyses parcellaires et pré-certificats sont générés en quelques minutes,
+                réduisant drastiquement les délais liés aux recherches manuelles.
+                L’instruction finale reste entre vos mains.
+              </p>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.4 }}
+              transition={{ duration: 0.6, delay: 0.1 }}
+              className="bg-[#F7FAFB] rounded-xl p-6 border border-[#D5E1E3]"
+            >
+              <h3 className="text-xl font-semibold text-[#0B131F] mb-3">
+                Moins d’erreurs, plus de cohérence
+              </h3>
+              <p className="text-sm text-[#030303]/80 leading-relaxed">
+                L'automatisation consolide toutes les sources réglementaires pertinentes
+                (PLU/PLUi, SUP, risques, cadastre, altimétrie…) pour éviter les oublis et
+                garantir une cohérence constante entre les dossiers.
+              </p>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.4 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              className="bg-[#F7FAFB] rounded-xl p-6 border border-[#D5E1E3]"
+            >
+              <h3 className="text-xl font-semibold text-[#0B131F] mb-3">
+                Une meilleure expérience usager
+              </h3>
+              <p className="text-sm text-[#030303]/80 leading-relaxed">
+                Kerelia produit des documents plus clairs, mieux structurés et lisibles.
+                Les citoyens et les professionnels comprennent enfin les règles applicables
+                et les droits à construire… et vous gardez toujours la validation finale du CU.
+              </p>
+            </motion.div>
           </div>
         </div>
       </section>
 
-      {/* ================= AUDIENCES ================= */}
-      <section id="audiences" className="min-h-screen py-24 bg-[#F7FAFB]">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.5 }}
-          transition={{ duration: 0.7 }}
-          className="max-w-[1400px] mx-auto px-4 sm:px-8 lg:px-12 text-center"
-        >
-          <h2 className="text-4xl font-bold text-[#0B131F] mb-12">
-            Pensé pour tous les acteurs du territoire
-          </h2>
+      {/* ================= SECTION ACTEURS & FORMULAIRE ================= */}
+      <section
+        id="audiences"
+        className="py-24 bg-[#F7FAFB] border-t border-[#D5E1E3]/70"
+      >
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-8 lg:px-12">
+          <motion.h2
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.7 }}
+            className="text-4xl font-bold text-[#0B131F] text-center mb-12"
+          >
+            Dites-nous qui vous êtes — Kerelia s’adapte à vos besoins
+          </motion.h2>
 
-          <div className="grid md:grid-cols-3 gap-12 text-left">
-            {audienceGroups.map(({ title, bullets }) => (
-              <div key={title}>
-                <h3 className="text-2xl font-bold text-[#1A2B42] mb-4">
-                  {title}
-                </h3>
-                <ul className="space-y-2 text-sm text-[#030303]/85">
-                  {bullets.map((bullet) => (
-                    <li key={bullet}>• {bullet}</li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+          <div className="grid md:grid-cols-3 gap-12 mb-20">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+              className="bg-white p-8 rounded-xl shadow-sm border border-[#D5E1E3] hover:shadow-md transition cursor-pointer"
+              onClick={() => setSelectedProfile("collectivite")}
+            >
+              <h3 className="text-2xl font-bold text-[#1A2B42] mb-4">
+                Collectivités
+              </h3>
+              <p className="text-sm text-[#1A2B42]/70 leading-relaxed mb-6">
+              Modernisez votre service d’urbanisme, accélérez l’instruction et réduisez les erreurs, tout en garantissant une conformité réglementaire complète et une meilleure expérience usager.
+              Kerelia vous aide à transformer la complexité territoriale en un processus clair, fluide et maîtrisé.
+              </p>
+              <ul className="space-y-2 text-sm text-[#030303]/85 mb-4">
+                <li>• Réduction des délais de délivrance</li>
+                <li>• Conformité réglementaire documentée</li>
+                <li>• Pilotage fin du territoire</li>
+              </ul>
+              <span className="text-[#FF4F3B] font-semibold text-sm hover:underline">
+                Je suis une collectivité →
+              </span>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 25 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+              className="bg-white p-8 rounded-xl shadow-sm border border-[#D5E1E3] hover:shadow-md transition cursor-pointer"
+              onClick={() => setSelectedProfile("pro")}
+            >
+              <h3 className="text-2xl font-bold text-[#1A2B42] mb-4">
+                Architectes & Urbanistes
+              </h3>
+              <p className="text-sm text-[#1A2B42]/70 leading-relaxed mb-6">
+              Obtenez en quelques minutes une vision exhaustive du potentiel réglementaire d’un terrain : zonages, servitudes, risques et données clés consolidées automatiquement.
+              Gagnez du temps, sécurisez vos projets et anticipez les contraintes dès les premières phases de conception.
+              </p>
+              <ul className="space-y-2 text-sm text-[#030303]/85 mb-4">
+                <li>• Pré-diagnostic automatique des parcelles</li>
+                <li>• Accès simplifié aux données réglementaires</li>
+                <li>• Meilleure anticipation des contraintes</li>
+              </ul>
+              <span className="text-[#FF4F3B] font-semibold text-sm hover:underline">
+                Je suis un professionnel →
+              </span>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.7 }}
+              className="bg-white p-8 rounded-xl shadow-sm border border-[#D5E1E3] hover:shadow-md transition cursor-pointer"
+              onClick={() => setSelectedProfile("particulier")}
+            >
+              <h3 className="text-2xl font-bold text-[#1A2B42] mb-4">
+                Particuliers
+              </h3>
+              <p className="text-sm text-[#1A2B42]/70 leading-relaxed mb-6">
+              Comprenez en un coup d’œil les règles d’urbanisme qui s’appliquent à votre parcelle : droits à construire, contraintes, risques et possibilités de projet.
+              Kerelia vous accompagne pour sécuriser vos démarches et éclairer vos décisions avant d’acheter, de diviser ou de construire.
+              </p>
+              <ul className="space-y-2 text-sm text-[#030303]/85 mb-4">
+                <li>• Informations compréhensibles et pédagogiques</li>
+                <li>• Réponses plus rapides aux demandes</li>
+                <li>• Vision claire des droits à construire</li>
+              </ul>
+              <span className="text-[#FF4F3B] font-semibold text-sm hover:underline">
+                Je suis un particulier →
+              </span>
+            </motion.div>
           </div>
-        </motion.div>
+
+          <AudienceSmartForm selectedProfile={selectedProfile} />
+        </div>
       </section>
 
       {/* ================= CONTACT ================= */}
@@ -489,6 +533,17 @@ export default function LandingPage() {
             Échanger avec nous
           </a>
         </motion.div>
+      </section>
+
+      {/* ================= SECTION SEO ================= */}
+      <section className="py-16 bg-white">
+        <div className="max-w-4xl mx-auto px-6 text-center">
+          <p className="text-[#1A2B42] text-lg leading-relaxed opacity-80">
+            Kerelia accompagne les collectivités, architectes, urbanistes et particuliers dans la
+            compréhension et la production de certificats d’urbanisme, grâce à une analyse parcellaire
+            automatisée et une cartographie réglementaire de haute précision.
+          </p>
+        </div>
       </section>
 
       {/* ================= FOOTER ================= */}

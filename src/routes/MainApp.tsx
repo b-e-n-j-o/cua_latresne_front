@@ -1,15 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence } from "framer-motion";
 import supabase from "../supabaseClient";
 import LogoutButton from "../LogoutButton";
 import HistoryPanel from "../HistoryPanel";
 import { useMeta } from "../hooks/useMeta";
 import UrbanHeroAnimation from "../components/UrbanHeroAnimation";
-
-/**
- * CUA Demo Front — Pro v2 (React + Tailwind) — Thème Kerelia
- * Adapté pour backend /analyze-cerfa + /status/{job_id}
- */
+import ProgressPanel from "../components/ProgressPanel";
 
 const ENV_API_BASE = import.meta.env.VITE_API_BASE || "";
 const ENV_API_KEY  = (import.meta as any)?.env?.VITE_API_KEY  || "";
@@ -18,8 +14,8 @@ type Status = "idle" | "uploading" | "running" | "done" | "error";
 const STEP_LABELS = [
   "Analyse du CERFA",
   "Vérification de l’unité foncière",
-  "Analyse des intersections réglementaires",
-  "Génération du certificat CUA",
+  "Analyse réglementaire",
+  "Génération du CUA",
   "Finalisation",
 ] as const;
 
@@ -30,17 +26,15 @@ const STEP_MAP: Record<string, number> = {
   generation_cua: 3,
 };
 
-function cx(...xs: Array<string | false | undefined | null>) { return xs.filter(Boolean).join(" "); }
-function prettySize(bytes?: number | null) {
-  if (bytes == null) return ""; const k = 1024; const sizes = ["B","KB","MB","GB"] as const;
-  const i = Math.min(Math.floor(Math.log(bytes)/Math.log(k)), sizes.length-1);
-  return `${(bytes/Math.pow(k,i)).toFixed(1)} ${sizes[i]}`;
+function cx(...xs: Array<string | false | undefined | null>) {
+  return xs.filter(Boolean).join(" ");
 }
+
 export default function MainApp() {
   useMeta({
     title: "Kerelia – Automatisation des certificats d'urbanisme",
     description:
-      "Générez vos certificats d'urbanisme (CU) à partir d'un PDF CERFA ou d'une référence parcellaire, avec rapports DOCX et cartes interactives.",
+      "Générez vos certificats d'urbanisme (CU) à partir d'un PDF CERFA avec cartes interactives et analyses réglementaires automatisées.",
   });
 
   const [file, setFile] = useState<File | null>(null);
@@ -51,11 +45,9 @@ export default function MainApp() {
   const [mapUrl, setMapUrl] = useState<string | null>(null);
   const [activeStep, setActiveStep] = useState(0);
 
-  // Informations utilisateur
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
 
-  // Récupération des infos utilisateur au montage
   useEffect(() => {
     (async () => {
       const { data: sess } = await supabase.auth.getSession();
@@ -68,20 +60,26 @@ export default function MainApp() {
   }, []);
 
   const resetAll = () => {
-    setFile(null); setIsOver(false); setStatus("idle"); setError(null);
-    setReportUrl(null); setMapUrl(null); setActiveStep(0);
+    setFile(null);
+    setIsOver(false);
+    setStatus("idle");
+    setError(null);
+    setReportUrl(null);
+    setMapUrl(null);
+    setActiveStep(0);
   };
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault(); e.stopPropagation(); setIsOver(false);
     const f = e.dataTransfer.files?.[0]; if (!f) return;
-    if (f.type!=="application/pdf") { setError("Veuillez déposer un fichier PDF."); return; }
+    if (f.type !== "application/pdf") return setError("Veuillez déposer un PDF.");
     setFile(f); setError(null);
   }, []);
 
   const onChooseFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0]||null; if (!f) return;
-    if (f.type!=="application/pdf") { setError("Veuillez sélectionner un fichier PDF."); return; }
+    const f = e.target.files?.[0] || null;
+    if (!f) return;
+    if (f.type !== "application/pdf") return setError("Veuillez sélectionner un PDF.");
     setFile(f); setError(null);
   }, []);
 
@@ -89,22 +87,24 @@ export default function MainApp() {
 
   const launch = useCallback(async () => {
     try {
-      if (!file) { setError("Ajoutez d'abord un PDF."); return; }
-      setError(null); setReportUrl(null); setMapUrl(null);
+      if (!file) return setError("Ajoutez d'abord un PDF.");
+
+      setError(null);
+      setReportUrl(null);
+      setMapUrl(null);
       setActiveStep(0);
 
       const { data: sess } = await supabase.auth.getSession();
       const userId = sess.session?.user?.id || "";
       const userEmail = sess.session?.user?.email || "";
 
-      const base = ENV_API_BASE.replace(/\/$/,"");
-      if (!base) { setError("URL du backend non configurée"); return; }
+      const base = ENV_API_BASE.replace(/\/$/, "");
+      if (!base) return setError("Backend non configuré.");
 
       setStatus("uploading");
+
       const form = new FormData();
       form.append("pdf", file);
-      
-      // ✅ Les métadonnées utiles (commune extraite côté backend)
       form.append("code_insee", "");
       form.append("user_id", userId);
       form.append("user_email", userEmail);
@@ -116,44 +116,39 @@ export default function MainApp() {
       });
 
       const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data?.job_id) {
-        throw new Error(data?.error || `Échec (HTTP ${res.status})`);
-      }
+      if (!res.ok || !data?.job_id) throw new Error(data?.error || "Erreur backend");
 
       setStatus("running");
       const jobId = data.job_id;
-      if (!jobId) return;
 
-      // Polling toutes les 5s
       const interval = setInterval(async () => {
         try {
           const r = await fetch(`${base}/status/${jobId}`, {
-            headers: ENV_API_KEY ? {"X-API-Key": ENV_API_KEY} : undefined
+            headers: ENV_API_KEY ? { "X-API-Key": ENV_API_KEY } : undefined,
           });
           const j = await r.json();
 
           if (j.current_step) {
             const idx = STEP_MAP[j.current_step];
-            if (idx !== undefined) {
-              setActiveStep(prev => (prev !== idx ? idx : prev));
-            }
+            if (idx !== undefined) setActiveStep(idx);
           }
-          
+
           if (j.status === "success") {
             clearInterval(interval);
-            
-            // ✅ Utilisation de result_enhanced (cartes + CUA + QR) en priorité
+
             const enhanced = j.result_enhanced || {};
             const result = j.result || {};
-            
-            // Récupération des URLs depuis result_enhanced (ou fallback sur result)
-            setReportUrl(enhanced.output_cua || result?.report_docx_path || result?.report_url || null);
-            setMapUrl(enhanced.carte_2d_url || enhanced.carte_3d_url || result?.map_html_path || result?.map_url || null);
+
+            setReportUrl(enhanced.output_cua || result.report_url || null);
+            setMapUrl(enhanced.carte_2d_url || result.map_url || null);
+
             setActiveStep(STEP_LABELS.length - 1);
             setStatus("done");
-          } else if (j.status === "error" || j.status === "timeout") {
+          }
+
+          if (j.status === "error" || j.status === "timeout") {
             clearInterval(interval);
-            setError(j.error || "Erreur lors du traitement.");
+            setError(j.error || "Erreur.");
             setStatus("error");
           }
         } catch (e) {
@@ -163,8 +158,8 @@ export default function MainApp() {
         }
       }, 5000);
 
-    } catch (e:any) {
-      setError(e?.message || "Une erreur est survenue.");
+    } catch (err: any) {
+      setError(err.message || "Erreur inconnue.");
       setStatus("error");
     }
   }, [file]);
@@ -173,74 +168,66 @@ export default function MainApp() {
     if (status === "done") return 100;
     if (status === "idle" || status === "error") return 0;
     const base = status === "uploading" ? 12 : 20;
-    const stepSpan = 80/STEP_LABELS.length;
-    return Math.min(95, Math.round(base + activeStep*stepSpan));
+    return Math.min(95, Math.round(base + activeStep * (80 / STEP_LABELS.length)));
   }, [status, activeStep]);
 
   const showProgress = status !== "idle";
 
   return (
     <div className="min-h-screen bg-[#0b131f] text-[#d5e1e3] relative overflow-hidden">
+
       <div className="absolute inset-0 pointer-events-none opacity-90">
         <UrbanHeroAnimation />
       </div>
-      <div className="relative z-10 flex flex-col min-h-screen">
-        {/* ====== HEADER ====== */}
-        <header className="px-6 lg:px-10 pt-6">
-          <div className="w-full max-w-[1400px] mx-auto px-6 py-4 flex items-center justify-between rounded-2xl border border-white/15 bg-white/10 backdrop-blur-2xl">
-            <div className="flex items-center gap-3">
-              <img
-                src="/logo_kerelia_noir.png"
-                alt="Kerelia"
-                className="h-8 w-auto"
-              />
-            </div>
 
-            <div className="flex items-center gap-4 text-right">
-              {userEmail && (
-                <div className="text-xs leading-tight">
-                  <div className="font-semibold">{userEmail}</div>
-                  <div className="text-[11px] text-[#d5e1e3]/60">ID: {userId?.slice(0, 8)}…</div>
-                </div>
-              )}
-              <LogoutButton />
-            </div>
+      <header className="fixed top-0 left-0 w-full bg-transparent backdrop-blur-sm shadow-sm z-50">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-8 lg:px-12 py-4 flex items-center justify-between">
+          <img src="/logo_kerelia_noir.png" className="h-8" alt="Kerelia" />
+
+          <div className="flex items-center gap-4">
+            {userEmail && (
+              <div className="text-xs leading-tight text-white">
+                <div className="font-semibold">{userEmail}</div>
+                <div className="text-[11px] text-white/60">ID: {userId?.slice(0, 8)}…</div>
+              </div>
+            )}
+            <LogoutButton />
           </div>
-        </header>
+        </div>
+      </header>
 
-        {/* ====== CONTENU ====== */}
+      <div className="relative z-10 flex flex-col min-h-screen pt-28">
+
+        {/* MAIN CONTENT */}
         <main
           className={cx(
             "flex-1 w-full max-w-[1400px] mx-auto px-6 lg:px-10 py-10 grid gap-10",
             showProgress ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1"
           )}
         >
-          {/* ==== COLONNE GAUCHE — UPLOAD ==== */}
-          <div className="bg-transparent backdrop-blur-2xl rounded-2xl p-8">
+          {/* UPLOAD PANEL */}
+          <div className="p-8 bg-white/10 backdrop-blur-2xl border border-white/15 rounded-2xl">
             <h2 className="text-2xl font-semibold mb-6">Déposer un CERFA (PDF)</h2>
 
-            {/* ZONE DROP */}
             <div
               onDragOver={(e) => { e.preventDefault(); setIsOver(true); }}
               onDragLeave={() => setIsOver(false)}
               onDrop={onDrop}
               className={cx(
                 "flex flex-col items-center justify-center w-full rounded-2xl border-2 border-dashed p-8 transition bg-white/5",
-                isOver ? "border-[#ff4f3b] bg-white/10" : "border-white/20"
+                isOver ? "border-[#ff4f3b] bg-white/50" : "border-white/20"
               )}
             >
               <p className="text-lg mb-3">Déposez un fichier PDF</p>
 
-              {/* Bouton choisir */}
               <label className="cursor-pointer inline-flex items-center gap-2 bg-[#1a2b42] px-4 py-2 rounded-lg hover:bg-[#1a2b42]/80 transition">
                 <input type="file" accept="application/pdf" className="hidden" onChange={onChooseFile} />
                 Choisir un fichier
               </label>
 
               {file && (
-                <p className="mt-4 text-sm">
+                <p className="mt-4 text-sm opacity-80">
                   <span className="font-medium">{file.name}</span>
-                  <span className="text-[#d5e1e3]/60"> — {prettySize(file.size)}</span>
                 </p>
               )}
 
@@ -249,7 +236,6 @@ export default function MainApp() {
               )}
             </div>
 
-            {/* Actions */}
             <div className="mt-6 flex flex-wrap justify-between items-center gap-4">
               <button
                 onClick={resetAll}
@@ -275,112 +261,25 @@ export default function MainApp() {
             </div>
           </div>
 
-          {/* ==== COLONNE DROITE — PROGRESSION ==== */}
+          {/* RIGHT PANEL */}
           <AnimatePresence>
             {showProgress && (
-              <motion.div
+              <ProgressPanel
                 key="progress-panel"
-                initial={{ opacity: 0, y: 20, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 20, scale: 0.98 }}
-                transition={{ duration: 0.3 }}
-                className="bg-white/10 backdrop-blur-2xl border border-white/15 rounded-2xl p-8"
-              >
-                <h2 className="text-2xl font-semibold mb-6">Progression</h2>
-
-                {/* Barre de progression */}
-                <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden mb-6">
-                  <div
-                    className="h-2 bg-[#ff4f3b] rounded-full transition-all"
-                    style={{ width: `${progressPct}%` }}
-                  />
-                </div>
-
-                {/* Étapes */}
-                <div className="space-y-4">
-                  {STEP_LABELS.map((label, i) => {
-                    const isActive = i === activeStep;
-                    return (
-                      <div key={label} className="flex items-center gap-3">
-                        <motion.div
-                          className={cx(
-                            "h-6 w-6 flex items-center justify-center rounded-full border text-sm",
-                            i < activeStep
-                              ? "bg-[#ff4f3b] text-white border-[#ff4f3b]"
-                              : isActive
-                              ? "bg-white/10 border-white/20"
-                              : "bg-transparent border-white/20"
-                          )}
-                          animate={
-                            isActive
-                              ? {
-                                  boxShadow: [
-                                    "0 0 0px rgba(255,79,59,0)",
-                                    "0 0 18px rgba(255,79,59,0.65)",
-                                    "0 0 0px rgba(255,79,59,0)",
-                                  ],
-                                  scale: [1, 1.08, 1],
-                                }
-                              : undefined
-                          }
-                          transition={
-                            isActive
-                              ? { duration: 1.8, repeat: Infinity, ease: "easeInOut" }
-                              : undefined
-                          }
-                        >
-                          {i + 1}
-                        </motion.div>
-                        <span
-                          className={cx(
-                            "transition-colors",
-                            isActive ? "text-white" : "text-[#d5e1e3]/70"
-                          )}
-                        >
-                          {label}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Résultats */}
-                <h3 className="text-xl font-semibold mt-8 mb-4">Résultats</h3>
-
-                <div className="flex flex-col gap-4">
-                  <a
-                    href={reportUrl || undefined}
-                    className={cx(
-                      "px-4 py-2 rounded-lg text-center transition",
-                      status === "done" && reportUrl
-                        ? "bg-[#1a2b42] text-white"
-                        : "bg-white/10 text-white/40 cursor-not-allowed"
-                    )}
-                  >
-                    Télécharger le rapport
-                  </a>
-
-                  <a
-                    href={mapUrl || undefined}
-                    target="_blank"
-                    className={cx(
-                      "px-4 py-2 rounded-lg text-center transition",
-                      status === "done" && mapUrl
-                        ? "bg-[#ff4f3b] text-white"
-                        : "bg-white/10 text-white/40 cursor-not-allowed"
-                    )}
-                  >
-                    Ouvrir la carte (HTML)
-                  </a>
-                </div>
-              </motion.div>
+                labels={STEP_LABELS}
+                progressPct={progressPct}
+                activeStep={activeStep}
+                status={status}
+                reportUrl={reportUrl}
+                mapUrl={mapUrl}
+              />
             )}
           </AnimatePresence>
         </main>
 
-        {/* ====== HISTORIQUE ====== */}
+        {/* HISTORY */}
         <div className="w-full max-w-[1400px] mx-auto px-6 lg:px-10 pb-20">
-          <div className="bg-white/10 backdrop-blur-2xl border border-white/15 rounded-2xl p-6 mt-10">
+          <div className="p-6 mt-10 bg-white/10 backdrop-blur-2xl border border-white/15 rounded-2xl">
             <HistoryPanel apiBase={ENV_API_BASE} />
           </div>
         </div>
