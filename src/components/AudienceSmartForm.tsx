@@ -1,18 +1,13 @@
-import { useState } from "react";
 import { motion } from "framer-motion";
+import { useState } from "react";
 
 export default function AudienceSmartForm({ selectedProfile }: { selectedProfile: string | null }) {
   const [need, setNeed] = useState("");
   const [email, setEmail] = useState("");
-  const [parcel, setParcel] = useState("");
+  const [commune, setCommune] = useState("");
+  const [parcelle, setParcelle] = useState("");
   const [message, setMessage] = useState("");
-
-  const profileLabel = {
-    collectivite: "Collectivité",
-    pro: "Professionnel",
-    particulier: "Particulier"
-  }[selectedProfile || ""];
-
+  const [status, setStatus] = useState<"idle" | "loading" | "success">("idle");
 
   if (!selectedProfile) {
     return (
@@ -22,114 +17,170 @@ export default function AudienceSmartForm({ selectedProfile }: { selectedProfile
     );
   }
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!commune.trim()) {
+      alert("Merci d’indiquer votre commune.");
+      return;
+    }
+
+    setStatus("loading");
+
+    console.log(import.meta.env.VITE_API_BASE);
+
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_BASE}/lead`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          profile: selectedProfile,
+          need,
+          email,
+          commune,
+          parcelle,
+          message
+        })
+      });
+
+      
+
+      if (!res.ok) throw new Error("Erreur API");
+
+      setStatus("success");
+      setNeed("");
+      setEmail("");
+      setCommune("");
+      setParcelle("");
+      setMessage("");
+    } catch (err) {
+      console.error(err);
+      alert("Erreur lors de l'envoi, merci de réessayer.");
+      setStatus("idle");
+    }
+  };
+
+  const needOptions = {
+    collectivite: [
+      { value: "demo", label: "Demander une démo" },
+      { value: "automatiser", label: "Automatiser mes certificats d’urbanisme" },
+      { value: "moderniser", label: "Moderniser mon service urbanisme" }
+    ],
+    pro: [
+      { value: "analyser", label: "Analyser une parcelle" },
+      { value: "prediag", label: "Obtenir un pré-diagnostic" },
+      { value: "connaître_regles", label: "Accéder aux règles PLU/SUP" }
+    ],
+    particulier: [
+      { value: "comprendre", label: "Comprendre les règles de ma parcelle" },
+      { value: "cu", label: "Obtenir un Certificat d’Urbanisme" },
+      { value: "accompagnement", label: "Être accompagné dans mes démarches" }
+    ]
+  } as const;
+
+  const optionsForProfile =
+    needOptions[selectedProfile as keyof typeof needOptions] ?? [];
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 15 }}
+      initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ duration: 0.6 }}
-      className="bg-[#F7FAFB] border border-[#D5E1E3] rounded-xl p-10 shadow-sm max-w-3xl mx-auto"
+      className="max-w-2xl mx-auto bg-white border border-[#D5E1E3] shadow-sm p-8 rounded-2xl"
     >
-      <h3 className="text-2xl font-bold text-[#0B131F] mb-6">
-        Vous êtes : {profileLabel}
+      <h3 className="text-2xl font-bold text-[#0B131F] mb-6 text-center">
+        Dites-nous en plus pour vous aider
       </h3>
 
-      {/* Question 1 : besoin */}
-      <div className="mb-6">
-        <label className="block text-sm font-medium text-[#1A2B42] mb-2">
-          Que souhaitez-vous faire ?
-        </label>
+      {status === "success" ? (
+        <p className="text-green-600 font-semibold text-center">
+          Merci ! Nous vous recontactons très vite.
+        </p>
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-[#1A2B42] mb-1">
+              Que souhaitez-vous faire ? *
+            </label>
+            <select
+              value={need}
+              required
+              onChange={(e) => setNeed(e.target.value)}
+              className="w-full border border-[#D5E1E3] rounded-lg p-3 text-sm text-[#0B131F]"
+            >
+              <option value="">Choisir…</option>
+              {optionsForProfile.map(({ value, label }) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
 
-        <select
-          value={need}
-          onChange={(e) => setNeed(e.target.value)}
-          className="w-full p-3 border border-[#D5E1E3] rounded-xl text-sm text-[#0B131F]"
-        >
-          <option value="">Choisir…</option>
+          <div>
+            <label className="block text-sm font-medium text-[#1A2B42] mb-1">
+              Email *
+            </label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full border border-[#D5E1E3] rounded-lg p-3"
+              placeholder="email@exemple.fr"
+            />
+          </div>
 
-          {selectedProfile === "collectivite" && (
-            <>
-              <option value="demo">Demander une démo</option>
-              <option value="automatiser">Automatiser mes certificats d’urbanisme</option>
-              <option value="moderniser">Moderniser mon service urbanisme</option>
-            </>
-          )}
+          <div>
+            <label className="block text-sm font-medium text-[#1A2B42] mb-1">
+              Commune concernée *
+            </label>
+            <input
+              type="text"
+              required
+              value={commune}
+              onChange={(e) => setCommune(e.target.value)}
+              className="w-full border border-[#D5E1E3] rounded-lg p-3"
+              placeholder="ex : Latresne, Bordeaux, Pessac…"
+            />
+          </div>
 
-          {selectedProfile === "pro" && (
-            <>
-              <option value="analyser">Analyser une parcelle</option>
-              <option value="prediag">Obtenir un pré-diagnostic</option>
-              <option value="connaître_regles">Accéder aux règles PLU/SUP</option>
-            </>
-          )}
+          <div>
+            <label className="block text-sm font-medium text-[#1A2B42] mb-1">
+              Section / numéro de parcelle (optionnel)
+            </label>
+            <input
+              type="text"
+              value={parcelle}
+              onChange={(e) => setParcelle(e.target.value)}
+              className="w-full border border-[#D5E1E3] rounded-lg p-3"
+              placeholder="ex : AC 0242"
+            />
+          </div>
 
-          {selectedProfile === "particulier" && (
-            <>
-              <option value="comprendre">Comprendre les règles de ma parcelle</option>
-              <option value="cu">Obtenir un Certificat d’Urbanisme</option>
-              <option value="accompagnement">Être accompagné dans mes démarches</option>
-            </>
-          )}
-        </select>
-      </div>
+          <div>
+            <label className="block text-sm font-medium text-[#1A2B42] mb-1">
+              Message (optionnel)
+            </label>
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              className="w-full border border-[#D5E1E3] rounded-lg p-3"
+              rows={4}
+              placeholder="Décrivez votre projet ou vos questions"
+            />
+          </div>
 
-      {/* Question 2 : email */}
-      <div className="mb-6">
-        <label className="block text-sm font-medium text-[#1A2B42] mb-2">
-          Votre email
-        </label>
-        <input
-          type="email"
-          className="w-full p-3 border border-[#D5E1E3] rounded-xl text-sm"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="votre.email@mail.com"
-        />
-      </div>
-
-      {/* Question 3 : parcelle (optionnel) */}
-      <div className="mb-6">
-        <label className="block text-sm font-medium text-[#1A2B42] mb-2">
-          Parcelle / Adresse ou Commune (optionnel)
-        </label>
-        <input
-          type="text"
-          className="w-full p-3 border border-[#D5E1E3] rounded-xl text-sm"
-          value={parcel}
-          onChange={(e) => setParcel(e.target.value)}
-          placeholder="Ex : Section AC 0242, Latresne"
-        />
-      </div>
-
-      {/* Message libre */}
-      <div className="mb-6">
-        <label className="block text-sm font-medium text-[#1A2B42] mb-2">
-          Votre message (optionnel)
-        </label>
-        <textarea
-          className="w-full p-3 border border-[#D5E1E3] rounded-xl text-sm h-28"
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          placeholder="Expliquez votre besoin en quelques mots…"
-        />
-      </div>
-
-      {/* CTA */}
-      <button
-        className="w-full bg-[#FF4F3B] text-white font-semibold p-4 rounded-xl hover:opacity-90 transition"
-        onClick={() => {
-          console.log("À envoyer à Supabase plus tard :", {
-            profile: selectedProfile,
-            need,
-            email,
-            parcel,
-            message
-          });
-          alert("Merci ! Nous revenons vers vous très vite.");
-        }}
-      >
-        Envoyer
-      </button>
+          <button
+            type="submit"
+            disabled={status === "loading"}
+            className="w-full bg-[#FF4F3B] text-white font-semibold py-3 rounded-xl hover:opacity-90 transition disabled:opacity-70"
+          >
+            {status === "loading" ? "Envoi en cours…" : "Envoyer"}
+          </button>
+        </form>
+      )}
     </motion.div>
   );
 }

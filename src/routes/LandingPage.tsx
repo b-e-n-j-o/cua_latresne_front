@@ -17,7 +17,7 @@ const solutionCards: { title: string; description: string }[] = [
   {
     title: "Veille Juridique par IA Agentique",
     description:
-      "Surveillance continue des évolutions réglementaires et intégration automatique dans vos modèles de documents."
+      "Surveillance continue des évolutions réglementaires et intégration automatique dans vos modèles de documents, pour des données réglementaires à jour."
   }
 ];
 
@@ -73,7 +73,7 @@ export default function LandingPage() {
         <div className="max-w-[1400px] mx-auto px-4 sm:px-8 lg:px-12 py-4 flex items-center justify-between">
           <a href="/" className="flex items-center gap-3">
             <img
-              src="/kerelia_logo_gris_fond_bleu_fonce.png"
+              src="/k_logo_blanc_fond_bleu.png"
               alt="Kerelia - Automatisation des certificats d’urbanisme et analyse parcellaire"
               className="h-10 w-auto"
               loading="lazy"
@@ -249,88 +249,172 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ================= HOW IT WORKS ================= */}
-      <section id="how-it-works" className="bg-[#D5E1E3]/60 py-24">
-  <div className="max-w-6xl mx-auto px-6">
-    
-    {/* Titre + intro */}
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.5 }}
-      transition={{ duration: 0.7 }}
-      className="max-w-3xl mb-12"
-    >
-      <h2 className="text-4xl font-bold text-[#0B131F] mb-4">
-        Comment fonctionne le Certificat d’Urbanisme avec Kerelia ?
-      </h2>
+      {/* ===========================================================
+          SECTION — PROCESSUS COMPLET DU CERTIFICAT D’URBANISME
+      =========================================================== */}
+      <section id="how-it-works" className="py-28 bg-[#D5E1E3]/40">
+        <div className="max-w-[1400px] mx-auto px-6 sm:px-12">
+          {/* TITLE */}
+          <motion.h2
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="text-4xl font-bold text-center text-[#0B131F] mb-16"
+          >
+            Du CERFA au Certificat d’Urbanisme : un parcours clair et automatique
+          </motion.h2>
 
-      <p className="text-lg text-[#1A2B42] leading-relaxed">
-        L’outil de Kerelia transforme une procédure complexe en un parcours clair et continu,
-        depuis l’analyse parcellaire jusqu’à la génération du certificat d’urbanisme final.
-      </p>
-    </motion.div>
+          {/* ==================== FRIZE ANIMÉE ==================== */}
+          <div className="relative mb-28">
+            {/* Ligne animée */}
+            <motion.div
+              className="absolute top-12 left-0 h-[3px] bg-[#FF4F3B]/60 rounded-full"
+              initial={{ width: 0 }}
+              whileInView={{ width: "100%" }}
+              viewport={{ once: true, amount: 0.4 }}
+              transition={{ duration: 1.2, ease: "easeOut" }}
+            />
 
-    {/* Étapes */}
-    <div className="grid md:grid-cols-3 gap-8">
+            {/* Étapes */}
+            <div className="grid grid-cols-3 gap-8 relative">
+              {/* Step 1 */}
+              <motion.div
+                initial={{ opacity: 0, y: 25 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5 }}
+                className="flex flex-col items-center text-center"
+              >
+                <motion.div
+                  initial={{ scale: 0.8 }}
+                  whileInView={{ scale: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.4 }}
+                  className="h-20 w-20 flex items-center justify-center rounded-2xl bg-white shadow-lg border border-[#D5E1E3]"
+                >
+                  <span className="text-4xl">📄</span>
+                </motion.div>
 
-      {/* Étape 1 */}
-      <motion.div
-        initial={{ opacity: 0, y: 25 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, amount: 0.5 }}
-        transition={{ duration: 0.6 }}
-        className="bg-white p-6 rounded-xl shadow-sm border border-[#D5E1E3]"
-      >
-        <div className="text-sm font-mono text-[#FF4F3B] mb-2">Étape 01</div>
-        <h3 className="text-xl font-semibold text-[#0B131F] mb-3">Lecture du dossier</h3>
-        <p className="text-sm text-[#030303]/80 leading-relaxed">
-          Kerelia lit le dossier comme le ferait un instructeur : elle identifie la demande,
-          en extrait l’essentiel et prépare une base de travail cohérente dès les premières secondes.
-        </p>
-      </motion.div>
+                <h4 className="text-lg font-semibold text-[#0B131F] mt-4">CERFA</h4>
+                <p className="text-xs text-[#1A2B42]/70 mt-1">
+                  Analyse du dossier & identification de la demande
+                </p>
+              </motion.div>
 
-      {/* Étape 2 */}
-      <motion.div
-        initial={{ opacity: 0, y: 25 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, amount: 0.5 }}
-        transition={{ duration: 0.6, delay: 0.1 }}
-        className="bg-white p-6 rounded-xl shadow-sm border border-[#D5E1E3]"
-      >
-        <div className="text-sm font-mono text-[#FF4F3B] mb-2">Étape 02</div>
-        <h3 className="text-xl font-semibold text-[#0B131F] mb-3">Compréhension du terrain</h3>
-        <p className="text-sm text-[#030303]/80 leading-relaxed">
-          L’unité foncière est analysée dans son contexte réglementaire et territorial.
-          Kerelia rassemble l’ensemble des informations utiles et à jour pour restituer une
-          vision précise et immédiatement exploitable du site.
-        </p>
-      </motion.div>
+              {/* Step 2 */}
+              <motion.div
+                initial={{ opacity: 0, y: 25 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.55 }}
+                className="flex flex-col items-center text-center"
+              >
+                <motion.div
+                  initial={{ scale: 0.8 }}
+                  whileInView={{ scale: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.4 }}
+                  className="h-20 w-20 flex items-center justify-center rounded-2xl bg-white shadow-lg border border-[#D5E1E3]"
+                >
+                  <span className="text-4xl">🗺️</span>
+                </motion.div>
 
-      {/* Étape 3 */}
-      <motion.div
-        initial={{ opacity: 0, y: 25 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, amount: 0.5 }}
-        transition={{ duration: 0.6, delay: 0.2 }}
-        className="bg-white p-6 rounded-xl shadow-sm border border-[#D5E1E3]"
-      >
-        <div className="text-sm font-mono text-[#FF4F3B] mb-2">Étape 03</div>
-        <h3 className="text-xl font-semibold text-[#0B131F] mb-3">Production du certificat</h3>
-        <p className="text-sm text-[#030303]/80 leading-relaxed mb-3">
-          Le certificat d’urbanisme est rédigé dans un format clair, structuré et conforme
-          aux exigences officielles, un gain de temps appréciable pour les services
-          d’urbanisme comme pour les usagers.
-        </p>
-        <p className="text-sm text-[#030303]/80 leading-relaxed">
-          Des cartes interactives 2D et 3D sont intégrées automatiquement pour une
-          délivrance complète en quelques minutes.
-        </p>
-      </motion.div>
+                <h4 className="text-lg font-semibold text-[#0B131F] mt-4">
+                  Analyse détaillée
+                </h4>
+                <p className="text-xs text-[#1A2B42]/70 mt-1">
+                  Analyse détaillée poussée de l’unité foncière : PLU, zonages, SUP, risques, prescriptions, patrimoine, altimétrie
+                </p>
+              </motion.div>
 
-    </div>
-  </div>
-</section>
+              {/* Step 3 */}
+              <motion.div
+                initial={{ opacity: 0, y: 25 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.65 }}
+                className="flex flex-col items-center text-center"
+              >
+                <motion.div
+                  initial={{ scale: 0.8 }}
+                  whileInView={{ scale: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.4 }}
+                  className="h-20 w-20 flex items-center justify-center rounded-2xl bg-white shadow-lg border border-[#D5E1E3]"
+                >
+                  <span className="text-4xl">📝</span>
+                </motion.div>
+
+                <h4 className="text-lg font-semibold text-[#0B131F] mt-4">CU généré</h4>
+                <p className="text-xs text-[#1A2B42]/70 mt-1">
+                  Document CU structuré + annexes + cartographies 2D, topographie 3D, DPE
+                </p>
+              </motion.div>
+            </div>
+          </div>
+
+          {/* ==================== BLOCS DÉTAILLÉS ==================== */}
+          <div className="grid md:grid-cols-3 gap-10 mt-10">
+            {/* Bloc 1 */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+              className="bg-white p-8 rounded-xl shadow-sm border border-[#D5E1E3]"
+            >
+              <div className="text-sm font-mono text-[#FF4F3B] mb-2">Étape 01</div>
+              <h3 className="text-xl font-semibold text-[#0B131F] mb-3">
+                Lecture du dossier
+              </h3>
+              <p className="text-sm text-[#1A2B42]/80 leading-relaxed">
+                Kerelia lit automatiquement le CERFA, identifie la demande, les parcelles et
+                structure les informations comme le ferait un instructeur.
+              </p>
+            </motion.div>
+
+            {/* Bloc 2 */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.1 }}
+              className="bg-white p-8 rounded-xl shadow-sm border border-[#D5E1E3]"
+            >
+              <div className="text-sm font-mono text-[#FF4F3B] mb-2">Étape 02</div>
+              <h3 className="text-xl font-semibold text-[#0B131F] mb-3">
+                Compréhension du terrain
+              </h3>
+              <p className="text-sm text-[#1A2B42]/80 leading-relaxed">
+                Analyse détaillée de l’unité foncière sous tous ses angles : PLU, zonages, SUP,
+                risques, prescriptions, patrimoine, altimétrie.
+              </p>
+            </motion.div>
+
+            {/* Bloc 3 */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              className="bg-white p-8 rounded-xl shadow-sm border border-[#D5E1E3]"
+            >
+              <div className="text-sm font-mono text-[#FF4F3B] mb-2">Étape 03</div>
+              <h3 className="text-xl font-semibold text-[#0B131F] mb-3">
+                Production du CU
+              </h3>
+              <p className="text-sm text-[#1A2B42]/80 leading-relaxed mb-3">
+                Le certificat d’urbanisme est rédigé dans un format clair, structuré, avec les
+                articles réglementaires pertinents mentionnés et les cartographies réglementaires consolidées.
+              </p>
+              <p className="text-sm text-[#1A2B42]/80 leading-relaxed">
+                Les collectivités gardent 100% du contrôle final avant délivrance officielle.
+              </p>
+            </motion.div>
+          </div>
+        </div>
+      </section>
 
 
 
