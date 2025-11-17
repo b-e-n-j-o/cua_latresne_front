@@ -13,6 +13,7 @@ import HistoryPanel from "./HistoryPanel";
 import AuthGate from "./AuthGate";
 import ResourcesPage from "./routes/ResourcesPage";
 import AdminPage from "./routes/AdminPage";
+import CuaViewer from "./routes/CuaViewer";
 
 
 // Wrapper pour HistoryPanel
@@ -22,7 +23,7 @@ const HistoryPage = () => (
 
 // ROUTES PUBLIQUES
 const PUBLIC_EXACT_ROUTES = ["/", "/set-password", "/maps", "/ressources"];
-const PUBLIC_PREFIX_ROUTES = ["/m/", "/maps"];
+const PUBLIC_PREFIX_ROUTES = ["/m/", "/maps", "/cua"];
 
 function RouterWithAuthGate() {
   const location = useLocation();
@@ -44,6 +45,7 @@ function RouterWithAuthGate() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/set-password" element={<SetPasswordPage />} />
         <Route path="/maps" element={<MapsViewer />} />
+        <Route path="/cua" element={<CuaViewer />} />
         <Route path="/ressources" element={<ResourcesPage />} />
         <Route path="/m/:slug" element={<RedirectSlugPage />} />
         <Route path="*" element={<div>Page introuvable</div>} />
