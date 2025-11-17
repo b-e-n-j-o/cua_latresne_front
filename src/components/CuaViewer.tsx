@@ -205,3 +205,5 @@ export default function CuaViewer() {
     </div>
   );
 }
+
+// QR CODE
