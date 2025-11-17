@@ -3,7 +3,7 @@ import supabase from "../supabaseClient";
 import LogoutButton from "../LogoutButton";
 import HistorySidebar from "../components/HistorySidebar";
 import CuaEditor from "../components/CuaEditor";
-import ProgressPanel from "../components/ProgressPanel";
+import NewDossierPanel from "../components/NewDossierPannel";
 import { useMeta } from "../hooks/useMeta";
 
 const ENV_API_BASE = import.meta.env.VITE_API_BASE || "";
@@ -59,6 +59,7 @@ export default function MainApp() {
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
   const [historyRows, setHistoryRows] = useState<PipelineRow[]>([]);
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
+  const [showNewPanel, setShowNewPanel] = useState<boolean>(false);
 
   useEffect(() => {
     (async () => {
@@ -118,12 +119,6 @@ export default function MainApp() {
 
   const disabled = !file || status === "uploading" || status === "running";
 
-  const getButtonText = (): string => {
-    if (status === "uploading") return "Envoi…";
-    if (status === "running") return "Analyse…";
-    return "Lancer";
-  };
-
   const launch = useCallback(async () => {
     try {
       if (!file) return setError("Ajoutez un PDF");
@@ -178,6 +173,7 @@ export default function MainApp() {
             await loadHistory();
             if (j.slug) {
               setSelectedSlug(j.slug);
+              setShowNewPanel(false);
             }
           }
 
@@ -207,7 +203,6 @@ export default function MainApp() {
 
   const showProgress = status !== "idle";
   const selectedDossier = selectedSlug ? historyRows.find((r) => r.slug === selectedSlug) : null;
-  const showEditor = !!selectedSlug;
 
   return (
     <div className="min-h-screen bg-white text-[#0b131f]">
@@ -218,7 +213,12 @@ export default function MainApp() {
         selectedSlug={selectedSlug}
         onSelect={(slug: string) => {
           setSelectedSlug(slug);
+          setShowNewPanel(false);
           if (window.innerWidth < 1024) setSidebarOpen(false);
+        }}
+        onCreateNew={() => {
+          setSelectedSlug(null);
+          setShowNewPanel(true);
         }}
       />
 
@@ -241,69 +241,25 @@ export default function MainApp() {
         <div className={cx("transition-all", sidebarOpen ? "w-80" : "w-0")} />
 
         <div className="flex-1 min-h-screen flex flex-col">
-          <div className="p-6 border-b border-[#d5e1e3] bg-[#d5e1e3]/10">
-            <div className="max-w-[1200px] mx-auto">
-              {showProgress ? (
-                <ProgressPanel
-                  labels={STEP_LABELS}
-                  progressPct={progressPct}
-                  activeStep={activeStep}
-                  status={status}
-                  reportUrl={null}
-                  mapUrl={null}
-                />
-              ) : (
-                <div>
-                  <h2 className="text-lg font-semibold mb-3">Nouveau certificat</h2>
-                  <div
-                    onDragOver={(e: React.DragEvent<HTMLDivElement>) => {
-                      e.preventDefault();
-                      setIsOver(true);
-                    }}
-                    onDragLeave={() => setIsOver(false)}
-                    onDrop={onDrop}
-                    className={cx(
-                      "border-2 border-dashed rounded-lg p-6 transition text-center",
-                      isOver ? "border-[#0b131f] bg-[#d5e1e3]/30" : "border-[#d5e1e3]"
-                    )}
-                  >
-                    <p className="text-sm mb-2">Déposez un CERFA (PDF)</p>
-
-                    <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-[#0b131f] text-white rounded-lg hover:bg-[#0b131f]/90 transition">
-                      <input type="file" accept="application/pdf" className="hidden" onChange={onChooseFile} />
-                      Choisir
-                    </label>
-
-                    {file && <p className="text-xs mt-2 text-[#0b131f]/60">{file.name}</p>}
-                    {error && <p className="text-xs mt-2 text-red-600">{error}</p>}
-                  </div>
-
-                  <div className="mt-3 flex items-center gap-2">
-                    <button
-                      onClick={resetAll}
-                      className="px-4 py-2 text-sm border border-[#d5e1e3] rounded-lg hover:bg-[#d5e1e3]/20 transition"
-                    >
-                      Réinitialiser
-                    </button>
-
-                    <button
-                      onClick={launch}
-                      disabled={disabled}
-                      className={cx(
-                        "px-4 py-2 text-sm rounded-lg font-medium transition",
-                        disabled ? "opacity-50 bg-[#0b131f] text-white" : "bg-[#0b131f] text-white hover:bg-[#0b131f]/90"
-                      )}
-                    >
-                      {getButtonText()}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+          {showNewPanel && (
+            <NewDossierPanel
+              file={file}
+              isOver={isOver}
+              status={status}
+              error={error}
+              activeStep={activeStep}
+              disabled={disabled}
+              onDrop={onDrop}
+              onChooseFile={onChooseFile}
+              onReset={resetAll}
+              onLaunch={launch}
+              progressPct={progressPct}
+              showProgress={showProgress}
+            />
+          )}
 
           <div className="flex-1 bg-white">
-            {showEditor ? (
+            {selectedSlug ? (
               <CuaEditor
                 slug={selectedSlug}
                 dossier={selectedDossier}
@@ -312,11 +268,11 @@ export default function MainApp() {
                 carte2dUrl={selectedDossier?.carte_2d_url}
                 carte3dUrl={selectedDossier?.carte_3d_url}
               />
-            ) : (
+            ) : !showNewPanel ? (
               <div className="flex items-center justify-center h-full text-[#0b131f]/40">
                 Sélectionnez un dossier dans l'historique
               </div>
-            )}
+            ) : null}
           </div>
         </div>
       </div>

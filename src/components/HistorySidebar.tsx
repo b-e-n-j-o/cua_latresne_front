@@ -1,4 +1,3 @@
-import React from "react";
 import { Menu, X, FileText, Clock } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -20,6 +19,7 @@ interface HistorySidebarProps {
   onToggle: () => void;
   selectedSlug: string | null;
   onSelect: (slug: string) => void;
+  onCreateNew?: () => void;
 }
 
 export default function HistorySidebar({
@@ -28,6 +28,7 @@ export default function HistorySidebar({
   onToggle,
   selectedSlug,
   onSelect,
+  onCreateNew,
 }: HistorySidebarProps) {
   return (
     <>
@@ -72,6 +73,14 @@ export default function HistorySidebar({
               </div>
 
               <div className="flex-1 overflow-y-auto">
+                <div className="p-4">
+                  <button
+                    onClick={() => onCreateNew?.()}
+                    className="flex items-center gap-2 px-3 py-2 mb-4 text-sm bg-[#0b131f] text-white rounded-lg hover:bg-[#0b131f]/90 transition w-full"
+                  >
+                    + Nouveau dossier
+                  </button>
+                </div>
                 {rows.length === 0 ? (
                   <div className="p-4 text-center text-[#0b131f]/40 text-sm">
                     Aucun dossier
