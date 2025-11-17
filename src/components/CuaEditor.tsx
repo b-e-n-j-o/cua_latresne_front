@@ -29,9 +29,8 @@ export default function CuaEditor({ slug, dossier, apiBase, onSaved, mapsPageUrl
     const url = dossier.output_cua;
     const idx = url.indexOf("/object/public/");
     if (idx === -1) return null;
-    const path = url.substring(idx + "/object/public/".length);
-    // Enlève le bucket (premier segment)
-    return path.split("/").slice(1).join("/");
+    // Garder tout après /object/public/ - le backend gère le nettoyage avec get_docx_path()
+    return url.substring(idx + "/object/public/".length);
   }, [dossier]);
 
   const token = docxPath ? buildToken(slug, docxPath) : null;
@@ -215,5 +214,3 @@ export default function CuaEditor({ slug, dossier, apiBase, onSaved, mapsPageUrl
     </div>
   );
 }
-
-//klklk
