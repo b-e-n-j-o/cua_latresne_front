@@ -19,6 +19,17 @@ export default function CuaEditor({ slug, apiBase, onSaved, carte2dUrl, carte3dU
 
   const base = apiBase.replace(/\/$/, "");
 
+  function stripSupabaseUrl(url: string): string {
+    // Si c'est déjà un chemin interne, on retourne direct
+    if (!url.startsWith("http")) return url;
+
+    // Extraire après "/object/public/"
+    const idx = url.indexOf("/object/public/");
+    if (idx === -1) return url;
+
+    return url.substring(idx + "/object/public/".length);
+  }
+
   useEffect(() => {
     if (!slug) return;
 
@@ -33,12 +44,14 @@ export default function CuaEditor({ slug, apiBase, onSaved, carte2dUrl, carte3dU
         if (!info.success || !info.pipeline?.output_cua)
           throw new Error("Aucun fichier DOCX pour ce dossier");
 
-        const docxPath = info.pipeline.output_cua;
+        const rawPath = info.pipeline.output_cua;
+        // 2️⃣ Extraire le chemin interne Supabase depuis l'URL complète
+        const docxPath = stripSupabaseUrl(rawPath);
 
-        // 2️⃣ Construire le token attendu par le backend
+        // 3️⃣ Construire le token attendu par le backend
         const token = btoa(JSON.stringify({ docx: docxPath }));
 
-        // 3️⃣ Charger le HTML via l'endpoint correct
+        // 4️⃣ Charger le HTML via l'endpoint correct
         const res = await fetch(`${base}/cua/html?t=${token}`);
         if (!res.ok) throw new Error("Document introuvable");
 
@@ -46,7 +59,7 @@ export default function CuaEditor({ slug, apiBase, onSaved, carte2dUrl, carte3dU
         setHtml(data.html || "");
         setError(null);
 
-        // 4️⃣ Sauvegarder le token pour mise à jour
+        // 5️⃣ Sauvegarder le token pour mise à jour
         setCurrentToken(token);
       } catch (e: any) {
         setError(e.message || "Erreur de chargement");
