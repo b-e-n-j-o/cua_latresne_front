@@ -18,6 +18,7 @@ export default function CuaViewer() {
 
     setToken(t);
 
+    // Décode le token Base64 provenant du lien
     try {
       const decoded = JSON.parse(atob(t));
       if (decoded.docx) {
@@ -49,9 +50,11 @@ export default function CuaViewer() {
   }
 
   if (loading) {
-    return <div style={{ textAlign: "center", marginTop: "10%" }}>
-      Chargement du CUA…
-    </div>;
+    return (
+      <div style={{ textAlign: "center", marginTop: "10%" }}>
+        Chargement du CUA…
+      </div>
+    );
   }
 
   return (
@@ -61,7 +64,14 @@ export default function CuaViewer() {
       </h1>
 
       {/* Actions */}
-      <div style={{ display: "flex", gap: 10, justifyContent: "center", margin: "20px 0" }}>
+      <div
+        style={{
+          display: "flex",
+          gap: 10,
+          justifyContent: "center",
+          margin: "20px 0",
+        }}
+      >
         {docxUrl && (
           <a
             href={docxUrl}
@@ -95,11 +105,98 @@ export default function CuaViewer() {
         )}
       </div>
 
-      {/* Contenu HTML */}
+      {/* STYLES DU DOCUMENT */}
+      <style>
+        {`
+        .cua-html {
+          font-family: "Inter", sans-serif;
+          line-height: 1.6;
+          font-size: 15px;
+          color: #1a1a1a;
+        }
+
+        .cua-html h1 {
+          font-size: 28px;
+          font-weight: 700;
+          margin: 40px 0 20px;
+          text-align: center;
+          color: #111;
+        }
+
+        .cua-html h2 {
+          font-size: 22px;
+          margin: 30px 0 10px;
+          font-weight: 600;
+          color: #0A7AFE;
+        }
+
+        .cua-html h3 {
+          font-size: 18px;
+          margin: 25px 0 8px;
+          font-weight: 600;
+        }
+
+        .cua-html p {
+          margin: 10px 0;
+          text-align: justify;
+        }
+
+        .cua-html img {
+          display: block;
+          margin: 20px auto;
+          max-width: 350px;
+        }
+
+        .cua-html table {
+          width: 100%;
+          border-collapse: collapse;
+          margin: 20px 0;
+          font-size: 14px;
+        }
+
+        .cua-html td, .cua-html th {
+          border: 1px solid #ccc;
+          padding: 8px 10px;
+        }
+
+        .cua-html th {
+          background: #f5f7fa;
+          font-weight: 600;
+        }
+
+        .cua-html ul {
+          margin: 10px 0 10px 30px;
+        }
+
+        .cua-html hr {
+          margin: 30px 0;
+          border: none;
+          border-top: 1px solid #ddd;
+        }
+
+        .cua-html .note-reference {
+          font-size: 13px;
+          color: #666;
+        }
+
+        @media print {
+          body {
+            background: white !important;
+          }
+          .cua-html {
+            padding: 0 !important;
+            box-shadow: none !important;
+          }
+        }
+      `}
+      </style>
+
+      {/* Contenu HTML du CUA */}
       <div
+        className="cua-html"
         style={{
           background: "white",
-          padding: "20px",
+          padding: "40px",
           borderRadius: 10,
           boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
         }}
