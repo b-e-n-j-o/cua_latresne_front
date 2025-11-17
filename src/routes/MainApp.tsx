@@ -306,6 +306,7 @@ export default function MainApp() {
             {showEditor ? (
               <CuaEditor
                 slug={selectedSlug}
+                dossier={selectedDossier}
                 apiBase={ENV_API_BASE}
                 onSaved={() => loadHistory()}
                 carte2dUrl={selectedDossier?.carte_2d_url}

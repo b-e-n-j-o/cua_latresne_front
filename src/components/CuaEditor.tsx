@@ -4,63 +4,45 @@ import { FileDown, Map, Save, Loader2 } from "lucide-react";
 
 interface CuaEditorProps {
   slug: string;
+  dossier: any;
   apiBase: string;
   onSaved?: () => void;
   carte2dUrl?: string | null;
   carte3dUrl?: string | null;
 }
 
-export default function CuaEditor({ slug, apiBase, onSaved, carte2dUrl, carte3dUrl }: CuaEditorProps) {
+export default function CuaEditor({ slug, dossier, apiBase, onSaved, carte2dUrl, carte3dUrl }: CuaEditorProps) {
   const [html, setHtml] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [currentToken, setCurrentToken] = useState<string | null>(null);
 
   const base = apiBase.replace(/\/$/, "");
 
-  function stripSupabaseUrl(url: string): string {
-    // Si c'est déjà un chemin interne, on retourne direct
-    if (!url.startsWith("http")) return url;
-
-    // Extraire après "/object/public/"
+  function makeTokenFromUrl(url: string): string {
     const idx = url.indexOf("/object/public/");
-    if (idx === -1) return url;
-
-    return url.substring(idx + "/object/public/".length);
+    if (idx === -1) return "";
+    const internal = url.substring(idx + "/object/public/".length);
+    return btoa(JSON.stringify({ docx: internal }));
   }
 
   useEffect(() => {
-    if (!slug) return;
-
     async function loadCUA() {
+      if (!dossier?.output_cua) {
+        setError("Pas de document disponible");
+        setLoading(false);
+        return;
+      }
+
+      const token = makeTokenFromUrl(dossier.output_cua);
+
       try {
         setLoading(true);
-
-        // 1️⃣ Récupérer le dossier via /pipelines/by_slug
-        const infoRes = await fetch(`${base}/pipelines/by_slug?slug=${slug}`);
-        const info = await infoRes.json();
-
-        if (!info.success || !info.pipeline?.output_cua)
-          throw new Error("Aucun fichier DOCX pour ce dossier");
-
-        const rawPath = info.pipeline.output_cua;
-        // 2️⃣ Extraire le chemin interne Supabase depuis l'URL complète
-        const docxPath = stripSupabaseUrl(rawPath);
-
-        // 3️⃣ Construire le token attendu par le backend
-        const token = btoa(JSON.stringify({ docx: docxPath }));
-
-        // 4️⃣ Charger le HTML via l'endpoint correct
-        const res = await fetch(`${base}/cua/html?t=${token}`);
+        const res = await fetch(`${base}/cua/html?t=${encodeURIComponent(token)}`);
         if (!res.ok) throw new Error("Document introuvable");
-
         const data = await res.json();
         setHtml(data.html || "");
         setError(null);
-
-        // 5️⃣ Sauvegarder le token pour mise à jour
-        setCurrentToken(token);
       } catch (e: any) {
         setError(e.message || "Erreur de chargement");
       } finally {
@@ -69,20 +51,22 @@ export default function CuaEditor({ slug, apiBase, onSaved, carte2dUrl, carte3dU
     }
 
     loadCUA();
-  }, [slug, base]);
+  }, [slug, base, dossier]);
 
   async function handleSave() {
-    if (!currentToken) {
-      alert("❌ Token manquant, impossible de sauvegarder");
+    if (!dossier?.output_cua) {
+      alert("❌ Document non disponible");
       return;
     }
+
+    const token = makeTokenFromUrl(dossier.output_cua);
 
     try {
       setSaving(true);
       const res = await fetch(`${base}/cua/update`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: currentToken, html }),
+        body: JSON.stringify({ token, html }),
       });
 
       if (!res.ok) throw new Error("Erreur de sauvegarde");
