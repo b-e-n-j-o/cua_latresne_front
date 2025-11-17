@@ -15,6 +15,7 @@ export default function CuaEditor({ slug, apiBase, onSaved, carte2dUrl, carte3dU
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentToken, setCurrentToken] = useState<string | null>(null);
 
   const base = apiBase.replace(/\/$/, "");
 
@@ -24,10 +25,29 @@ export default function CuaEditor({ slug, apiBase, onSaved, carte2dUrl, carte3dU
     async function loadCUA() {
       try {
         setLoading(true);
-        const res = await fetch(`${base}/cua/html/${slug}`);
+
+        // 1️⃣ Récupérer le dossier via /pipelines/by_slug
+        const infoRes = await fetch(`${base}/pipelines/by_slug?slug=${slug}`);
+        const info = await infoRes.json();
+
+        if (!info.success || !info.pipeline?.output_cua)
+          throw new Error("Aucun fichier DOCX pour ce dossier");
+
+        const docxPath = info.pipeline.output_cua;
+
+        // 2️⃣ Construire le token attendu par le backend
+        const token = btoa(JSON.stringify({ docx: docxPath }));
+
+        // 3️⃣ Charger le HTML via l'endpoint correct
+        const res = await fetch(`${base}/cua/html?t=${token}`);
         if (!res.ok) throw new Error("Document introuvable");
+
         const data = await res.json();
         setHtml(data.html || "");
+        setError(null);
+
+        // 4️⃣ Sauvegarder le token pour mise à jour
+        setCurrentToken(token);
       } catch (e: any) {
         setError(e.message || "Erreur de chargement");
       } finally {
@@ -39,12 +59,17 @@ export default function CuaEditor({ slug, apiBase, onSaved, carte2dUrl, carte3dU
   }, [slug, base]);
 
   async function handleSave() {
+    if (!currentToken) {
+      alert("❌ Token manquant, impossible de sauvegarder");
+      return;
+    }
+
     try {
       setSaving(true);
       const res = await fetch(`${base}/cua/update`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slug, html }),
+        body: JSON.stringify({ token: currentToken, html }),
       });
 
       if (!res.ok) throw new Error("Erreur de sauvegarde");
