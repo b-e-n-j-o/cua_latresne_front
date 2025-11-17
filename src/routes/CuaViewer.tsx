@@ -88,15 +88,18 @@ export default function CuaViewer() {
 
       <Editor
         tinymceScriptSrc="/tinymce/tinymce.min.js"
+        licenseKey="gpl" // Obligatoire pour self-hosted
         initialValue={html}
         onEditorChange={(content) => setHtml(content)}
         init={{
           height: 1000,
           menubar: false,
           branding: false,
-          plugins: "lists table link code",
+          plugins: "link lists table code preview",
           toolbar:
-            "undo redo | bold italic underline | bullist numlist | link | table | code",
+            "undo redo | bold italic | alignleft aligncenter alignright | bullist numlist | link",
+          skin_url: "/tinymce/skins/ui/oxide",
+          content_css: "/tinymce/skins/content/default/content.css",
           content_style: `
             body {
               font-family: Inter, sans-serif;
