@@ -1,0 +1,146 @@
+import React from "react";
+import { Menu, X, FileText, Clock } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+
+interface PipelineRow {
+  slug: string;
+  created_at?: string;
+  commune?: string;
+  code_insee?: string;
+  status: string;
+  qr_url?: string;
+  output_cua?: string;
+  carte_2d_url?: string;
+  carte_3d_url?: string;
+}
+
+interface HistorySidebarProps {
+  rows: PipelineRow[];
+  isOpen: boolean;
+  onToggle: () => void;
+  selectedSlug: string | null;
+  onSelect: (slug: string) => void;
+}
+
+export default function HistorySidebar({
+  rows,
+  isOpen,
+  onToggle,
+  selectedSlug,
+  onSelect,
+}: HistorySidebarProps) {
+  return (
+    <>
+      <button
+        onClick={onToggle}
+        className="fixed top-16 left-4 z-50 p-2.5 bg-white border border-[#d5e1e3] rounded-xl hover:bg-[#d5e1e3]/20 transition-all"
+        aria-label="Toggle history"
+      >
+        {isOpen ? (
+          <X className="w-5 h-5 text-[#0b131f]" />
+        ) : (
+          <Menu className="w-5 h-5 text-[#0b131f]" />
+        )}
+      </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={onToggle}
+              className="fixed inset-0 bg-black/10 backdrop-blur-sm z-40 lg:hidden"
+            />
+
+            <motion.aside
+              initial={{ x: -320 }}
+              animate={{ x: 0 }}
+              exit={{ x: -320 }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="fixed top-14 left-0 bottom-0 w-80 bg-white border-r border-[#d5e1e3] z-40 overflow-hidden flex flex-col"
+            >
+              <div className="p-4 border-b border-[#d5e1e3]">
+                <div className="flex items-center gap-2 text-[#0b131f]">
+                  <Clock className="w-4 h-4" />
+                  <h2 className="text-sm font-semibold">Historique</h2>
+                </div>
+                <p className="text-xs text-[#0b131f]/60 mt-1">
+                  {rows.length} dossier{rows.length > 1 ? "s" : ""}
+                </p>
+              </div>
+
+              <div className="flex-1 overflow-y-auto">
+                {rows.length === 0 ? (
+                  <div className="p-4 text-center text-[#0b131f]/40 text-sm">
+                    Aucun dossier
+                  </div>
+                ) : (
+                  <div className="p-2">
+                    {rows.map((row) => {
+                      const isSelected = selectedSlug === row.slug;
+                      const date = row.created_at ? new Date(row.created_at) : null;
+                      
+                      return (
+                        <button
+                          key={row.slug}
+                          onClick={() => onSelect(row.slug)}
+                          className={`w-full text-left p-3 rounded-lg mb-1 transition-all ${
+                            isSelected
+                              ? "bg-[#d5e1e3]/50 border border-[#d5e1e3]"
+                              : "hover:bg-[#d5e1e3]/20 border border-transparent"
+                          }`}
+                        >
+                          <div className="flex items-start gap-2">
+                            <FileText
+                              className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
+                                isSelected ? "text-[#0b131f]" : "text-[#0b131f]/40"
+                              }`}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div
+                                className={`text-sm font-medium truncate ${
+                                  isSelected ? "text-[#0b131f]" : "text-[#0b131f]/80"
+                                }`}
+                              >
+                                {row.commune || "Sans commune"}
+                              </div>
+                              <div className="text-xs text-[#0b131f]/40 mt-0.5">
+                                INSEE {row.code_insee || "—"}
+                              </div>
+                              {date && (
+                                <div className="text-xs text-[#0b131f]/30 mt-1">
+                                  {date.toLocaleDateString("fr-FR", {
+                                    day: "numeric",
+                                    month: "short",
+                                    year: "numeric",
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                            <span
+                              className={`text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${
+                                row.status === "success"
+                                  ? "bg-green-500/20 text-green-700"
+                                  : row.status === "error"
+                                  ? "bg-red-500/20 text-red-700"
+                                  : "bg-[#d5e1e3] text-[#0b131f]/50"
+                              }`}
+                            >
+                              {row.status === "success" ? "✓" : row.status}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+    </>
+  );
+}

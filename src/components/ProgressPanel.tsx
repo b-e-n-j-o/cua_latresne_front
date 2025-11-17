@@ -99,8 +99,8 @@ export default function ProgressPanel({
                     isDone
                       ? "text-[#d5e1e3]/40 text-sm"
                       : isActive
-                      ? "text-white text-lg font-semibold"
-                      : "text-[#d5e1e3]/70 text-sm"
+                      ? "text-[#0b131f] text-lg font-semibold"
+                      : "text-[#0b131f]/70 text-sm"
                   )}
                 >
                   {label}
@@ -120,8 +120,8 @@ export default function ProgressPanel({
           className={cx(
             "px-4 py-2 rounded-lg text-center transition",
             status === "done" && reportUrl
-              ? "bg-[#1a2b42] text-white"
-              : "bg-white/10 text-white/40 cursor-not-allowed"
+              ? "bg-[#1a2b42] text-[#0b131f]"
+              : "bg-white/10 text-[#0b131f]/40 cursor-not-allowed"
           )}
         >
           Télécharger le rapport
@@ -133,8 +133,8 @@ export default function ProgressPanel({
           className={cx(
             "px-4 py-2 rounded-lg text-center transition",
             status === "done" && mapUrl
-              ? "bg-[#ff4f3b] text-white"
-              : "bg-white/10 text-white/40 cursor-not-allowed"
+              ? "bg-[#ff4f3b] text-[#0b131f]"
+              : "bg-white/10 text-[#0b131f]/40 cursor-not-allowed"
           )}
         >
           Ouvrir la carte (HTML)
