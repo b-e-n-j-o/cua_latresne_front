@@ -12,12 +12,14 @@
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.4.0",
     "@supabase/supabase-js": "^2.57.4",
+    "@tinymce/tinymce-react": "^6.3.0",
     "framer-motion": "^12.23.24",
     "liquid-glass-react": "^1.1.1",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.9.4",
-    "three": "^0.181.1"
+    "three": "^0.181.1",
+    "tinymce": "^8.2.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.33.0",
