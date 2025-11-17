@@ -1,6 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Editor } from "@tinymce/tinymce-react";
 import { FileDown, Map, Save, Loader2 } from "lucide-react";
+
+function buildToken(slug: string, path: string) {
+  const payload = { docx: path };
+  return window.btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+}
 
 interface CuaEditorProps {
   slug: string;
@@ -17,6 +22,23 @@ export default function CuaEditor({ slug, dossier, apiBase, onSaved, mapsPageUrl
   const [error, setError] = useState<string | null>(null);
 
   const base = apiBase.replace(/\/$/, "");
+
+  // URL du DOCX dans Supabase (celui mis à jour par /cua/update)
+  const docxPath = useMemo(() => {
+    if (!dossier?.output_cua) return null;
+    const url = dossier.output_cua;
+    const idx = url.indexOf("/object/public/");
+    if (idx === -1) return null;
+    const path = url.substring(idx + "/object/public/".length);
+    // Enlève le bucket (premier segment)
+    return path.split("/").slice(1).join("/");
+  }, [dossier]);
+
+  const token = docxPath ? buildToken(slug, docxPath) : null;
+
+  // Endpoints backend
+  const pdfUrl = token ? `${base}/cua/download/pdf?t=${encodeURIComponent(token)}` : null;
+  const docxUrl = token ? `${base}/cua/download/docx?t=${encodeURIComponent(token)}` : null;
 
   function makeTokenFromUrl(url: string): string {
     const idx = url.indexOf("/object/public/");
@@ -77,13 +99,6 @@ export default function CuaEditor({ slug, dossier, apiBase, onSaved, mapsPageUrl
     }
   }
 
-  function downloadDocx() {
-    window.open(`${base}/cua/download/docx/${slug}`, "_blank");
-  }
-
-  function downloadPdf() {
-    window.open(`${base}/cua/download/pdf/${slug}`, "_blank");
-  }
 
   if (loading) {
     return (
@@ -113,21 +128,25 @@ export default function CuaEditor({ slug, dossier, apiBase, onSaved, mapsPageUrl
           Sauvegarder
         </button>
 
-        <button
-          onClick={downloadDocx}
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-[#d5e1e3] text-[#0b131f] rounded-lg hover:bg-[#d5e1e3]/20 transition"
-        >
-          <FileDown className="w-4 h-4" />
-          DOCX
-        </button>
+        {docxUrl && (
+          <button
+            onClick={() => window.open(docxUrl, "_blank")}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-[#d5e1e3] text-[#0b131f] rounded-lg hover:bg-[#d5e1e3]/20 transition"
+          >
+            <FileDown className="w-4 h-4" />
+            DOCX
+          </button>
+        )}
 
-        <button
-          onClick={downloadPdf}
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-[#d5e1e3] text-[#0b131f] rounded-lg hover:bg-[#d5e1e3]/20 transition"
-        >
-          <FileDown className="w-4 h-4" />
-          PDF
-        </button>
+        {pdfUrl && (
+          <button
+            onClick={() => window.open(pdfUrl, "_blank")}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-[#d5e1e3] text-[#0b131f] rounded-lg hover:bg-[#d5e1e3]/20 transition"
+          >
+            <FileDown className="w-4 h-4" />
+            PDF
+          </button>
+        )}
 
         {mapsPageUrl && (
           <a
@@ -196,3 +215,5 @@ export default function CuaEditor({ slug, dossier, apiBase, onSaved, mapsPageUrl
     </div>
   );
 }
+
+//klklk
