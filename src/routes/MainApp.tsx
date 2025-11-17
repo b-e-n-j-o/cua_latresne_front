@@ -205,6 +205,23 @@ export default function MainApp() {
   const showProgress = status !== "idle";
   const selectedDossier = selectedSlug ? historyRows.find((r) => r.slug === selectedSlug) : null;
 
+  // Construire mapsPageUrl avec fallback si maps_page n'existe pas
+  const mapsPageUrl = useMemo(() => {
+    if (selectedDossier?.maps_page) {
+      return selectedDossier.maps_page;
+    }
+    // Fallback : construire l'URL à partir de carte_2d_url et carte_3d_url
+    if (selectedDossier?.carte_2d_url && selectedDossier?.carte_3d_url) {
+      const payload = {
+        carte2d: selectedDossier.carte_2d_url,
+        carte3d: selectedDossier.carte_3d_url,
+      };
+      const token = btoa(JSON.stringify(payload));
+      return `${window.location.origin}/maps?t=${encodeURIComponent(token)}`;
+    }
+    return null;
+  }, [selectedDossier]);
+
   return (
     <div className="min-h-screen bg-white text-[#0b131f]">
       <HistorySidebar
@@ -266,7 +283,7 @@ export default function MainApp() {
                 dossier={selectedDossier}
                 apiBase={ENV_API_BASE}
                 onSaved={() => loadHistory()}
-                mapsPageUrl={selectedDossier?.maps_page}
+                mapsPageUrl={mapsPageUrl}
               />
             ) : !showNewPanel ? (
               <div className="flex items-center justify-center h-full text-[#0b131f]/40">
