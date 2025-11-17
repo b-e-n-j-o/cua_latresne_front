@@ -7,11 +7,10 @@ interface CuaEditorProps {
   dossier: any;
   apiBase: string;
   onSaved?: () => void;
-  carte2dUrl?: string | null;
-  carte3dUrl?: string | null;
+  mapsPageUrl?: string | null;
 }
 
-export default function CuaEditor({ slug, dossier, apiBase, onSaved, carte2dUrl, carte3dUrl }: CuaEditorProps) {
+export default function CuaEditor({ slug, dossier, apiBase, onSaved, mapsPageUrl }: CuaEditorProps) {
   const [html, setHtml] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
@@ -130,27 +129,15 @@ export default function CuaEditor({ slug, dossier, apiBase, onSaved, carte2dUrl,
           PDF
         </button>
 
-        {carte2dUrl && (
+        {mapsPageUrl && (
           <a
-            href={carte2dUrl}
+            href={mapsPageUrl}
             target="_blank"
             rel="noreferrer"
             className="flex items-center gap-2 px-4 py-2 bg-white border border-[#d5e1e3] text-[#0b131f] rounded-lg hover:bg-[#d5e1e3]/20 transition"
           >
             <Map className="w-4 h-4" />
-            Carte 2D
-          </a>
-        )}
-
-        {carte3dUrl && (
-          <a
-            href={carte3dUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-[#d5e1e3] text-[#0b131f] rounded-lg hover:bg-[#d5e1e3]/20 transition"
-          >
-            <Map className="w-4 h-4" />
-            Carte 3D
+            Afficher les cartes
           </a>
         )}
       </div>

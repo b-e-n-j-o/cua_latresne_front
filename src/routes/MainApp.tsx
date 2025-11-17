@@ -35,6 +35,7 @@ interface PipelineRow {
   output_cua?: string;
   carte_2d_url?: string;
   carte_3d_url?: string;
+  maps_page?: string;
 }
 
 function cx(...xs: Array<string | false | undefined | null>) {
@@ -265,8 +266,7 @@ export default function MainApp() {
                 dossier={selectedDossier}
                 apiBase={ENV_API_BASE}
                 onSaved={() => loadHistory()}
-                carte2dUrl={selectedDossier?.carte_2d_url}
-                carte3dUrl={selectedDossier?.carte_3d_url}
+                mapsPageUrl={selectedDossier?.maps_page}
               />
             ) : !showNewPanel ? (
               <div className="flex items-center justify-center h-full text-[#0b131f]/40">

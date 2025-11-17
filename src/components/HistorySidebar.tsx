@@ -34,7 +34,9 @@ export default function HistorySidebar({
     <>
       <button
         onClick={onToggle}
-        className="fixed top-16 left-4 z-50 p-2.5 bg-white border border-[#d5e1e3] rounded-xl hover:bg-[#d5e1e3]/20 transition-all"
+        className={`fixed top-14 z-50 p-2.5 bg-white border border-[#d5e1e3] rounded-xl hover:bg-[#d5e1e3]/20 transition-all ${
+          isOpen ? "left-[320px]" : "left-4"
+        }`}
         aria-label="Toggle history"
       >
         {isOpen ? (
