@@ -70,8 +70,10 @@ export default function MainApp() {
     preanalyse,
     cerfa,
     pdfPath,
+    pipelineJobId,
     start: startCerfa,
     validatePreanalyse,
+    sendMessage: sendCerfaMessage,
   } = useCerfaWebSocket();
 
   const pipelineLaunchedRef = useRef<boolean>(false);
@@ -215,56 +217,29 @@ export default function MainApp() {
 
     pipelineLaunchedRef.current = true;
 
-    const launchPipeline = () => {
-      const base = ENV_API_BASE.replace(/\/$/, "");
-      const wsUrl =
-        base.replace(/^https?/, (m: string) => (m === "https" ? "wss" : "ws")) +
-        "/ws/pipeline";
+    // Utiliser la WebSocket existante du hook pour envoyer launch_pipeline
+    const insee = preanalyse?.insee?.code || cerfa?.data?.commune_insee;
+    const success = sendCerfaMessage({
+      action: "launch_pipeline",
+      pdf_path: pdfPath,
+      insee: insee,
+      user_id: userId,
+      user_email: userEmail,
+    });
 
-      const ws = new WebSocket(wsUrl);
+    if (!success) {
+      setStatus("error");
+      setError("Erreur : WebSocket non disponible");
+      pipelineLaunchedRef.current = false;
+    }
+  }, [cerfa, cerfaStatus, pdfPath, userId, userEmail, preanalyse, sendCerfaMessage]);
 
-      ws.onopen = () => {
-        const insee = preanalyse?.insee?.code || cerfa?.data?.commune_insee;
-        ws.send(
-          JSON.stringify({
-            action: "launch_pipeline",
-            pdf_path: pdfPath,
-            insee: insee,
-            user_id: userId,
-            user_email: userEmail,
-          })
-        );
-      };
-
-      ws.onmessage = (event) => {
-        const msg = JSON.parse(event.data);
-
-        if (msg.event === "pipeline_started") {
-          setStatus("running");
-          setActiveStep(1);
-          connectWebSocket(msg.job_id);
-          ws.close();
-        }
-
-        if (msg.event === "error") {
-          setStatus("error");
-          setError(msg.message || "Erreur inconnue");
-          ws.close();
-          pipelineLaunchedRef.current = false;
-        }
-      };
-
-      ws.onerror = (e) => {
-        console.warn("WS pipeline launch error", e);
-        setStatus("error");
-        setError("Erreur lors du lancement du pipeline");
-        ws.close();
-        pipelineLaunchedRef.current = false;
-      };
-    };
-
-    launchPipeline();
-  }, [cerfa, cerfaStatus, pdfPath, userId, userEmail, preanalyse, connectWebSocket]);
+  // Se connecter à la WebSocket du job quand pipelineJobId est disponible
+  useEffect(() => {
+    if (pipelineJobId && cerfaStatus === "running") {
+      connectWebSocket(pipelineJobId);
+    }
+  }, [pipelineJobId, cerfaStatus, connectWebSocket]);
 
   // Fonction de validation de la pré-analyse utilisant le hook
   const handleValidatePreanalyse = useCallback((override: {
