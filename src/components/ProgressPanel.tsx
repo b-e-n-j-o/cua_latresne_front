@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import PreAnalyseCard from "./PreAnalyzedCard";
+import PreAnalyseCard from "./PreAnalyseCard";
 
 type Status = "idle" | "uploading" | "running" | "waiting_user" | "done" | "error";
 
@@ -184,3 +184,5 @@ export default function ProgressPanel({
     </motion.div>
   );
 }
+
+//
