@@ -9,7 +9,7 @@ import { useCerfaWebSocket } from "../hooks/useCerfaWebSocket";
 
 const ENV_API_BASE = import.meta.env.VITE_API_BASE || "";
 
-type Status = "idle" | "uploading" | "running" | "waiting_user" | "done" | "error";
+type Status = "idle" | "uploading" | "running" | "waiting_user" | "awaiting_pipeline" | "done" | "error";
 const STEP_LABELS = [
   "Analyse du CERFA",
   "Vérification de l'unité foncière",
@@ -210,7 +210,7 @@ export default function MainApp() {
 
   // Lancer le pipeline complet après cerfa_done
   useEffect(() => {
-    if (!cerfa || cerfaStatus !== "done" || pipelineLaunchedRef.current) return;
+    if (!cerfa || cerfaStatus !== "awaiting_pipeline" || pipelineLaunchedRef.current) return;
     if (!pdfPath) return;
 
     pipelineLaunchedRef.current = true;

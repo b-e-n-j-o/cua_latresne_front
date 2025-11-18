@@ -4,7 +4,7 @@ export function useCerfaWebSocket() {
   const ws = useRef<WebSocket | null>(null);
   const [step, setStep] = useState(0);
   const [label, setLabel] = useState("");
-  const [status, setStatus] = useState<"idle" | "running" | "waiting_user" | "done" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "running" | "waiting_user" | "awaiting_pipeline" | "done" | "error">("idle");
   const [preanalyse, setPreanalyse] = useState<any>(null);
   const [cerfa, setCerfa] = useState<any>(null);
   const [pdfPath, setPdfPath] = useState<string | null>(null);
@@ -45,7 +45,7 @@ export function useCerfaWebSocket() {
       if (msg.event === "cerfa_done") {
         setCerfa(msg.cerfa);
         setStep(0);
-        setStatus("done");
+        setStatus("awaiting_pipeline");
 
         // Fermer la WebSocket pipeline
         if (ws.current) {
