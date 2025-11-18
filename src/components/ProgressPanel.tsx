@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
+import PreAnalyseCard from "./PreAnalyzedCard";
 
-type Status = "idle" | "uploading" | "running" | "done" | "error";
+type Status = "idle" | "uploading" | "running" | "waiting_user" | "done" | "error";
 
 type Props = {
   labels: readonly string[];
@@ -9,6 +10,8 @@ type Props = {
   status: Status;
   reportUrl: string | null;
   mapUrl: string | null;
+  preanalyse?: any;
+  onValidatePreanalyse?: (override: { insee: string; parcelles: any[] }) => void;
 };
 
 function cx(...xs: Array<string | false | undefined | null>) {
@@ -22,6 +25,8 @@ export default function ProgressPanel({
   status,
   reportUrl,
   mapUrl,
+  preanalyse,
+  onValidatePreanalyse,
 }: Props) {
   return (
     <motion.div
@@ -44,7 +49,7 @@ export default function ProgressPanel({
       {/* Étapes */}
       <div className="space-y-4">
         <AnimatePresence>
-          {labels.slice(0, activeStep + 1).map((label, i) => {
+          {labels.slice(0, activeStep + (status === "waiting_user" ? 1 : 0)).map((label, i) => {
             const isActive = i === activeStep;
             const isDone = i < activeStep;
 
@@ -64,19 +69,30 @@ export default function ProgressPanel({
                     isDone
                       ? "bg-[#d5e1e3]/50"
                       : isActive
-                      ? "bg-[#ff4f3b]"
+                      ? status === "waiting_user"
+                        ? "bg-yellow-400"
+                        : "bg-[#ff4f3b]"
                       : "bg-transparent"
                   )}
                   animate={
                     isActive
                       ? {
-                          boxShadow: [
-                            "0 0 0px rgba(255, 79, 59, 0)",
-                            "0 0 12px rgba(255, 79, 59, 0.6)",
-                            "0 0 24px rgba(255, 79, 59, 0.9)",
-                            "0 0 12px rgba(255, 79, 59, 0.6)",
-                            "0 0 0px rgba(255, 79, 59, 0)",
-                          ],
+                          boxShadow:
+                            status === "waiting_user"
+                              ? [
+                                  "0 0 0px rgba(250, 204, 21, 0)",
+                                  "0 0 12px rgba(250, 204, 21, 0.6)",
+                                  "0 0 24px rgba(250, 204, 21, 0.9)",
+                                  "0 0 12px rgba(250, 204, 21, 0.6)",
+                                  "0 0 0px rgba(250, 204, 21, 0)",
+                                ]
+                              : [
+                                  "0 0 0px rgba(255, 79, 59, 0)",
+                                  "0 0 12px rgba(255, 79, 59, 0.6)",
+                                  "0 0 24px rgba(255, 79, 59, 0.9)",
+                                  "0 0 12px rgba(255, 79, 59, 0.6)",
+                                  "0 0 0px rgba(255, 79, 59, 0)",
+                                ],
                           scale: [1, 1.4, 1.2, 1.4, 1],
                         }
                       : undefined
@@ -110,6 +126,31 @@ export default function ProgressPanel({
           })}
         </AnimatePresence>
       </div>
+
+      {/* Message d'attente validation */}
+      {status === "waiting_user" && (
+        <motion.p
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mt-6 text-yellow-500 text-sm font-semibold"
+        >
+          Pré-analyse terminée — veuillez confirmer les informations détectées.
+        </motion.p>
+      )}
+
+      {/* Carte de pré-analyse */}
+      {status === "waiting_user" && preanalyse && onValidatePreanalyse && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <PreAnalyseCard
+            preanalyse={preanalyse}
+            onValidate={onValidatePreanalyse}
+          />
+        </motion.div>
+      )}
 
       {/* Résultats */}
       <h3 className="text-xl font-semibold mt-8 mb-4">Résultats</h3>

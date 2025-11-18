@@ -18,6 +18,8 @@ interface Props {
 
   progressPct: number;
   showProgress: boolean;
+  preanalyse?: any;
+  onValidatePreanalyse?: (override: { insee: string; parcelles: any[] }) => void;
 }
 
 function cx(...xs: Array<string | false | undefined | null>) {
@@ -29,7 +31,8 @@ export default function NewDossierPanel(props: Props) {
     file, isOver, status, error, activeStep,
     disabled,
     onDrop, onChooseFile, onReset, onLaunch,
-    progressPct, showProgress
+    progressPct, showProgress,
+    preanalyse, onValidatePreanalyse
   } = props;
 
   const getButtonText = () => {
@@ -45,17 +48,20 @@ export default function NewDossierPanel(props: Props) {
         {showProgress ? (
           <ProgressPanel
             labels={[
-              "Analyse du CERFA",
+              "Upload PDF",
+              "Pré-analyse du CERFA",
+              "Analyse complète du CERFA",
               "Vérification de l'unité foncière",
               "Analyse réglementaire",
               "Génération du CUA",
-              "Finalisation",
             ]}
             progressPct={progressPct}
             activeStep={activeStep}
             status={status as any}
             reportUrl={null}
             mapUrl={null}
+            preanalyse={preanalyse}
+            onValidatePreanalyse={onValidatePreanalyse}
           />
         ) : (
           <div>
