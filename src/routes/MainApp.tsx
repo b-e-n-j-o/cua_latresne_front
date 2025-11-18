@@ -210,9 +210,17 @@ export default function MainApp() {
 
   // Lancer le pipeline complet après cerfa_done via API REST
   useEffect(() => {
+    console.log("🔍 Pipeline check", { 
+      cerfa: !!cerfa, 
+      status: cerfaStatus, 
+      launched: pipelineLaunchedRef.current,
+      pdfPath 
+    });
+
     if (!cerfa || cerfaStatus !== "awaiting_pipeline" || pipelineLaunchedRef.current) return;
     if (!pdfPath) return;
 
+    console.log("🚀 LANCEMENT REST", { pdfPath, insee: preanalyse?.insee?.code });
     pipelineLaunchedRef.current = true;
 
     // 🚀 APPEL API REST pour lancer le pipeline
@@ -229,22 +237,26 @@ export default function MainApp() {
         user_email: userEmail,
       }),
     })
-      .then((r) => r.json())
+      .then((r) => {
+        console.log("✅ REST response:", r.status);
+        return r.json();
+      })
       .then((data) => {
+        console.log("✅ REST data:", data);
         if (data.success && data.job_id) {
           // Se connecter à la WebSocket du job pour suivre les logs
           // Le status et les steps seront mis à jour par les messages WebSocket
           connectWebSocket(data.job_id);
         } else {
           setStatus("error");
-          setError(data.error || "Erreur lors du lancement du pipeline");
+          setError(data.error || "Erreur pipeline");
           pipelineLaunchedRef.current = false;
         }
       })
       .catch((err) => {
-        console.error("Erreur lors de l'appel REST:", err);
+        console.error("❌ REST error:", err);
         setStatus("error");
-        setError("Erreur de connexion au serveur");
+        setError("Erreur serveur");
         pipelineLaunchedRef.current = false;
       });
   }, [cerfa, cerfaStatus, pdfPath, userId, userEmail, preanalyse, connectWebSocket]);
