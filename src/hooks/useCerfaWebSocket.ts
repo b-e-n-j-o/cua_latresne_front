@@ -8,7 +8,6 @@ export function useCerfaWebSocket() {
   const [preanalyse, setPreanalyse] = useState<any>(null);
   const [cerfa, setCerfa] = useState<any>(null);
   const [pdfPath, setPdfPath] = useState<string | null>(null);
-  const [pipelineJobId, setPipelineJobId] = useState<string | null>(null);
 
   const start = (pdfBase64: string) => {
     const base = import.meta.env.VITE_API_BASE || "";
@@ -45,16 +44,16 @@ export function useCerfaWebSocket() {
 
       if (msg.event === "cerfa_done") {
         setCerfa(msg.cerfa);
+        setPdfPath(msg.pdf_path);
         setStep(3);
-        setStatus("awaiting_pipeline"); // pas "done"
+        setStatus("awaiting_pipeline");
         setLabel("Analyse CERFA terminée — Pipeline prêt à démarrer");
-      }
 
-      if (msg.event === "pipeline_started") {
-        setPipelineJobId(msg.job_id);
-        setStatus("running");
-        setStep(1);
-        setLabel("Pipeline démarré");
+        // FERMER WS CERFA pour éviter les interférences avec la WebSocket job
+        if (ws.current) {
+          ws.current.close();
+          ws.current = null;
+        }
       }
 
       if (msg.event === "error") {
@@ -86,12 +85,6 @@ export function useCerfaWebSocket() {
     );
   };
 
-  const sendMessage = (message: any) => {
-    if (!ws.current || ws.current.readyState !== WebSocket.OPEN) return false;
-    ws.current.send(JSON.stringify(message));
-    return true;
-  };
-
   return {
     step,
     status,
@@ -99,9 +92,7 @@ export function useCerfaWebSocket() {
     preanalyse,
     cerfa,
     pdfPath,
-    pipelineJobId,
     start,
     validatePreanalyse,
-    sendMessage,
   };
 }
