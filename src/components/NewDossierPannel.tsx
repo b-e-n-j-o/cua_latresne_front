@@ -18,8 +18,6 @@ interface Props {
 
   progressPct: number;
   showProgress: boolean;
-  preanalyse?: any;
-  onValidatePreanalyse?: (override: { insee: string; parcelles: any[] }) => void;
 }
 
 function cx(...xs: Array<string | false | undefined | null>) {
@@ -32,7 +30,6 @@ export default function NewDossierPanel(props: Props) {
     disabled,
     onDrop, onChooseFile, onReset, onLaunch,
     progressPct, showProgress,
-    preanalyse, onValidatePreanalyse
   } = props;
 
   const getButtonText = () => {
@@ -60,8 +57,6 @@ export default function NewDossierPanel(props: Props) {
             status={status as any}
             reportUrl={null}
             mapUrl={null}
-            preanalyse={preanalyse}
-            onValidatePreanalyse={onValidatePreanalyse}
           />
         ) : (
           <div>

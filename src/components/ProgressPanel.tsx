@@ -1,5 +1,4 @@
 import { motion, AnimatePresence } from "framer-motion";
-import PreAnalyseCard from "./PreAnalyseCard";
 
 type Status = "idle" | "uploading" | "running" | "waiting_user" | "done" | "error";
 
@@ -10,8 +9,6 @@ type Props = {
   status: Status;
   reportUrl: string | null;
   mapUrl: string | null;
-  preanalyse?: any;
-  onValidatePreanalyse?: (override: { insee: string; parcelles: any[] }) => void;
 };
 
 function cx(...xs: Array<string | false | undefined | null>) {
@@ -25,8 +22,6 @@ export default function ProgressPanel({
   status,
   reportUrl,
   mapUrl,
-  preanalyse,
-  onValidatePreanalyse,
 }: Props) {
   return (
     <motion.div
@@ -126,31 +121,6 @@ export default function ProgressPanel({
           })}
         </AnimatePresence>
       </div>
-
-      {/* Message d'attente validation */}
-      {status === "waiting_user" && (
-        <motion.p
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mt-6 text-yellow-500 text-sm font-semibold"
-        >
-          Pré-analyse terminée — veuillez confirmer les informations détectées.
-        </motion.p>
-      )}
-
-      {/* Carte de pré-analyse */}
-      {status === "waiting_user" && preanalyse && onValidatePreanalyse && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <PreAnalyseCard
-            preanalyse={preanalyse}
-            onValidate={onValidatePreanalyse}
-          />
-        </motion.div>
-      )}
 
       {/* Résultats */}
       <h3 className="text-xl font-semibold mt-8 mb-4">Résultats</h3>

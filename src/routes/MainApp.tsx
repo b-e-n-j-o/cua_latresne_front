@@ -5,24 +5,26 @@ import HistorySidebar from "../components/HistorySidebar";
 import CuaEditor from "../components/CuaEditor";
 import NewDossierPanel from "../components/NewDossierPannel";
 import { useMeta } from "../hooks/useMeta";
-import { useCerfaWebSocket } from "../hooks/useCerfaWebSocket";
 
 const ENV_API_BASE = import.meta.env.VITE_API_BASE || "";
 
 type Status = "idle" | "uploading" | "running" | "waiting_user" | "awaiting_pipeline" | "done" | "error";
 const STEP_LABELS = [
   "Analyse du CERFA",
-  "Vérification de l'unité foncière",
-  "Analyse réglementaire",
+  "Analyse de l'unité foncière",
+  "Préparation des cartes de zonages",
   "Génération du CUA",
-  "Finalisation",
+  "CUA prêt",
 ] as const;
 
 const STEP_MAP: Record<string, number> = {
   analyse_cerfa: 0,
-  verification_unite_fonciere: 1,
+  unite_fonciere: 1,
+  verification_unite_fonciere: 1, // Alias pour compatibilité
   intersections: 2,
+  cartes: 2, // Cartes et intersections pointent vers la même étape
   generation_cua: 3,
+  cua_pret: 4,
 };
 
 interface PipelineRow {
@@ -57,24 +59,11 @@ export default function MainApp() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
 
-  const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
   const [historyRows, setHistoryRows] = useState<PipelineRow[]>([]);
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
-  const [showNewPanel, setShowNewPanel] = useState<boolean>(false);
-  const wsRef = useRef<WebSocket | null>(null);
-  
-  // Utiliser le hook pour la logique WebSocket CERFA
-  const {
-    step: cerfaStep,
-    status: cerfaStatus,
-    preanalyse,
-    cerfa,
-    pdfPath,
-    start: startCerfa,
-    validatePreanalyse,
-  } = useCerfaWebSocket();
-
-  const pipelineLaunchedRef = useRef<boolean>(false);
+  const [showNewPanel, setShowNewPanel] = useState<boolean>(true);
+  const pollIntervalRef = useRef<number | null>(null);
 
   const loadHistory = useCallback(async () => {
     try {
@@ -89,78 +78,58 @@ export default function MainApp() {
     }
   }, [userId]);
 
-  const connectWebSocket = useCallback((jobId: string) => {
-    // Fermer l'ancienne connexion si elle existe
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
+  const pollStatus = useCallback((jobId: string) => {
+    // Clear ancien interval
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
     }
 
     const base = ENV_API_BASE.replace(/\/$/, "");
-    const wsUrl =
-      base.replace(/^https?/, (m: string) => (m === "https" ? "wss" : "ws")) +
-      "/ws/job/" +
-      jobId;
 
-    const ws = new WebSocket(wsUrl);
-
-    ws.onmessage = async (event) => {
+    const intervalId = window.setInterval(async () => {
       try {
-        const msg = JSON.parse(event.data);
+        const res = await fetch(`${base}/status/${jobId}`);
+        const j = await res.json();
 
-        // --- logs en temps réel (optionnel, pour debug) ---
-        if (msg.event === "log") {
-          // Les logs peuvent être affichés dans la console ou dans l'UI
-          console.log(`[Pipeline] ${msg.message}`);
+        // Mise à jour étape
+        const step = j.current_step;
+        if (step && STEP_MAP[step] !== undefined) {
+          setActiveStep(STEP_MAP[step]);
+          setStatus("running");
         }
 
-        // --- progression du pipeline (changement d'étape) ---
-        if (msg.event === "step" || msg.step) {
-          const stepKey = msg.step || msg.current_step;
-          if (stepKey && STEP_MAP[stepKey] !== undefined) {
-            setActiveStep(STEP_MAP[stepKey]);
-            setStatus("running");
-          }
-        }
+        // Pipeline terminé
+        if (j.status === "success") {
+          clearInterval(intervalId);
+          pollIntervalRef.current = null;
 
-        // --- pipeline terminé avec succès ---
-        if (msg.event === "done" || (msg.status === "success" && msg.event === "done")) {
           setStatus("done");
           setActiveStep(STEP_LABELS.length - 1);
 
           await loadHistory();
 
-          if (msg.slug) {
+          const slug = j?.result_enhanced?.slug;
+          if (slug) {
             setSelectedSlug(null);
-            setTimeout(() => setSelectedSlug(msg.slug), 30);
+            setTimeout(() => setSelectedSlug(slug), 30);
             setShowNewPanel(false);
           }
-
-          ws.close();
-          wsRef.current = null;
         }
 
-        // --- erreur ---
-        if (msg.event === "error" || msg.status === "error") {
+        // Erreur
+        if (j.status === "error") {
+          clearInterval(intervalId);
+          pollIntervalRef.current = null;
           setStatus("error");
-          setError(msg.error || msg.message || "Erreur");
-          ws.close();
-          wsRef.current = null;
+          setError(j.error || "Erreur pipeline");
         }
+
       } catch (err) {
-        console.error("WS parse error:", err);
+        console.error("Erreur polling status:", err);
       }
-    };
+    }, 1500);
 
-    ws.onerror = () => {
-      console.warn("WebSocket error — fallback polling");
-    };
-
-    ws.onclose = () => {
-      wsRef.current = null;
-    };
-
-    wsRef.current = ws;
+    pollIntervalRef.current = intervalId;
   }, [loadHistory]);
 
   useEffect(() => {
@@ -192,82 +161,15 @@ export default function MainApp() {
     }
   }, [historyRows]);
 
-  // Nettoyer le WebSocket lors du démontage
+  // Nettoyer le polling lors du démontage
   useEffect(() => {
     return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
       }
     };
   }, []);
-
-  // Synchroniser les statuts du hook avec les états locaux
-  useEffect(() => {
-    setStatus(cerfaStatus);
-    setActiveStep(cerfaStep);
-  }, [cerfaStatus, cerfaStep]);
-
-  // Lancer le pipeline complet après cerfa_done via API REST
-  useEffect(() => {
-    console.log("🔍 Pipeline check", { 
-      cerfa: !!cerfa, 
-      status: cerfaStatus, 
-      launched: pipelineLaunchedRef.current,
-      pdfPath 
-    });
-
-    if (!cerfa || cerfaStatus !== "awaiting_pipeline" || pipelineLaunchedRef.current) return;
-    if (!pdfPath) return;
-
-    console.log("🚀 LANCEMENT REST", { pdfPath, insee: preanalyse?.insee?.code });
-    pipelineLaunchedRef.current = true;
-
-    // 🚀 APPEL API REST pour lancer le pipeline
-    const base = ENV_API_BASE.replace(/\/$/, "");
-    const insee = preanalyse?.insee?.code || cerfa?.data?.commune_insee;
-
-    fetch(`${base}/pipeline/run-rest`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        pdf_path: pdfPath,
-        insee: insee,
-        user_id: userId,
-        user_email: userEmail,
-      }),
-    })
-      .then((r) => {
-        console.log("✅ REST response:", r.status);
-        return r.json();
-      })
-      .then((data) => {
-        console.log("✅ REST data:", data);
-        if (data.success && data.job_id) {
-          // Se connecter à la WebSocket du job pour suivre les logs
-          // Le status et les steps seront mis à jour par les messages WebSocket
-          connectWebSocket(data.job_id);
-        } else {
-          setStatus("error");
-          setError(data.error || "Erreur pipeline");
-          pipelineLaunchedRef.current = false;
-        }
-      })
-      .catch((err) => {
-        console.error("❌ REST error:", err);
-        setStatus("error");
-        setError("Erreur serveur");
-        pipelineLaunchedRef.current = false;
-      });
-  }, [cerfa, cerfaStatus, pdfPath, userId, userEmail, preanalyse, connectWebSocket]);
-
-  // Fonction de validation de la pré-analyse utilisant le hook
-  const handleValidatePreanalyse = useCallback((override: {
-    insee: string;
-    parcelles: any[];
-  }) => {
-    validatePreanalyse(override);
-  }, [validatePreanalyse]);
 
   const resetAll = () => {
     setFile(null);
@@ -275,7 +177,6 @@ export default function MainApp() {
     setStatus("idle");
     setError(null);
     setActiveStep(0);
-    pipelineLaunchedRef.current = false;
   };
 
   const onDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
@@ -304,31 +205,40 @@ export default function MainApp() {
 
     setError(null);
     setActiveStep(0);
-    pipelineLaunchedRef.current = false;
+    setStatus("uploading");
 
     const base = ENV_API_BASE.replace(/\/$/, "");
     if (!base) return setError("Backend non configuré");
 
-    setStatus("uploading");
+    const formData = new FormData();
+    formData.append("pdf", file);
+    formData.append("user_id", userId || "");
+    formData.append("user_email", userEmail || "");
+    formData.append("code_insee", ""); // INSEE détecté dans le CERFA ou vide
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const pdfBase64 = (reader.result as string).split(",")[1];
-        startCerfa(pdfBase64); // Utiliser le hook
-      } catch (err: any) {
-        setError(err.message || "Erreur lors de la lecture du fichier");
+    try {
+      const res = await fetch(`${base}/analyze-cerfa`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!data.success) {
         setStatus("error");
+        setError(data.error || "Erreur lancement pipeline");
+        return;
       }
-    };
 
-    reader.onerror = () => {
-      setError("Erreur lors de la lecture du fichier");
+      // Pipeline lancé
+      setStatus("running");
+      pollStatus(data.job_id);
+
+    } catch (err) {
+      console.error(err);
       setStatus("error");
-    };
-
-    reader.readAsDataURL(file);
-  }, [file, startCerfa]);
+      setError("Erreur de connexion serveur");
+    }
+  }, [file, userId, userEmail, pollStatus]);
 
   const progressPct = useMemo(() => {
     if (status === "done") return 100;
@@ -408,8 +318,6 @@ export default function MainApp() {
               onLaunch={launch}
               progressPct={progressPct}
               showProgress={showProgress}
-              preanalyse={preanalyse}
-              onValidatePreanalyse={handleValidatePreanalyse}
             />
           )}
 
