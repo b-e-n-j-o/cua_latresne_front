@@ -77,7 +77,7 @@ export default function SetPasswordPage() {
         <button
           className="mt-4 rounded-full px-4 py-2 text-sm text-white"
           style={{ backgroundColor: "#2E6E62" }}
-          onClick={() => navigate("/")}
+          onClick={() => navigate("/app")}
         >
           Se connecter
         </button>
