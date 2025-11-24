@@ -13,9 +13,10 @@ interface CuaEditorProps {
   apiBase: string;
   onSaved?: () => void;
   mapsPageUrl?: string | null;
+  onOpenAI?: () => void;
 }
 
-export default function CuaEditor({ slug, dossier, apiBase, onSaved, mapsPageUrl }: CuaEditorProps) {
+export default function CuaEditor({ slug, dossier, apiBase, onSaved, mapsPageUrl, onOpenAI }: CuaEditorProps) {
   const [html, setHtml] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
@@ -118,6 +119,15 @@ export default function CuaEditor({ slug, dossier, apiBase, onSaved, mapsPageUrl
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-end gap-2 p-3 bg-white border-b border-[#d5e1e3]">
+        {onOpenAI && (
+          <button
+            onClick={onOpenAI}
+            className="bg-[#ff4f3b] text-white px-3 py-1 rounded hover:bg-[#ff4f3b]/90 transition"
+          >
+            Analyser avec l'IA
+          </button>
+        )}
+
         <button
           onClick={handleSave}
           disabled={saving}

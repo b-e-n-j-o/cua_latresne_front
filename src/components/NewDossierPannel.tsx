@@ -7,7 +7,6 @@ interface Props {
   isOver: boolean;
   status: string;
   error: string | null;
-  activeStep: number;
 
   disabled: boolean;
 
@@ -16,7 +15,6 @@ interface Props {
   onReset: () => void;
   onLaunch: () => void;
 
-  progressPct: number;
   showProgress: boolean;
 }
 
@@ -26,10 +24,10 @@ function cx(...xs: Array<string | false | undefined | null>) {
 
 export default function NewDossierPanel(props: Props) {
   const {
-    file, isOver, status, error, activeStep,
+    file, isOver, status, error,
     disabled,
     onDrop, onChooseFile, onReset, onLaunch,
-    progressPct, showProgress,
+    showProgress,
   } = props;
 
   const getButtonText = () => {
@@ -43,21 +41,7 @@ export default function NewDossierPanel(props: Props) {
       <div className="max-w-[1200px] mx-auto">
 
         {showProgress ? (
-          <ProgressPanel
-            labels={[
-              "Upload PDF",
-              "Pré-analyse du CERFA",
-              "Analyse complète du CERFA",
-              "Vérification de l'unité foncière",
-              "Analyse réglementaire",
-              "Génération du CUA",
-            ]}
-            progressPct={progressPct}
-            activeStep={activeStep}
-            status={status as any}
-            reportUrl={null}
-            mapUrl={null}
-          />
+          <ProgressPanel status={status as any} />
         ) : (
           <div>
             <h2 className="text-lg font-semibold mb-3">Nouveau dossier</h2>
