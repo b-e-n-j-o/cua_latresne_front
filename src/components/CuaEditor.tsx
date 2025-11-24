@@ -2,9 +2,16 @@ import { useEffect, useState, useMemo } from "react";
 import { Editor } from "@tinymce/tinymce-react";
 import { FileDown, Map, Save, Loader2 } from "lucide-react";
 
-function buildToken(slug: string, path: string) {
+function encodeToken(obj: any): string {
+  const json = JSON.stringify(obj);
+  const utf8 = new TextEncoder().encode(json);
+  let b64 = btoa(String.fromCharCode(...utf8));
+  return b64;
+}
+
+function buildToken(path: string) {
   const payload = { docx: path };
-  return window.btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+  return encodeToken(payload);
 }
 
 interface CuaEditorProps {
@@ -34,17 +41,16 @@ export default function CuaEditor({ slug, dossier, apiBase, onSaved, mapsPageUrl
     return url.substring(idx + "/object/public/".length);
   }, [dossier]);
 
-  const token = docxPath ? buildToken(slug, docxPath) : null;
+  const token = docxPath ? buildToken(docxPath) : null;
 
   // Endpoints backend
-  const pdfUrl = token ? `${base}/cua/download/pdf?t=${encodeURIComponent(token)}` : null;
   const docxUrl = token ? `${base}/cua/download/docx?t=${encodeURIComponent(token)}` : null;
 
   function makeTokenFromUrl(url: string): string {
     const idx = url.indexOf("/object/public/");
     if (idx === -1) return "";
     const internal = url.substring(idx + "/object/public/".length);
-    return btoa(JSON.stringify({ docx: internal }));
+    return encodeToken({ docx: internal });
   }
 
   useEffect(() => {
@@ -134,7 +140,7 @@ export default function CuaEditor({ slug, dossier, apiBase, onSaved, mapsPageUrl
           className="flex items-center gap-2 px-4 py-2 bg-[#0b131f] text-white rounded-lg hover:bg-[#0b131f]/90 disabled:opacity-50 transition"
         >
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          Sauvegarder
+          Sauvegarder les modifications
         </button>
 
         {docxUrl && (
@@ -143,17 +149,7 @@ export default function CuaEditor({ slug, dossier, apiBase, onSaved, mapsPageUrl
             className="flex items-center gap-2 px-4 py-2 bg-white border border-[#d5e1e3] text-[#0b131f] rounded-lg hover:bg-[#d5e1e3]/20 transition"
           >
             <FileDown className="w-4 h-4" />
-            DOCX
-          </button>
-        )}
-
-        {pdfUrl && (
-          <button
-            onClick={() => window.open(pdfUrl, "_blank")}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-[#d5e1e3] text-[#0b131f] rounded-lg hover:bg-[#d5e1e3]/20 transition"
-          >
-            <FileDown className="w-4 h-4" />
-            PDF
+            Télécharger le DOCX
           </button>
         )}
 

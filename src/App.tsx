@@ -5,6 +5,7 @@ import RedirectSlugPage from "./routes/RedirectSlugPage";
 import LandingPage from "./routes/LandingPage";
 import SetPasswordPage from "./SetPassword";
 import ResourcesPage from "./routes/ResourcesPage";
+import TestPage from "./routes/TestPage";
 
 
 export default function App() {
@@ -17,7 +18,7 @@ export default function App() {
       <Route path="*" element={<div>Page introuvable</div>} />
       <Route path="/set-password" element={<SetPasswordPage />} />
       <Route path="/ressources" element={<ResourcesPage />} />
-
+      <Route path="/test" element={<TestPage />} />
     </Routes>
   );
 }

@@ -4,13 +4,27 @@ import { motion, AnimatePresence } from "framer-motion";
 interface PipelineRow {
   slug: string;
   created_at?: string;
-  commune?: string;
-  code_insee?: string;
   status: string;
+
+  // URLs
   qr_url?: string;
   output_cua?: string;
   carte_2d_url?: string;
   carte_3d_url?: string;
+  maps_page?: string;
+
+  // ➕ NOUVELLES DONNÉES CERFA
+  cerfa_data?: {
+    numero_cu?: string;
+    date_depot?: string;
+    demandeur?: string;
+    adresse_terrain?: {
+      numero?: string;
+      voie?: string;
+      code_postal?: string;
+      ville?: string;
+    };
+  };
 }
 
 interface HistorySidebarProps {
@@ -91,7 +105,21 @@ export default function HistorySidebar({
                   <div className="p-2">
                     {rows.map((row) => {
                       const isSelected = selectedSlug === row.slug;
-                      const date = row.created_at ? new Date(row.created_at) : null;
+                      
+                      // Formatage de la date de dépôt
+                      const formatDateDepot = (dateStr?: string) => {
+                        if (!dateStr) return "—";
+                        try {
+                          const d = new Date(dateStr);
+                          return d.toLocaleDateString("fr-FR", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          });
+                        } catch {
+                          return dateStr;
+                        }
+                      };
                       
                       return (
                         <button
@@ -115,20 +143,24 @@ export default function HistorySidebar({
                                   isSelected ? "text-[#0b131f]" : "text-[#0b131f]/80"
                                 }`}
                               >
-                                {row.commune || "Sans commune"}
+                                {row.cerfa_data?.numero_cu || "Certificat d'urbanisme"}
                               </div>
                               <div className="text-xs text-[#0b131f]/40 mt-0.5">
-                                INSEE {row.code_insee || "—"}
+                                Déposé le : {formatDateDepot(row.cerfa_data?.date_depot)}
                               </div>
-                              {date && (
-                                <div className="text-xs text-[#0b131f]/30 mt-1">
-                                  {date.toLocaleDateString("fr-FR", {
-                                    day: "numeric",
-                                    month: "short",
-                                    year: "numeric",
-                                  })}
-                                </div>
-                              )}
+                              <div className="text-xs text-[#0b131f]/40 mt-0.5 truncate">
+                                Demandeur : {row.cerfa_data?.demandeur || "—"}
+                              </div>
+                              <div className="text-xs text-[#0b131f]/40 truncate">
+                                {row.cerfa_data?.adresse_terrain
+                                  ? [
+                                      row.cerfa_data.adresse_terrain.numero,
+                                      row.cerfa_data.adresse_terrain.voie,
+                                      row.cerfa_data.adresse_terrain.code_postal,
+                                      row.cerfa_data.adresse_terrain.ville
+                                    ].filter(Boolean).join(" ").trim() || "Adresse : —"
+                                  : "Adresse : —"}
+                              </div>
                             </div>
                             <span
                               className={`text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${

@@ -9,6 +9,13 @@ import { useMeta } from "../hooks/useMeta";
 
 const ENV_API_BASE = import.meta.env.VITE_API_BASE || "";
 
+function encodeToken(obj: any): string {
+  const json = JSON.stringify(obj);
+  const utf8 = new TextEncoder().encode(json);
+  let b64 = btoa(String.fromCharCode(...utf8));
+  return b64;
+}
+
 type Status =
   | "idle"
   | "uploading"
@@ -21,14 +28,27 @@ type Status =
 interface PipelineRow {
   slug: string;
   created_at?: string;
-  commune?: string;
-  code_insee?: string;
   status: string;
+
+  // URLs
   qr_url?: string;
   output_cua?: string;
   carte_2d_url?: string;
   carte_3d_url?: string;
   maps_page?: string;
+
+  // ➕ NOUVELLES DONNÉES CERFA
+  cerfa_data?: {
+    numero_cu?: string;
+    date_depot?: string;
+    demandeur?: string;
+    adresse_terrain?: {
+      numero?: string;
+      voie?: string;
+      code_postal?: string;
+      ville?: string;
+    };
+  };
 }
 
 function cx(...xs: Array<string | false | undefined | null>) {
@@ -247,7 +267,7 @@ export default function MainApp() {
         carte2d: selectedDossier.carte_2d_url,
         carte3d: selectedDossier.carte_3d_url,
       };
-      const token = btoa(JSON.stringify(payload));
+      const token = encodeToken(payload);
       return `${window.location.origin}/maps?t=${encodeURIComponent(token)}`;
     }
     return null;
