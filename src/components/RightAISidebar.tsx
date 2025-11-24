@@ -1,5 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 export default function RightAISidebar({ slug, isOpen, onToggle, apiBase }: { slug: string, isOpen: boolean, onToggle: () => void, apiBase: string }) {
   const [loading, setLoading] = useState(false);
@@ -157,7 +159,11 @@ export default function RightAISidebar({ slug, isOpen, onToggle, apiBase }: { sl
             )}
 
             {summary && (
-              <pre className="whitespace-pre-wrap">{summary}</pre>
+              <div className="prose prose-sm max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {summary}
+                </ReactMarkdown>
+              </div>
             )}
           </div>
         )}
