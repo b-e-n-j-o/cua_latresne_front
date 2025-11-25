@@ -1,16 +1,25 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
 
 import "./index.css";
 
+// -------------------------------------------------------------
+// ➡️ COMPOSANTS D'AUTHENTIFICATION (Imports nécessaires)
+// Extensions retirées pour la résolution des modules standard.
+import AuthGate from "./auth/AuthGate";
+import LoginForm from "./auth/LoginForm"; 
+import ResetPasswordPage from "./auth/ResetPasswordPage";
+import UpdatePasswordPage from "./auth/UpdatePasswordPage";
+// -------------------------------------------------------------
+
+// ➡️ COMPOSANTS DE L'APPLICATION (Imports existants)
+// Extensions retirées pour la résolution des modules standard.
 import LandingPage from "./routes/LandingPage";
 import MapsViewer from "./routes/MapsViewer";
 import RedirectSlugPage from "./routes/RedirectSlugPage";
-import SetPasswordPage from "./SetPassword";
 import MainApp from "./routes/MainApp";
 import HistoryPanel from "./HistoryPanel";
-import AuthGate from "./AuthGate";
 import ResourcesPage from "./routes/ResourcesPage";
 import AdminPage from "./routes/AdminPage";
 import CuaViewer from "./routes/CuaViewer";
@@ -19,32 +28,49 @@ import TestPage from "./routes/TestPage";
 
 // Wrapper pour HistoryPanel
 const HistoryPage = () => (
+  // La base API est passée via les variables d'environnement
   <HistoryPanel apiBase={import.meta.env.VITE_API_BASE || ""} />
 );
 
-// ROUTES PUBLIQUES
-const PUBLIC_EXACT_ROUTES = ["/", "/set-password", "/maps", "/ressources", "/test"];
+// =========================================================================
+// 🎯 DÉFINITION DES ROUTES PUBLIQUES
+// =========================================================================
+const PUBLIC_EXACT_ROUTES = [
+  "/", 
+  // ROUTES D'AUTHENTIFICATION (Doivent être publiques pour être accessibles)
+  "/login",
+  "/reset-password",
+  "/update-password",
+  
+  "/maps", 
+  "/ressources", 
+  "/test",
+];
 const PUBLIC_PREFIX_ROUTES = ["/m/", "/maps", "/cua"];
 
 function RouterWithAuthGate() {
   const location = useLocation();
   const path = location.pathname;
 
-  // Vérifie si la route est publique exacte
   const isExactPublic = PUBLIC_EXACT_ROUTES.includes(path);
-
-  // Vérifie si la route commence par un préfixe public
   const isPrefixPublic = PUBLIC_PREFIX_ROUTES.some((prefix) =>
     path.startsWith(prefix)
   );
 
   const isPublic = isExactPublic || isPrefixPublic;
 
+  // 1. Si la route est publique, on rend les routes sans AuthGate
   if (isPublic) {
     return (
       <Routes>
         <Route path="/" element={<LandingPage />} />
-        <Route path="/set-password" element={<SetPasswordPage />} />
+        
+        {/* ROUTES D'AUTHENTIFICATION PUBLIQUES */}
+        <Route path="/login" element={<LoginForm />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/update-password" element={<UpdatePasswordPage />} />
+
+        {/* ➡️ AUTRES ROUTES PUBLIQUES */}
         <Route path="/maps" element={<MapsViewer />} />
         <Route path="/cua" element={<CuaViewer />} />
         <Route path="/ressources" element={<ResourcesPage />} />
@@ -56,13 +82,17 @@ function RouterWithAuthGate() {
   }
   
 
-  // Routes protégées
+  // 2. Si la route est protégée, on l'enveloppe dans AuthGate
   return (
     <AuthGate>
       <Routes>
         <Route path="/app" element={<MainApp />} />
         <Route path="/history" element={<HistoryPage />} />
         <Route path="/admin" element={<AdminPage />} />
+        
+        {/* Redirige la racine vers /app (pour les utilisateurs connectés) */}
+        <Route path="/" element={<Navigate to="/app" replace />} />
+
         <Route path="*" element={<div>Page introuvable</div>} />
       </Routes>
     </AuthGate>

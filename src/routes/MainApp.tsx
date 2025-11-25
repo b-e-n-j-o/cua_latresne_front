@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import supabase from "../supabaseClient";
-import LogoutButton from "../LogoutButton";
+import LogoutButton from "../auth/LogoutButton";
 import HistorySidebar from "../components/HistorySidebar";
 import CuaEditor from "../components/CuaEditor";
 import NewDossierPanel from "../components/NewDossierPannel";
