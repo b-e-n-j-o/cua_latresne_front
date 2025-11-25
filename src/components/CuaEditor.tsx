@@ -124,20 +124,27 @@ export default function CuaEditor({ slug, dossier, apiBase, onSaved, mapsPageUrl
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-end gap-2 p-3 bg-white border-b border-[#d5e1e3]">
+      <div className="flex items-center justify-end gap-1.5 p-3 bg-white border-b border-[#d5e1e3]">
         {onOpenAI && (
           <button
             onClick={onOpenAI}
-            className="bg-[#ff4f3b] text-white px-3 py-1 rounded hover:bg-[#ff4f3b]/90 transition"
+            className="flex items-center gap-1.5 bg-[#ff4f3b] text-white px-3 py-1 rounded hover:bg-[#ff4f3b]/90 transition"
           >
             Analyser avec l'IA
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2L13.5 8.5L20 10L13.5 11.5L12 18L10.5 11.5L4 10L10.5 8.5L12 2Z" />
+              <circle cx="19" cy="4" r="1.5" />
+              <circle cx="20" cy="19" r="1" />
+              <circle cx="4" cy="19" r="1" />
+              <circle cx="2" cy="6" r="0.8" />
+            </svg>
           </button>
         )}
 
         <button
           onClick={handleSave}
           disabled={saving}
-          className="flex items-center gap-2 px-4 py-2 bg-[#0b131f] text-white rounded-lg hover:bg-[#0b131f]/90 disabled:opacity-50 transition"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[#0b131f] text-white rounded-lg hover:bg-[#0b131f]/90 disabled:opacity-50 transition"
         >
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
           Sauvegarder les modifications
@@ -146,10 +153,20 @@ export default function CuaEditor({ slug, dossier, apiBase, onSaved, mapsPageUrl
         {docxUrl && (
           <button
             onClick={() => window.open(docxUrl, "_blank")}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-[#d5e1e3] text-[#0b131f] rounded-lg hover:bg-[#d5e1e3]/20 transition"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white border border-[#d5e1e3] text-[#0b131f] rounded-lg hover:bg-[#d5e1e3]/20 transition"
           >
-            <FileDown className="w-4 h-4" />
-            Télécharger le DOCX
+            <FileDown className="w-3.5 h-3.5" />
+            CUA DOCX
+          </button>
+        )}
+
+        {dossier?.intersections_gpkg_url && (
+          <button
+            onClick={() => window.open(dossier.intersections_gpkg_url, "_blank")}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white border border-[#d5e1e3] text-[#0b131f] rounded-lg hover:bg-[#d5e1e3]/20 transition"
+          >
+            <FileDown className="w-3.5 h-3.5" />
+            Zonage GeoPackage
           </button>
         )}
 
@@ -158,9 +175,9 @@ export default function CuaEditor({ slug, dossier, apiBase, onSaved, mapsPageUrl
             href={mapsPageUrl}
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-[#d5e1e3] text-[#0b131f] rounded-lg hover:bg-[#d5e1e3]/20 transition"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white border border-[#d5e1e3] text-[#0b131f] rounded-lg hover:bg-[#d5e1e3]/20 transition"
           >
-            <Map className="w-4 h-4" />
+            <Map className="w-3.5 h-3.5" />
             Afficher les cartes
           </a>
         )}

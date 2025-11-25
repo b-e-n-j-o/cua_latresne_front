@@ -36,6 +36,7 @@ interface PipelineRow {
   carte_2d_url?: string;
   carte_3d_url?: string;
   maps_page?: string;
+  intersections_gpkg_url?: string;
 
   // ➕ NOUVELLES DONNÉES CERFA
   cerfa_data?: {
@@ -122,8 +123,13 @@ export default function MainApp() {
 
             setStatus("done");
 
-            const slug = j?.result_enhanced?.slug;
-            console.log("🎯 EXTRACTED SLUG:", slug);
+            const slug =
+              j?.result_enhanced?.slug ??
+              j?.result_enhanced?.cua?.slug ??
+              j?.result?.slug ??
+              j?.result?.cua?.slug ??
+              null;
+            console.log("🎯 Slug détecté =", slug);
             console.log("📋 SLUG TYPE:", typeof slug);
             console.log("📋 SLUG VALUE:", slug ? `"${slug}"` : "null/undefined");
 
@@ -259,6 +265,8 @@ export default function MainApp() {
   const selectedDossier = selectedSlug
     ? historyRows.find((r) => r.slug === selectedSlug)
     : null;
+  
+  console.log("🔍 Selected dossier:", selectedDossier);
 
   const mapsPageUrl = useMemo(() => {
     if (selectedDossier?.maps_page) return selectedDossier.maps_page;
