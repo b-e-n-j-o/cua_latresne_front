@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Plus, X, Loader2, FileText, CheckCircle, AlertCircle } from "lucide-react";
+import { Plus, X, Loader2, FileText, CheckCircle, AlertCircle, FileDown } from "lucide-react";
 import { Editor } from "@tinymce/tinymce-react";
 import supabase from "../supabaseClient";
 import { useMeta } from "../hooks/useMeta";
@@ -36,6 +36,7 @@ export default function TestPage() {
   const [cuaHtml, setCuaHtml] = useState<string | null>(null);
   const [cuaUrl, setCuaUrl] = useState<string | null>(null);
   const [carte2DUrl, setCarte2DUrl] = useState<string | null>(null);
+  const [gpkgUrl, setGpkgUrl] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<string>("");
@@ -91,7 +92,7 @@ export default function TestPage() {
         const res = await fetch(`${base}/status/${jobId}`);
         const j = await res.json();
 
-        if (j.current_step) {
+        if (typeof j.current_step === "string") {
           setCurrentStep(j.current_step);
         }
 
@@ -112,6 +113,7 @@ export default function TestPage() {
                 const docxUrl = pipelineData.pipeline.output_cua;
                 setCuaUrl(docxUrl);
                 setCarte2DUrl(pipelineData.pipeline.carte_2d_url || null);
+                setGpkgUrl(pipelineData.pipeline.intersections_gpkg_url || null);
                 
                 // Charger le HTML du CUA
                 const idx = docxUrl.indexOf("/object/public/");
@@ -133,8 +135,17 @@ export default function TestPage() {
         }
 
         if (j.status === "error") {
-          console.warn("⚠️ Erreur ignorée dans la page de test:", j.error);
-          return; // On continue le polling
+          // Faux positif = on ignore
+          if (j.error && j.error.includes("Aucune intersection")) {
+            console.warn("⚠️ Faux positif ignoré:", j.error);
+            return;
+          }
+          // Vraie erreur backend
+          clearInterval(intervalId);
+          pollIntervalRef.current = null;
+          setStatus("error");
+          setError(j.error || "Erreur pipeline");
+          return;
         }
       } catch (err) {
         console.error("Erreur polling status:", err);
@@ -167,6 +178,7 @@ export default function TestPage() {
     setCuaHtml(null);
     setCuaUrl(null);
     setCarte2DUrl(null);
+    setGpkgUrl(null);
 
     const base = ENV_API_BASE.replace(/\/$/, "");
     if (!base) {
@@ -214,6 +226,7 @@ export default function TestPage() {
     setCuaHtml(null);
     setCuaUrl(null);
     setCarte2DUrl(null);
+    setGpkgUrl(null);
     setCurrentStep("");
     if (pollIntervalRef.current) {
       clearInterval(pollIntervalRef.current);
@@ -388,7 +401,7 @@ export default function TestPage() {
             </div>
 
             {cuaUrl && (
-              <div className="flex gap-3">
+              <div className="flex gap-3 flex-wrap">
                 <a
                   href={cuaUrl}
                   download
@@ -397,6 +410,15 @@ export default function TestPage() {
                   <FileText className="w-4 h-4" />
                   Télécharger le DOCX
                 </a>
+                {gpkgUrl && (
+                  <button
+                    onClick={() => window.open(gpkgUrl, "_blank")}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white border border-[#d5e1e3] text-[#0b131f] rounded-lg hover:bg-[#d5e1e3]/20 transition"
+                  >
+                    <FileDown className="w-3.5 h-3.5" />
+                    Zonage GeoPackage
+                  </button>
+                )}
                 <button
                   onClick={reset}
                   className="px-4 py-2 border border-[#d5e1e3] rounded-lg hover:bg-[#f8f9fa] transition"
