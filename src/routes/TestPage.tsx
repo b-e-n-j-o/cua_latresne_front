@@ -36,6 +36,7 @@ export default function TestPage() {
   const [cuaHtml, setCuaHtml] = useState<string | null>(null);
   const [cuaUrl, setCuaUrl] = useState<string | null>(null);
   const [carte2DUrl, setCarte2DUrl] = useState<string | null>(null);
+  const [gpkgUrl, setGpkgUrl] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<string>("");
@@ -112,6 +113,7 @@ export default function TestPage() {
                 const docxUrl = pipelineData.pipeline.output_cua;
                 setCuaUrl(docxUrl);
                 setCarte2DUrl(pipelineData.pipeline.carte_2d_url || null);
+                setGpkgUrl(pipelineData.pipeline.intersections_gpkg_url || null);
                 
                 // Charger le HTML du CUA
                 const idx = docxUrl.indexOf("/object/public/");
@@ -185,6 +187,7 @@ export default function TestPage() {
     setCuaHtml(null);
     setCuaUrl(null);
     setCarte2DUrl(null);
+    setGpkgUrl(null);
 
     const base = ENV_API_BASE.replace(/\/$/, "");
     if (!base) {
@@ -232,6 +235,7 @@ export default function TestPage() {
     setCuaHtml(null);
     setCuaUrl(null);
     setCarte2DUrl(null);
+    setGpkgUrl(null);
     setCurrentStep("");
     if (pollIntervalRef.current) {
       clearInterval(pollIntervalRef.current);
@@ -406,7 +410,7 @@ export default function TestPage() {
             </div>
 
             {cuaUrl && (
-              <div className="flex gap-3">
+              <div className="flex gap-3 items-center">
                 <a
                   href={cuaUrl}
                   download
@@ -415,6 +419,16 @@ export default function TestPage() {
                   <FileText className="w-4 h-4" />
                   Télécharger le DOCX
                 </a>
+                {gpkgUrl && (
+                  <a
+                    href={gpkgUrl}
+                    download
+                    className="flex items-center gap-2 px-4 py-2 bg-white border border-[#d5e1e3] text-[#0b131f] rounded-lg hover:bg-[#f8f9fa] transition"
+                  >
+                    <FileText className="w-4 h-4" />
+                    Zonage (GPKG)
+                  </a>
+                )}
                 <button
                   onClick={reset}
                   className="px-4 py-2 border border-[#d5e1e3] rounded-lg hover:bg-[#f8f9fa] transition"
