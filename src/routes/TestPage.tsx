@@ -133,11 +133,20 @@ export default function TestPage() {
         }
 
         if (j.status === "error") {
-          // Faux positif = on ignore
-          if (j.error && j.error.includes("Aucune intersection")) {
+          // Liste des erreurs logiques non fatales à ignorer
+          const IGNORED_ERRORS = [
+            "aucune intersection",
+            "no intersection",
+            "empty layer",
+            "no records"
+          ];
+
+          const err = (j.error || "").toLowerCase();
+          if (IGNORED_ERRORS.some((s) => err.includes(s))) {
             console.warn("⚠️ Faux positif ignoré:", j.error);
-            return;
+            return; // On continue le pipeline normalement
           }
+
           // Vraie erreur backend
           clearInterval(intervalId);
           pollIntervalRef.current = null;
