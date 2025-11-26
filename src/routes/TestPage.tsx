@@ -133,10 +133,8 @@ export default function TestPage() {
         }
 
         if (j.status === "error") {
-          clearInterval(intervalId);
-          pollIntervalRef.current = null;
-          setStatus("error");
-          setError(j.error || "Erreur pipeline");
+          console.warn("⚠️ Erreur ignorée dans la page de test:", j.error);
+          return; // On continue le polling
         }
       } catch (err) {
         console.error("Erreur polling status:", err);
@@ -215,6 +213,7 @@ export default function TestPage() {
     setError(null);
     setCuaHtml(null);
     setCuaUrl(null);
+    setCarte2DUrl(null);
     setCurrentStep("");
     if (pollIntervalRef.current) {
       clearInterval(pollIntervalRef.current);
