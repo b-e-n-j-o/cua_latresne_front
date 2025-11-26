@@ -3,6 +3,7 @@ import { Plus, X, Loader2, FileText, CheckCircle, AlertCircle } from "lucide-rea
 import { Editor } from "@tinymce/tinymce-react";
 import supabase from "../supabaseClient";
 import { useMeta } from "../hooks/useMeta";
+import Map2DViewer from "../components/Map2dViewer";
 
 const ENV_API_BASE = import.meta.env.VITE_API_BASE || "";
 
@@ -34,6 +35,7 @@ export default function TestPage() {
   const [error, setError] = useState<string | null>(null);
   const [cuaHtml, setCuaHtml] = useState<string | null>(null);
   const [cuaUrl, setCuaUrl] = useState<string | null>(null);
+  const [carte2DUrl, setCarte2DUrl] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<string>("");
@@ -109,6 +111,7 @@ export default function TestPage() {
               if (pipelineData.success && pipelineData.pipeline?.output_cua) {
                 const docxUrl = pipelineData.pipeline.output_cua;
                 setCuaUrl(docxUrl);
+                setCarte2DUrl(pipelineData.pipeline.carte_2d_url || null);
                 
                 // Charger le HTML du CUA
                 const idx = docxUrl.indexOf("/object/public/");
@@ -165,6 +168,7 @@ export default function TestPage() {
     setStatus("running");
     setCuaHtml(null);
     setCuaUrl(null);
+    setCarte2DUrl(null);
 
     const base = ENV_API_BASE.replace(/\/$/, "");
     if (!base) {
@@ -454,6 +458,13 @@ export default function TestPage() {
                 }}
               />
             </div>
+
+            {carte2DUrl && (
+              <div className="mt-8">
+                <h3 className="text-lg font-semibold mb-3">Carte 2D générée</h3>
+                <Map2DViewer url={carte2DUrl} />
+              </div>
+            )}
           </div>
         )}
       </div>
