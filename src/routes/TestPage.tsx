@@ -40,6 +40,7 @@ export default function TestPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<string>("");
+  const [intersectionsJson, setIntersectionsJson] = useState<any | null>(null);
 
   const pollIntervalRef = useRef<number | null>(null);
 
@@ -125,6 +126,18 @@ export default function TestPage() {
                   if (htmlRes.ok) {
                     const htmlData = await htmlRes.json();
                     setCuaHtml(htmlData.html || "");
+                  }
+                }
+
+                // Charger le JSON d'intersections directement depuis l'URL
+                if (pipelineData.pipeline.intersections_json_url) {
+                  try {
+                    const url = pipelineData.pipeline.intersections_json_url;
+                    const r2 = await fetch(url);
+                    const intersectionsData = await r2.json();
+                    setIntersectionsJson(intersectionsData);
+                  } catch (e) {
+                    console.error("Erreur chargement intersections JSON:", e);
                   }
                 }
               }
@@ -237,6 +250,7 @@ export default function TestPage() {
     setCarte2DUrl(null);
     setGpkgUrl(null);
     setCurrentStep("");
+    setIntersectionsJson(null);
     if (pollIntervalRef.current) {
       clearInterval(pollIntervalRef.current);
       pollIntervalRef.current = null;
@@ -364,18 +378,7 @@ export default function TestPage() {
 
         {status === "running" && (
           <div className="text-center py-12">
-            <Loader2 className="w-12 h-12 animate-spin text-[#ff4f3b] mx-auto mb-4" />
-            <p className="text-lg font-medium">Analyse en cours...</p>
-            <p className="text-sm text-[#0b131f]/60 mt-2">
-              {currentStep === "unite_fonciere" && "Construction de l'unité foncière..."}
-              {currentStep === "intersections" && "Calcul des intersections avec les couches réglementaires..."}
-              {currentStep === "generation_cua" && "Génération des cartes et du CUA..."}
-              {currentStep === "cua_pret" && "Finalisation du certificat..."}
-              {!currentStep && "Construction de l'unité foncière, calcul des intersections, génération du CUA..."}
-            </p>
-            {jobId && (
-              <p className="text-xs text-[#0b131f]/40 mt-4">Job ID: {jobId}</p>
-            )}
+            <Loader2 className="w-12 h-12 animate-spin text-[#ff4f3b] mx-auto" />
           </div>
         )}
 
@@ -494,6 +497,17 @@ export default function TestPage() {
               <div className="mt-8">
                 <h3 className="text-lg font-semibold mb-3">Carte 2D générée</h3>
                 <Map2DViewer url={carte2DUrl} />
+              </div>
+            )}
+
+            {intersectionsJson && (
+              <div className="mt-8 bg-gray-50 border border-gray-300 rounded-lg p-4">
+                <h3 className="text-lg font-semibold mb-2">
+                  🔍 JSON d'intersections (debug)
+                </h3>
+                <pre className="text-xs overflow-auto max-h-96 bg-white p-3 border border-gray-200 rounded">
+                  {JSON.stringify(intersectionsJson, null, 2)}
+                </pre>
               </div>
             )}
           </div>
