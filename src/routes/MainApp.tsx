@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState, useRef } from "react"
 import supabase from "../supabaseClient";
 import LogoutButton from "../auth/LogoutButton";
 import HistorySidebar from "../components/HistorySidebar";
-import CuaEditor from "../components/CuaEditor";
+import CuaEditorWithMap from "../components/CuaEditorWithMap";
 import NewDossierPanel from "../components/NewDossierPannel";
 import RightAISidebar from "../components/RightAISidebar";
 import { useMeta } from "../hooks/useMeta";
@@ -341,7 +341,7 @@ export default function MainApp() {
               showProgress={showProgress}
             />
           ) : selectedSlug ? (
-            <CuaEditor
+            <CuaEditorWithMap
               key={selectedSlug}
               slug={selectedSlug}
               dossier={selectedDossier}

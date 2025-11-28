@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { Editor } from "@tinymce/tinymce-react";
-import { FileDown, Map, Save, Loader2 } from "lucide-react";
+import { FileDown, Map, Save, Loader2, FileText, MapPin } from "lucide-react";
+import Map2DViewer from "./Map2dViewer";
 
 function encodeToken(obj: any): string {
   const json = JSON.stringify(obj);
@@ -28,22 +29,19 @@ export default function CuaEditor({ slug, dossier, apiBase, onSaved, mapsPageUrl
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"cua" | "map">("cua");
 
   const base = apiBase.replace(/\/$/, "");
 
-  // URL du DOCX dans Supabase (celui mis à jour par /cua/update)
   const docxPath = useMemo(() => {
     if (!dossier?.output_cua) return null;
     const url = dossier.output_cua;
     const idx = url.indexOf("/object/public/");
     if (idx === -1) return null;
-    // Garder tout après /object/public/ - le backend gère le nettoyage avec get_docx_path()
     return url.substring(idx + "/object/public/".length);
   }, [dossier]);
 
   const token = docxPath ? buildToken(docxPath) : null;
-
-  // Endpoints backend
   const docxUrl = token ? `${base}/cua/download/docx?t=${encodeURIComponent(token)}` : null;
 
   function makeTokenFromUrl(url: string): string {
@@ -105,7 +103,6 @@ export default function CuaEditor({ slug, dossier, apiBase, onSaved, mapsPageUrl
     }
   }
 
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -124,6 +121,35 @@ export default function CuaEditor({ slug, dossier, apiBase, onSaved, mapsPageUrl
 
   return (
     <div className="flex flex-col h-full">
+      {/* Tabs */}
+      <div className="border-b border-[#d5e1e3] bg-white">
+        <div className="flex gap-2 px-6">
+          <button
+            onClick={() => setActiveTab("cua")}
+            className={`flex items-center gap-2 px-4 py-3 border-b-2 transition ${
+              activeTab === "cua"
+                ? "border-[#ff4f3b] text-[#ff4f3b] font-medium"
+                : "border-transparent text-[#0b131f]/60 hover:text-[#0b131f]"
+            }`}
+          >
+            <FileText className="w-4 h-4" />
+            Certificat
+          </button>
+          <button
+            onClick={() => setActiveTab("map")}
+            className={`flex items-center gap-2 px-4 py-3 border-b-2 transition ${
+              activeTab === "map"
+                ? "border-[#ff4f3b] text-[#ff4f3b] font-medium"
+                : "border-transparent text-[#0b131f]/60 hover:text-[#0b131f]"
+            }`}
+          >
+            <MapPin className="w-4 h-4" />
+            Carte
+          </button>
+        </div>
+      </div>
+
+      {/* Toolbar */}
       <div className="flex items-center justify-end gap-1.5 p-3 bg-white border-b border-[#d5e1e3]">
         {onOpenAI && (
           <button
@@ -183,56 +209,68 @@ export default function CuaEditor({ slug, dossier, apiBase, onSaved, mapsPageUrl
         )}
       </div>
 
-      <div className="flex-1 bg-white overflow-auto">
-        <Editor
-          tinymceScriptSrc="/tinymce/tinymce.min.js"
-          licenseKey="gpl"
-          value={html}
-          onEditorChange={(content: string) => setHtml(content)}
-          init={{
-            height: "100%",
-            menubar: false,
-            branding: false,
-            plugins: "link lists table code preview",
-            toolbar:
-              "undo redo | bold italic | alignleft aligncenter alignright | bullist numlist | link | preview",
-            skin_url: "/tinymce/skins/ui/oxide",
-            content_css: "/tinymce/skins/content/default/content.css",
-            content_style: `
-              body {
-                font-family: Inter, system-ui, sans-serif;
-                font-size: 15px;
-                line-height: 1.6;
-                color: #0b131f;
-                padding: 40px;
-                max-width: 900px;
-                margin: 0 auto;
-              }
-              h1, h2, h3 { 
-                font-weight: 600;
-                color: #0b131f;
-                margin-top: 1.5em;
-                margin-bottom: 0.5em;
-              }
-              h1 { font-size: 2em; }
-              h2 { font-size: 1.5em; }
-              h3 { font-size: 1.2em; }
-              table { 
-                border-collapse: collapse;
-                width: 100%;
-                margin: 1em 0;
-              }
-              table, th, td { 
-                border: 1px solid #d5e1e3;
-                padding: 8px;
-              }
-              th {
-                background: #f8f9fa;
-                font-weight: 600;
-              }
-            `,
-          }}
-        />
+      {/* Content */}
+      <div className="flex-1 overflow-hidden">
+        <div className={activeTab === "cua" ? "h-full bg-white overflow-auto" : "hidden"}>
+          <Editor
+            tinymceScriptSrc="/tinymce/tinymce.min.js"
+            licenseKey="gpl"
+            value={html}
+            onEditorChange={(content: string) => setHtml(content)}
+            init={{
+              height: "100%",
+              menubar: false,
+              branding: false,
+              plugins: "link lists table code preview",
+              toolbar:
+                "undo redo | bold italic | alignleft aligncenter alignright | bullist numlist | link | preview",
+              skin_url: "/tinymce/skins/ui/oxide",
+              content_css: "/tinymce/skins/content/default/content.css",
+              content_style: `
+                body {
+                  font-family: Inter, system-ui, sans-serif;
+                  font-size: 15px;
+                  line-height: 1.6;
+                  color: #0b131f;
+                  padding: 40px;
+                  max-width: 900px;
+                  margin: 0 auto;
+                }
+                h1, h2, h3 { 
+                  font-weight: 600;
+                  color: #0b131f;
+                  margin-top: 1.5em;
+                  margin-bottom: 0.5em;
+                }
+                h1 { font-size: 2em; }
+                h2 { font-size: 1.5em; }
+                h3 { font-size: 1.2em; }
+                table { 
+                  border-collapse: collapse;
+                  width: 100%;
+                  margin: 1em 0;
+                }
+                table, th, td { 
+                  border: 1px solid #d5e1e3;
+                  padding: 8px;
+                }
+                th {
+                  background: #f8f9fa;
+                  font-weight: 600;
+                }
+              `,
+            }}
+          />
+        </div>
+        <div className={activeTab === "map" ? "h-full p-6" : "hidden"}>
+          {dossier?.carte_2d_url ? (
+            <Map2DViewer url={dossier.carte_2d_url} />
+          ) : (
+            <div className="flex items-center justify-center h-full text-[#0b131f]/40">
+              Aucune carte disponible
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
