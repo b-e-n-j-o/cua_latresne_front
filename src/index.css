@@ -1,3 +1,120 @@
+/* === Design System Kerelia (compatible Tailwind v3) === */
+
+@import "tailwindcss";
+
+/* === Variables UI / Palette consigne === */
+
+:root {
+  /* Couleurs principales */
+  --primary: oklch(0.55 0.25 270);
+  --primary-foreground: oklch(0.98 0 0);
+
+  --background: oklch(0.96 0.01 60);
+  --foreground: oklch(0.15 0.01 0);
+
+  --card: oklch(0.98 0.005 60);
+  --card-foreground: oklch(0.15 0.01 0);
+
+  --secondary: oklch(0.92 0.01 60);
+  --secondary-foreground: oklch(0.15 0.01 0);
+
+  --muted: oklch(0.94 0.01 60);
+  --muted-foreground: oklch(0.45 0.01 0);
+
+  --accent: oklch(0.65 0.20 160);
+  --accent-foreground: oklch(0.98 0 0);
+
+  --destructive: oklch(0.55 0.25 30);
+  --destructive-foreground: oklch(0.98 0 0);
+
+  --border: oklch(0.88 0.01 60);
+  --ring: oklch(0.55 0.25 270);
+
+  --input: oklch(0.88 0.01 60);
+
+  --radius: 1rem;
+
+  /* Couleurs graphiques */
+  --chart-1: oklch(0.65 0.20 160);
+  --chart-2: oklch(0.65 0.22 25);
+  --chart-3: oklch(0.85 0.20 95);
+  --chart-4: oklch(0.65 0.25 350);
+  --chart-5: oklch(0.45 0.15 270);
+
+  /* Sidebar (future compat) */
+  --sidebar: oklch(0.98 0.005 60);
+  --sidebar-foreground: oklch(0.15 0.01 0);
+  --sidebar-accent: oklch(0.94 0.01 60);
+  --sidebar-accent-foreground: oklch(0.15 0.01 0);
+  --sidebar-border: oklch(0.88 0.01 60);
+  --sidebar-primary: oklch(0.55 0.25 270);
+  --sidebar-primary-foreground: oklch(0.98 0 0);
+  --sidebar-ring: oklch(0.55 0.25 270);
+}
+
+/* === Base (appliqué automatiquement à tout le site) === */
+
+@layer base {
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  button:not(:disabled),
+  a[href],
+  [role="button"]:not([aria-disabled="true"]),
+  [type="button"]:not(:disabled),
+  [type="submit"]:not(:disabled),
+  [type="reset"]:not(:disabled),
+  select:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled) {
+    @apply cursor-pointer;
+  }
+}
+
+/* === Composants UI === */
+
+@layer components {
+  /* Containers centrés comme dans consigne */
+  .container {
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+
+  @media (min-width: 640px) {
+    .container {
+      padding-left: 2rem;
+      padding-right: 2rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .container {
+      padding-left: 3rem;
+      padding-right: 3rem;
+      max-width: 1400px;
+    }
+  }
+
+  /* Petits blocs icône colorés */
+  .icon-box {
+    @apply rounded-2xl p-3 inline-flex items-center justify-center;
+  }
+
+  /* Animations subtiles */
+  .smooth-transition {
+    @apply transition-all duration-300 ease-in-out;
+  }
+}
+
+
 html {
   scroll-behavior: smooth;
 }

@@ -11,6 +11,8 @@ import ResetPasswordPage from "./auth/ResetPasswordPage";
 import UpdatePasswordPage from "./auth/UpdatePasswordPage";
 import AuthGate from "./auth/AuthGate";
 import supabase from "./supabaseClient";
+import HomePage from "./routes/HomePage";
+
 import type { User } from "@supabase/supabase-js";
 
 function PublicGate({ children }: { children: React.ReactNode }) {
@@ -51,6 +53,7 @@ export default function App() {
 
       {/* Pages publiques */}
       <Route path="/maps" element={<MapsViewer />} />
+      <Route path="/new" element={<HomePage />} />
       <Route path="/m/:slug" element={<RedirectSlugPage />} />
       <Route path="/ressources" element={<ResourcesPage />} />
       <Route path="/test" element={<TestPage />} />
