@@ -91,7 +91,7 @@ const UrbanHeroAnimation: React.FC = () => {
       mouseRef.current.y += (targetMouseRef.current.y - mouseRef.current.y) * 0.08;
       
       // Clear with dark blue background #0B131F
-      ctx.fillStyle = '#FDEFDC';
+      ctx.fillStyle = '#0B131F';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       const mouseX = mouseRef.current.x;
