@@ -24,11 +24,11 @@ export default function SiteHeader() {
           <a href="/#results" className="hover:text-[#FF4F3B] transition">
             Résultats
           </a>
-          <Link to="/notre-equipe" className="hover:text-[#FF4F3B] transition">
-            Notre équipe
-          </Link>
           <a href="/#contact" className="hover:text-[#FF4F3B] transition">
             Contact
+          </a>
+          <a href="/notre-equipe" className="hover:text-[#FF4F3B] transition">
+            Notre équipe
           </a>
         </nav>
 

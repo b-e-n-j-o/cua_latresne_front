@@ -1,55 +1,34 @@
 import { motion } from "framer-motion";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import AudienceSmartForm from "../components/AudienceSmartForm";
 import UniversalPreview from "../components/UniversalPreview";
+import SiteHeader from "../components/layout/SIteHeader";
+import SiteFooter from "../components/layout/SiteFooter";
 
 import { Card } from "../components/ui/card";
 import { MapPlus, Sparkles, FileCheck, MonitorCog, Map, FileCog } from "lucide-react";
 
 export default function HomePage() {
   const [selectedProfile, setSelectedProfile] = useState<string | null>(null);
+  const location = useLocation();
 
-
+  // Auto-scroll vers #contact si présent dans l'URL
+  useEffect(() => {
+    if (location.hash === "#contact") {
+      // Petit délai pour laisser le temps au DOM de se charger
+      setTimeout(() => {
+        const el = document.getElementById("contact");
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }, 100);
+    }
+  }, [location]);
 
   return (
     <div className="font-sans text-[#0b131f]">
-      {/* ================= HEADER ================= */}
-      <header className="fixed top-0 left-0 w-full bg-transparent backdrop-blur-sm shadow-sm z-50">
-        <div className="max-w-[1400px] mx-auto px-4 sm:px-8 lg:px-12 py-4 flex items-center justify-between">
-          <a href="/" className="flex items-center gap-3">
-            <img
-              src="/KERELIA-14.png"
-              alt="Kerelia - Automatisation urbanisme"
-              className="h-10 w-auto"
-              loading="lazy"
-            />
-            <span className="text-xl font-bold">KERELIA</span>
-
-          </a>
-
-          <nav className="hidden md:flex gap-8 text-black/60 text-sm font-medium">
-          <a href="#audiences" className="hover:text-[#FF4F3B] transition">
-              Pour qui ?
-            </a>
-            <a href="#process" className="hover:text-[#FF4F3B] transition">
-              Comment ça marche
-            </a>
-            <a href="#results" className="hover:text-[#FF4F3B] transition">
-              Résultats
-            </a>
-            <a href="#contact" className="hover:text-[#FF4F3B] transition">
-              Contact
-            </a>
-          </nav>
-
-          <a
-            href="#contact"
-            className="hidden md:inline-block bg-[#FF4F3B] text-white px-6 py-2 rounded-xl font-semibold hover:opacity-90"
-          >
-            Demander une démo
-          </a>
-        </div>
-      </header>
+      <SiteHeader />
 
 
 {/* ================= HERO ================= */}
@@ -522,81 +501,7 @@ export default function HomePage() {
         </motion.div>
       </section>
 
-      {/* FOOTER */}
-      <footer className="bg-[#0B131F] text-white py-16">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          className="max-w-[1400px] mx-auto px-4 grid md:grid-cols-4 gap-12"
-        >
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-          >
-            <h3 className="font-bold mb-4">KERELIA</h3>
-            <p className="text-sm opacity-80">
-              L'intelligence cartographique au service de l'urbanisme français.
-            </p>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-          >
-            <h3 className="font-bold mb-4">Solution</h3>
-            <ul className="space-y-2 opacity-90 text-sm">
-              <li>Mise à jour PLU</li>
-              <li>Cartographie réglementaire</li>
-              <li>Certificats d'urbanisme</li>
-            </ul>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-          >
-            <h3 className="font-bold mb-4">Entreprise</h3>
-            <ul className="space-y-2 opacity-90 text-sm">
-              <li>À propos</li>
-              <li>
-                <a href="/notre-equipe" className="hover:text-[#FF4F3B] transition">
-                  Notre équipe
-                </a>
-              </li>
-              <li>Contact</li>
-            </ul>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.4 }}
-          >
-            <h3 className="font-bold mb-4">Contact</h3>
-            <p>contact@kerelia.fr</p>
-            <p>Bordeaux, France</p>
-          </motion.div>
-        </motion.div>
-
-        <motion.p
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6, delay: 0.5 }}
-          className="text-center text-xs text-gray-400 mt-12"
-        >
-          © {new Date().getFullYear()} Kerelia. Tous droits réservés.
-        </motion.p>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

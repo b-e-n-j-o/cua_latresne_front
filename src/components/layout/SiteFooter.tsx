@@ -45,13 +45,16 @@ export default function SiteFooter() {
         >
           <h3 className="font-bold mb-4">Entreprise</h3>
           <ul className="space-y-2 opacity-90 text-sm">
-            <li>À propos</li>
             <li>
               <Link to="/notre-equipe" className="hover:text-[#FF4F3B] transition">
                 Notre équipe
               </Link>
             </li>
-            <li>Contact</li>
+            <li>
+              <Link to="/#contact" className="hover:text-[#FF4F3B] transition">
+                Contact
+              </Link>
+            </li>
           </ul>
         </motion.div>
 

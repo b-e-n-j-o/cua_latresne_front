@@ -42,8 +42,9 @@ export default function TeamPage() {
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.8 }}
           className="text-center mb-16"
         >
           <h1 className="text-5xl font-bold text-[#0B131F] mb-4">
@@ -59,9 +60,10 @@ export default function TeamPage() {
           {TEAM.map((member, i) => (
             <motion.div
               key={member.email}
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: i * 0.1 }}
+              initial={{ opacity: 0, y: 50 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.3 }}
+              transition={{ duration: 0.7, delay: i * 0.15, ease: "easeOut" }}
               className="backdrop-blur-md bg-white/30 p-8 rounded-2xl border border-black/5 shadow-sm
               hover:shadow-md hover:border-[#FF4F3B]/30 transition-all"
             >
@@ -70,7 +72,7 @@ export default function TeamPage() {
                   src={member.image}
                   alt={member.name}
                   className={`w-28 h-28 rounded-full object-cover mb-6 shadow-sm ${
-                    member.email === "benjamin@kerelia.fr" ? "grayscale" : ""
+                    member.name.includes("Benjamin") ? "grayscale" : ""
                   }`}
                 />
 
