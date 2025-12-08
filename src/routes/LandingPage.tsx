@@ -1,6 +1,7 @@
-import { motion } from "framer-motion";
-import { useState, useEffect } from "react";
+import { motion, useScroll, useTransform } from "framer-motion";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
+import UrbanHeroAnimation from "../components/UrbanHeroAnimation";
 import AudienceSmartForm from "../components/AudienceSmartForm";
 import UniversalPreview from "../components/UniversalPreview";
 import SiteHeader from "../components/layout/SIteHeader";
@@ -10,8 +11,17 @@ import { Card } from "../components/ui/card";
 import { MapPlus, Sparkles, FileCheck, MonitorCog, Map, FileCog } from "lucide-react";
 
 export default function HomePage() {
+  const heroRef = useRef<HTMLDivElement | null>(null);
   const [selectedProfile, setSelectedProfile] = useState<string | null>(null);
   const location = useLocation();
+  const { scrollY } = useScroll();
+
+  // Fade-out de l'animation topographique au scroll
+  const fadeOpacity = useTransform(
+    scrollY,
+    [0, (typeof window !== "undefined" ? window.innerHeight : 800) * 0.7],
+    [1, 0]
+  );
 
   // Auto-scroll vers #contact si présent dans l'URL
   useEffect(() => {
@@ -33,14 +43,22 @@ export default function HomePage() {
 
 {/* ================= HERO ================= */}
 <section
+  ref={heroRef}
   className="min-h-screen flex items-start lg:items-center pt-24 lg:pt-32 pb-16 relative overflow-hidden"
 >
+  {/* Animation topographique en arrière-plan */}
+  <motion.div
+    style={{ opacity: fadeOpacity }}
+    className="pointer-events-none z-0 absolute inset-0"
+  >
+    <UrbanHeroAnimation />
+  </motion.div>
 
   <motion.div
     initial={{ opacity: 0, y: 40 }}
     whileInView={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.8 }}
-    className="relative max-w-[1400px] px-4 sm:px-8 lg:px-12 grid lg:grid-cols-2 gap-12 mt-10 lg:mt-0"
+    className="relative z-10 max-w-[1400px] px-4 sm:px-8 lg:px-12 grid lg:grid-cols-2 gap-12 mt-10 lg:mt-0"
   >
     {/* LEFT HERO CARD */}
     <div className="p-6 md:p-8 backdrop-blur-md bg-white/10 rounded-2xl shadow-sm border border-black/5">
@@ -168,7 +186,7 @@ export default function HomePage() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5 }}
-              className="bg-white p-8 rounded-xl shadow-sm border border-[#D5E1E3] hover:shadow-md transition cursor-pointer"
+              className="bg-white p-8 rounded-xl shadow-sm border border-[#FFFDEF] hover:shadow-md transition cursor-pointer"
               onClick={() => setSelectedProfile("collectivite")}
             >
               <h3 className="text-2xl font-bold text-[#1A2B42] mb-4">

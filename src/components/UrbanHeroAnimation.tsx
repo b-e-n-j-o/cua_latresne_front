@@ -12,6 +12,52 @@ interface TopoLine {
   noiseOffset: number;
 }
 
+// ==================== CONFIGURATION DES COULEURS ====================
+// Toutes les couleurs de l'animation sont centralisées ici pour faciliter les modifications
+const COLORS = {
+  // Fond de l'animation
+  background: '#FFFDEF',
+  
+  // Lignes topographiques majeures (tous les 4 lignes)
+  majorLines: '#ECE4B7', // gris clair
+  
+  // Lignes topographiques mineures (début du dégradé)
+  minorLinesStart: '#1A2B42', // gris foncé
+  
+  // Lignes topographiques mineures (fin du dégradé)
+  minorLinesEnd: '#D5E1E3', // gris clair
+  
+  // Lignes animées par le curseur (accent tomate)
+  mouseLines: '#FF8476', // tomate
+  
+  // Glow autour du curseur
+  mouseGlow: '#D5E1E3', // tomate
+} as const;
+
+// Helper function pour convertir hex en RGB
+const hexToRgb = (hex: string): { r: number; g: number; b: number } => {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result
+    ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16),
+      }
+    : { r: 0, g: 0, b: 0 };
+};
+
+// ==================== CONFIGURATION DES OPACITÉS ====================
+const OPACITIES = {
+  baseLineOpacity: 0.05,
+  mouseProximityBoost: 0.3,
+  mouseLineOpacity: 0.4,
+  mouseGlow: {
+    center: 0.08,
+    middle: 0.02,
+    edge: 0,
+  },
+} as const;
+
 const UrbanHeroAnimation: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameRef = useRef<number | null>(null);
@@ -90,8 +136,8 @@ const UrbanHeroAnimation: React.FC = () => {
       mouseRef.current.x += (targetMouseRef.current.x - mouseRef.current.x) * 0.08;
       mouseRef.current.y += (targetMouseRef.current.y - mouseRef.current.y) * 0.08;
       
-      // Clear with dark blue background #0B131F
-      ctx.fillStyle = '#0B131F';
+      // Clear with background color
+      ctx.fillStyle = COLORS.background;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       const mouseX = mouseRef.current.x;
@@ -174,45 +220,49 @@ const UrbanHeroAnimation: React.FC = () => {
         // Calculate opacity based on proximity to mouse
         const lineCenterY = line.baseY;
         const distanceToLine = Math.abs(mouseY - lineCenterY);
-        const baseOpacity = 0.2;
         const mouseProximity = Math.max(0, 1 - distanceToLine / 200);
-        const opacity = baseOpacity + mouseProximity * 0.5;
+        const opacity = OPACITIES.baseLineOpacity + mouseProximity * OPACITIES.mouseProximityBoost;
         
         // Color variations for depth effect
         const depthFactor = lineIndex / topoLines.length;
         
         if (lineIndex % 4 === 0) {
           // Every 4th line is brighter (major contour lines)
-          ctx.strokeStyle = `rgba(213, 225, 227, ${opacity * 1.2})`;
+          const majorRgb = hexToRgb(COLORS.majorLines);
+          ctx.strokeStyle = `rgba(${majorRgb.r}, ${majorRgb.g}, ${majorRgb.b}, ${opacity * 1.2})`;
           ctx.lineWidth = 2;
         } else {
-          // Minor contour lines
+          // Minor contour lines with depth gradient
+          const startRgb = hexToRgb(COLORS.minorLinesStart);
+          const endRgb = hexToRgb(COLORS.minorLinesEnd);
           const blendedColor = [
-            26 + (213 - 26) * depthFactor * 0.3,
-            43 + (225 - 43) * depthFactor * 0.3,
-            66 + (227 - 66) * depthFactor * 0.3
+            startRgb.r + (endRgb.r - startRgb.r) * depthFactor * 0.3,
+            startRgb.g + (endRgb.g - startRgb.g) * depthFactor * 0.3,
+            startRgb.b + (endRgb.b - startRgb.b) * depthFactor * 0.3,
           ];
           ctx.strokeStyle = `rgba(${blendedColor[0]}, ${blendedColor[1]}, ${blendedColor[2]}, ${opacity})`;
           ctx.lineWidth = 1;
         }
         
-        // Add tomato accent to lines very close to mouse
+        // Add accent color to lines very close to mouse
         if (mouseProximity > 0.7) {
-          ctx.strokeStyle = `rgba(255, 79, 59, ${mouseProximity * 0.6})`;
+          const mouseRgb = hexToRgb(COLORS.mouseLines);
+          ctx.strokeStyle = `rgba(${mouseRgb.r}, ${mouseRgb.g}, ${mouseRgb.b}, ${mouseProximity * OPACITIES.mouseLineOpacity})`;
           ctx.lineWidth = 2.5;
         }
         
         ctx.stroke();
       });
 
-      // Draw subtle glow around mouse (tomato) - less intense
+      // Draw subtle glow around mouse
+      const glowRgb = hexToRgb(COLORS.mouseGlow);
       const gradient = ctx.createRadialGradient(
         mouseX, mouseY, 0,
         mouseX, mouseY, 120
       );
-      gradient.addColorStop(0, 'rgba(255, 79, 59, 0.08)');
-      gradient.addColorStop(0.5, 'rgba(255, 79, 59, 0.02)');
-      gradient.addColorStop(1, 'rgba(255, 79, 59, 0)');
+      gradient.addColorStop(0, `rgba(${glowRgb.r}, ${glowRgb.g}, ${glowRgb.b}, ${OPACITIES.mouseGlow.center})`);
+      gradient.addColorStop(0.5, `rgba(${glowRgb.r}, ${glowRgb.g}, ${glowRgb.b}, ${OPACITIES.mouseGlow.middle})`);
+      gradient.addColorStop(1, `rgba(${glowRgb.r}, ${glowRgb.g}, ${glowRgb.b}, ${OPACITIES.mouseGlow.edge})`);
       
       ctx.fillStyle = gradient;
       ctx.beginPath();
@@ -239,7 +289,7 @@ const UrbanHeroAnimation: React.FC = () => {
     <canvas
       ref={canvasRef}
       className="fixed top-0 left-0 w-full h-full pointer-events-none"
-      style={{ background: '#0B131F' }}
+      style={{ background: COLORS.background }}
     />
   );
 };
