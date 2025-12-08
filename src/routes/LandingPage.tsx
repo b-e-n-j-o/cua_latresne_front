@@ -334,7 +334,7 @@ export default function HomePage() {
               <div className="order-1 lg:order-2">
                 <Card className="p-8 bg-secondary/50 border-border rounded-3xl">
                   <div className="aspect-video rounded-2xl overflow-hidden">
-                    <DocumentViewerHomePage url="https://odlkagfeqkbrruajlcxm.supabase.co/storage/v1/object/public/visualisation/s1XLHBcseD6CR4Vkc22WCRiZJk/CUA_unite_fonciere.docx" />
+                    <DocumentViewerHomePage url="https://odlkagfeqkbrruajlcxm.supabase.co/storage/v1/object/public/visualisation/whYF4hcTBT69VrQtngo9UPtYPR/CUA_unite_fonciere.docx" />
                   </div>
                 </Card>
               </div>
@@ -372,7 +372,7 @@ export default function HomePage() {
                   <Card className="p-8 bg-white border border-[#D5E1E3] rounded-3xl">
                     <h4 className="text-xl font-bold mb-4">Carte réglementaire 2D</h4>
                     <div className="aspect-video rounded-2xl">
-                      <Map2DHomePage url="https://odlkagfeqkbrruajlcxm.supabase.co/storage/v1/object/public/visualisation/s1XLHBcseD6CR4Vkc22WCRiZJk/carte_2d.html" />
+                      <Map2DHomePage url="https://odlkagfeqkbrruajlcxm.supabase.co/storage/v1/object/public/visualisation/whYF4hcTBT69VrQtngo9UPtYPR/carte_2d.html" />
                     </div>
                     <p className="text-md text-center text-[#030303]/80 mt-4 leading-relaxed">
                     Zonage règlementaire avec légende détaillée
@@ -390,7 +390,7 @@ export default function HomePage() {
                   <Card className="p-8 bg-white border border-[#D5E1E3] rounded-3xl">
                     <h4 className="text-xl font-bold mb-4">Carte topographique 3D</h4>
                     <div className="aspect-video rounded-2xl">
-                      <Map2DHomePage url="https://odlkagfeqkbrruajlcxm.supabase.co/storage/v1/object/public/visualisation/s1XLHBcseD6CR4Vkc22WCRiZJk/carte_3d.html" />
+                      <Map2DHomePage url="https://odlkagfeqkbrruajlcxm.supabase.co/storage/v1/object/public/visualisation/whYF4hcTBT69VrQtngo9UPtYPR/carte_3d.html" />
                     </div>
                     <p className="text-md text-center text-[#030303]/80 mt-4 leading-relaxed">
                     Topographie LiDAR
