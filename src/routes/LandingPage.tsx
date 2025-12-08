@@ -30,17 +30,17 @@ export default function HomePage() {
           </a>
 
           <nav className="hidden md:flex gap-8 text-black/60 text-sm font-medium">
-            <a href="#solution" className="hover:text-[#FF4F3B] transition">
-              Solution
+          <a href="#audiences" className="hover:text-[#FF4F3B] transition">
+              Pour qui ?
             </a>
             <a href="#process" className="hover:text-[#FF4F3B] transition">
               Comment ça marche
             </a>
-            <a href="#audiences" className="hover:text-[#FF4F3B] transition">
-              Pour qui ?
-            </a>
             <a href="#results" className="hover:text-[#FF4F3B] transition">
               Résultats
+            </a>
+            <a href="#results" className="hover:text-[#FF4F3B] transition">
+              Contact
             </a>
           </nav>
 
@@ -374,9 +374,8 @@ export default function HomePage() {
                     <div className="aspect-video rounded-2xl">
                       <Map2DHomePage url="https://odlkagfeqkbrruajlcxm.supabase.co/storage/v1/object/public/visualisation/s1XLHBcseD6CR4Vkc22WCRiZJk/carte_2d.html" />
                     </div>
-                    <p className="text-sm text-[#030303]/80 mt-4 leading-relaxed">
-                      Zonage PLU, servitudes et contraintes réglementaires appliquées à la parcelle
-                      avec légende détaillée.
+                    <p className="text-md text-center text-[#030303]/80 mt-4 leading-relaxed">
+                    Zonage règlementaire avec légende détaillée
                     </p>
                   </Card>
                 </motion.div>
@@ -393,8 +392,9 @@ export default function HomePage() {
                     <div className="aspect-video rounded-2xl">
                       <Map2DHomePage url="https://odlkagfeqkbrruajlcxm.supabase.co/storage/v1/object/public/visualisation/s1XLHBcseD6CR4Vkc22WCRiZJk/carte_3d.html" />
                     </div>
-                    <p className="text-sm text-[#030303]/80 mt-4 leading-relaxed">
-                      Visualisation 3D du terrain, relief, bâtiments existants et contexte urbain environnant.
+                    <p className="text-md text-center text-[#030303]/80 mt-4 leading-relaxed">
+                    Topographie LiDAR
+
                     </p>
                   </Card>
                 </motion.div>
