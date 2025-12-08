@@ -25,6 +25,7 @@ import AdminPage from "./routes/AdminPage";
 import CuaViewer from "./routes/CuaViewer";
 import TestPage from "./routes/TestPage";
 import HomePage from "./routes/HomePage";
+import TeamPage from "./pages/TeamPage";
 
 
 
@@ -48,6 +49,7 @@ const PUBLIC_EXACT_ROUTES = [
   "/ressources", 
   "/test",
   "/new",
+  "/notre-equipe",
 ];
 const PUBLIC_PREFIX_ROUTES = ["/m/", "/maps", "/cua"];
 
@@ -74,6 +76,7 @@ function RouterWithAuthGate() {
         <Route path="/update-password" element={<UpdatePasswordPage />} />
 
         {/* ➡️ AUTRES ROUTES PUBLIQUES */}
+        <Route path="/notre-equipe" element={<TeamPage />} />
         <Route path="/maps" element={<MapsViewer />} />
         <Route path="/cua" element={<CuaViewer />} />
         <Route path="/ressources" element={<ResourcesPage />} />
