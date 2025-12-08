@@ -101,14 +101,14 @@ export default function HomePage() {
       {[
         {
           title: "Automatisation PLU",
-          desc: "Extraction, analyse, cartographie et publication des règlements locaux."
+          desc: "Veille, cartographie et mise à jour automatisée du PLU ( Emplacements reservés, SUP, nouvelles règlementations...)"
         },
         {
           title: "Cartographie 2D / 3D",
           desc: "Analyses foncières, contexte terrain et visualisation multi-échelle."
         },
         {
-          title: "Certificats générés automatiquement",
+          title: "Certificats d'urbanisme générés automatiquement",
           desc: "CU structurés avec annexes réglementaires complètes."
         }
       ].map((block, i) => (
