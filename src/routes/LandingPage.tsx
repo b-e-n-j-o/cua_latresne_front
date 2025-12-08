@@ -3,7 +3,6 @@ import { useState } from "react";
 import AudienceSmartForm from "../components/AudienceSmartForm";
 import UniversalPreview from "../components/UniversalPreview";
 
-import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
 import { MapPlus, Sparkles, FileCheck, MonitorCog, Map, FileCog } from "lucide-react";
 
@@ -38,7 +37,7 @@ export default function HomePage() {
             <a href="#results" className="hover:text-[#FF4F3B] transition">
               Résultats
             </a>
-            <a href="#results" className="hover:text-[#FF4F3B] transition">
+            <a href="#contact" className="hover:text-[#FF4F3B] transition">
               Contact
             </a>
           </nav>
@@ -106,22 +105,29 @@ export default function HomePage() {
         {
           icon: Map,
           title: "Cartographie 2D / 3D",
-          desc: "Analyses foncières, contexte terrain et visualisation multi-échelle."
+          desc: "Analyses foncières, contexte terrain et visualisation multi-échelle.",
+          link: "#visualisation-cartographique"
         },
         {
           icon: FileCog,
           title: "Certificats d'urbanisme générés automatiquement",
-          desc: "CU structurés avec annexes réglementaires complètes."
+          desc: "CU structurés avec annexes réglementaires complètes.",
+          link: "#process"
         }
       ].map((block, i) => {
         const Icon = block.icon;
-        return (
+        const isClickable = block.link !== undefined;
+        
+        const CardContent = (
           <motion.div
-            key={i}
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: i * 0.1 }}
-            className="p-6 md:p-8 backdrop-blur-md bg-white/10 rounded-2xl shadow-sm border border-black/5"
+            className={`p-6 md:p-8 backdrop-blur-md bg-white/10 rounded-2xl shadow-sm border border-black/5 ${
+              isClickable 
+                ? "cursor-pointer hover:bg-white/20 hover:shadow-md hover:border-[#FF4F3B]/30 transition-all duration-300" 
+                : ""
+            }`}
           >
             <div className="flex items-center gap-3 mb-3">
               <Icon className="w-8 h-8 text-[#FF4F3B] flex-shrink-0" />
@@ -134,6 +140,20 @@ export default function HomePage() {
             </p>
           </motion.div>
         );
+        
+        if (isClickable) {
+          return (
+            <a 
+              href={block.link} 
+              key={i}
+              className="block no-underline"
+            >
+              {CardContent}
+            </a>
+          );
+        }
+        
+        return <div key={i}>{CardContent}</div>;
       })}
     </motion.div>
   </motion.div>
@@ -278,7 +298,7 @@ export default function HomePage() {
               </div>
               <div className="order-1 lg:order-2">
                 <StepHeader step="1" title="Import du formulaire CERFA" />
-                <p className="text-lg text-[#1A2B42]/80 leading-relaxed">
+                <p className="text-lg text-center text-[#1A2B42]/80 leading-relaxed">
                   Téléchargement du formulaire CERFA de demande de certificat d'urbanisme.
                 </p>
               </div>
@@ -294,7 +314,7 @@ export default function HomePage() {
             >
               <div>
                 <StepHeader step="2" title="Analyse par IA" />
-                <p className="text-lg text-[#1A2B42]/80 leading-relaxed">
+                <p className="text-lg text-center [#1A2B42]/80 leading-relaxed">
                   Extraction automatique des informations pertinentes, croisement des données
                   réglementaires et identification des contraintes applicables à l'unité foncière.
                 </p>
@@ -325,7 +345,7 @@ export default function HomePage() {
               </div>
               <div className="order-1 lg:order-2">
                 <StepHeader step="3" title="Analyse géographique réglementaire" />
-                <p className="text-lg text-[#1A2B42]/80 leading-relaxed">
+                <p className="text-lg text-center text-[#1A2B42]/80 leading-relaxed">
                   Contrôle automatique de conformité avec l&apos;ensemble des règles géographiquement applicables :
                   PLU, SUP, PPRI, servitudes d&apos;utilité publique, règles nationales.
                 </p>
@@ -349,7 +369,7 @@ export default function HomePage() {
               </div>
               <div className="order-2 lg:order-1">
                 <StepHeader step="4" title="Génération du certificat" />
-                <p className="text-lg text-[#1A2B42]/80 leading-relaxed">
+                <p className="text-lg text-center text-[#1A2B42]/80 leading-relaxed">
                   Production du document final de certificat d'urbanisme avec les réglementations, les servitudes,les prescriptions, et autres informations applicables à l'unité foncière.
                 </p>
               </div>
@@ -357,6 +377,7 @@ export default function HomePage() {
 
             {/* Étape 5 – Visualisation cartographique */}
             <motion.div
+              id="visualisation-cartographique"
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
@@ -365,7 +386,7 @@ export default function HomePage() {
             >
               <div className="text-center">
                 <StepHeader step="5" title="Visualisation cartographique" center />
-                <p className="text-lg text-[#1A2B42]/80 leading-relaxed max-w-3xl mx-auto mt-2">
+                <p className="text-lg text-center text-[#1A2B42]/80 leading-relaxed max-w-3xl mx-auto mt-2">
                   Génération des cartes réglementaires et topographiques de l'unité foncière.
                 </p>
               </div>
@@ -480,7 +501,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ================= CONTACT ================= */}
+      {/* ================= CONTACT / DEMO FORM ================= */}
       <section id="contact" className="bg-[#0B131F] text-white py-28">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -488,20 +509,16 @@ export default function HomePage() {
           transition={{ duration: 0.7 }}
           className="max-w-5xl mx-auto px-4 text-center"
         >
-          <h2 className="text-4xl font-bold mb-6">
-            Découvrir Kerelia en action
-          </h2>
-          <p className="text-lg opacity-90 mb-10">
-            Demandez une démonstration personnalisée de la solution.
-          </p>
-          <Button
-            asChild
-            className="px-10 py-4 rounded-xl text-lg font-semibold border border-white bg-transparent hover:bg-white hover:text-[#0B131F] transition"
-          >
-            <a href="mailto:contact@kerelia.fr?subject=Demande%20de%20d%C3%A9mo%20Kerelia">
-              Demander une démo
-            </a>
-          </Button>
+          <div className="text-center mb-12">
+            <h2 className="text-4xl font-bold mb-6">
+              Un besoin? Contactez-nous !
+            </h2>
+            <p className="text-lg opacity-90">
+              Découvrez Kerelia en action et demandez une démonstration personnalisée de la solution.
+            </p>
+          </div>
+          
+          <AudienceSmartForm selectedProfile="all" />
         </motion.div>
       </section>
 

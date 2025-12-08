@@ -12,7 +12,9 @@ export default function AudienceSmartForm({ selectedProfile }: { selectedProfile
   if (!selectedProfile) {
     return (
       <div className="text-center text-[#1A2B42]/70 text-sm mt-6">
-        Sélectionnez votre profil ci-dessus pour commencer →
+        {selectedProfile === null 
+          ? "Sélectionnez votre profil ci-dessus pour commencer →"
+          : null}
       </div>
     );
   }
@@ -63,7 +65,7 @@ export default function AudienceSmartForm({ selectedProfile }: { selectedProfile
   const needOptions = {
     collectivite: [
       { value: "demo", label: "Demander une démo" },
-      { value: "automatiser", label: "Automatiser mes certificats d’urbanisme" },
+      { value: "automatiser", label: "Automatiser mes certificats d'urbanisme" },
       { value: "moderniser", label: "Moderniser mon service urbanisme" }
     ],
     pro: [
@@ -73,8 +75,19 @@ export default function AudienceSmartForm({ selectedProfile }: { selectedProfile
     ],
     particulier: [
       { value: "comprendre", label: "Comprendre les règles de ma parcelle" },
-      { value: "cu", label: "Obtenir un Certificat d’Urbanisme" },
+      { value: "cu", label: "Obtenir un Certificat d'Urbanisme" },
       { value: "accompagnement", label: "Être accompagné dans mes démarches" }
+    ],
+    all: [
+      { value: "cu", label: "Obtenir un Certificat d'Urbanisme" },
+      { value: "automatiser", label: "Automatiser mes certificats d'urbanisme pour ma collectivité" },
+      { value: "analyser", label: "Analyser et comprendre les règles de ma parcelle" },
+      { value: "prediag", label: "Obtenir un pré-diagnostic rapide de parcelles pour les professionnels" },
+      { value: "moderniser", label: "Moderniser complètement mon service urbanisme" },
+      { value: "plu", label: "Mettre à jour mon PLU automatiquement et au fil du temps" },
+      { value: "carto", label: "Obtenir un outil intelligent de cartographie automatique" },
+      { value: "accompagnement", label: "Être accompagné dans mes démarches d'urbanisme" },
+      { value: "demo", label: "Demander une démo complète et nous contacter" }
     ]
   } as const;
 
@@ -87,9 +100,15 @@ export default function AudienceSmartForm({ selectedProfile }: { selectedProfile
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ duration: 0.6 }}
-      className="max-w-2xl mx-auto bg-white border border-[#D5E1E3] shadow-sm p-8 rounded-2xl"
+      className={`max-w-2xl mx-auto border shadow-sm p-8 rounded-2xl ${
+        selectedProfile === "all" 
+          ? "bg-white/10 backdrop-blur-sm border-white/20 text-white" 
+          : "bg-white border-[#D5E1E3]"
+      }`}
     >
-      <h3 className="text-2xl font-bold text-[#0B131F] mb-6 text-center">
+      <h3 className={`text-2xl font-bold mb-6 text-center ${
+        selectedProfile === "all" ? "text-white" : "text-[#0B131F]"
+      }`}>
         Dites-nous en plus pour vous aider
       </h3>
 
@@ -100,14 +119,20 @@ export default function AudienceSmartForm({ selectedProfile }: { selectedProfile
       ) : (
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-[#1A2B42] mb-1">
+            <label className={`block text-sm font-medium mb-1 ${
+              selectedProfile === "all" ? "text-white/90" : "text-[#1A2B42]"
+            }`}>
               Que souhaitez-vous faire ? *
             </label>
             <select
               value={need}
               required
               onChange={(e) => setNeed(e.target.value)}
-              className="w-full border border-[#D5E1E3] rounded-lg p-3 text-sm text-[#0B131F]"
+              className={`w-full border rounded-lg p-3 text-sm ${
+                selectedProfile === "all" 
+                  ? "border-white/30 bg-white/10 text-white placeholder-white/50" 
+                  : "border-[#D5E1E3] text-[#0B131F]"
+              }`}
             >
               <option value="">Choisir…</option>
               {optionsForProfile.map(({ value, label }) => (
@@ -119,7 +144,9 @@ export default function AudienceSmartForm({ selectedProfile }: { selectedProfile
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-[#1A2B42] mb-1">
+            <label className={`block text-sm font-medium mb-1 ${
+              selectedProfile === "all" ? "text-white/90" : "text-[#1A2B42]"
+            }`}>
               Email *
             </label>
             <input
@@ -127,13 +154,19 @@ export default function AudienceSmartForm({ selectedProfile }: { selectedProfile
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full border border-[#D5E1E3] rounded-lg p-3"
+              className={`w-full border rounded-lg p-3 ${
+                selectedProfile === "all" 
+                  ? "border-white/30 bg-white/10 text-white placeholder-white/50" 
+                  : "border-[#D5E1E3]"
+              }`}
               placeholder="email@exemple.fr"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-[#1A2B42] mb-1">
+            <label className={`block text-sm font-medium mb-1 ${
+              selectedProfile === "all" ? "text-white/90" : "text-[#1A2B42]"
+            }`}>
               Commune concernée *
             </label>
             <input
@@ -141,32 +174,48 @@ export default function AudienceSmartForm({ selectedProfile }: { selectedProfile
               required
               value={commune}
               onChange={(e) => setCommune(e.target.value)}
-              className="w-full border border-[#D5E1E3] rounded-lg p-3"
+              className={`w-full border rounded-lg p-3 ${
+                selectedProfile === "all" 
+                  ? "border-white/30 bg-white/10 text-white placeholder-white/50" 
+                  : "border-[#D5E1E3]"
+              }`}
               placeholder="ex : Latresne, Bordeaux, Pessac…"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-[#1A2B42] mb-1">
+            <label className={`block text-sm font-medium mb-1 ${
+              selectedProfile === "all" ? "text-white/90" : "text-[#1A2B42]"
+            }`}>
               Section / numéro de parcelle (optionnel)
             </label>
             <input
               type="text"
               value={parcelle}
               onChange={(e) => setParcelle(e.target.value)}
-              className="w-full border border-[#D5E1E3] rounded-lg p-3"
+              className={`w-full border rounded-lg p-3 ${
+                selectedProfile === "all" 
+                  ? "border-white/30 bg-white/10 text-white placeholder-white/50" 
+                  : "border-[#D5E1E3]"
+              }`}
               placeholder="ex : AC 0242"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-[#1A2B42] mb-1">
+            <label className={`block text-sm font-medium mb-1 ${
+              selectedProfile === "all" ? "text-white/90" : "text-[#1A2B42]"
+            }`}>
               Message (optionnel)
             </label>
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              className="w-full border border-[#D5E1E3] rounded-lg p-3"
+              className={`w-full border rounded-lg p-3 ${
+                selectedProfile === "all" 
+                  ? "border-white/30 bg-white/10 text-white placeholder-white/50" 
+                  : "border-[#D5E1E3]"
+              }`}
               rows={4}
               placeholder="Décrivez votre projet ou vos questions"
             />
