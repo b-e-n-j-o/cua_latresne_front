@@ -1,12 +1,11 @@
 import { motion } from "framer-motion";
 import { useState } from "react";
 import AudienceSmartForm from "../components/AudienceSmartForm";
-import Map2DHomePage from "../components/Map2DHomePage";
-import DocumentViewerHomePage from "../components/DocumentViewerHomePage";
+import UniversalPreview from "../components/UniversalPreview";
 
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
-import { MapPlus, Sparkles, FileCheck } from "lucide-react";
+import { MapPlus, Sparkles, FileCheck, MonitorCog, Map, FileCog } from "lucide-react";
 
 export default function HomePage() {
   const [selectedProfile, setSelectedProfile] = useState<string | null>(null);
@@ -100,32 +99,42 @@ export default function HomePage() {
     >
       {[
         {
+          icon: MonitorCog,
           title: "Automatisation PLU",
           desc: "Veille, cartographie et mise à jour automatisée du PLU ( Emplacements reservés, SUP, nouvelles règlementations...)"
         },
         {
+          icon: Map,
           title: "Cartographie 2D / 3D",
           desc: "Analyses foncières, contexte terrain et visualisation multi-échelle."
         },
         {
+          icon: FileCog,
           title: "Certificats d'urbanisme générés automatiquement",
           desc: "CU structurés avec annexes réglementaires complètes."
         }
-      ].map((block, i) => (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: i * 0.1 }}
-          className="p-6 md:p-8 backdrop-blur-md bg-white/10 rounded-2xl shadow-sm border border-black/5"
-        >
-          <div className="text-lg font-semibold text-[#FF4F3B] mb-2">
-            {block.title}
-          </div>
-          <p className="text-base text-black/80 leading-relaxed">
-            {block.desc}
-          </p>
-        </motion.div>
-      ))}
+      ].map((block, i) => {
+        const Icon = block.icon;
+        return (
+          <motion.div
+            key={i}
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: i * 0.1 }}
+            className="p-6 md:p-8 backdrop-blur-md bg-white/10 rounded-2xl shadow-sm border border-black/5"
+          >
+            <div className="flex items-center gap-3 mb-3">
+              <Icon className="w-8 h-8 text-[#FF4F3B] flex-shrink-0" />
+              <div className="text-xl font-semibold text-[#FF4F3B]">
+                {block.title}
+              </div>
+            </div>
+            <p className="text-md text-black/80 leading-relaxed">
+              {block.desc}
+            </p>
+          </motion.div>
+        );
+      })}
     </motion.div>
   </motion.div>
 </section>
@@ -334,7 +343,7 @@ export default function HomePage() {
               <div className="order-1 lg:order-2">
                 <Card className="p-8 bg-secondary/50 border-border rounded-3xl">
                   <div className="aspect-video rounded-2xl overflow-hidden">
-                    <DocumentViewerHomePage url="https://odlkagfeqkbrruajlcxm.supabase.co/storage/v1/object/public/visualisation/whYF4hcTBT69VrQtngo9UPtYPR/CUA_unite_fonciere.docx" />
+                    <UniversalPreview url="https://odlkagfeqkbrruajlcxm.supabase.co/storage/v1/object/public/visualisation/whYF4hcTBT69VrQtngo9UPtYPR/CUA_unite_fonciere.docx" />
                   </div>
                 </Card>
               </div>
@@ -372,7 +381,7 @@ export default function HomePage() {
                   <Card className="p-8 bg-white border border-[#D5E1E3] rounded-3xl">
                     <h4 className="text-xl font-bold mb-4">Carte réglementaire 2D</h4>
                     <div className="aspect-video rounded-2xl">
-                      <Map2DHomePage url="https://odlkagfeqkbrruajlcxm.supabase.co/storage/v1/object/public/visualisation/whYF4hcTBT69VrQtngo9UPtYPR/carte_2d.html" />
+                      <UniversalPreview url="https://odlkagfeqkbrruajlcxm.supabase.co/storage/v1/object/public/visualisation/whYF4hcTBT69VrQtngo9UPtYPR/carte_2d.html" />
                     </div>
                     <p className="text-md text-center text-[#030303]/80 mt-4 leading-relaxed">
                     Zonage règlementaire avec légende détaillée
@@ -390,7 +399,7 @@ export default function HomePage() {
                   <Card className="p-8 bg-white border border-[#D5E1E3] rounded-3xl">
                     <h4 className="text-xl font-bold mb-4">Carte topographique 3D</h4>
                     <div className="aspect-video rounded-2xl">
-                      <Map2DHomePage url="https://odlkagfeqkbrruajlcxm.supabase.co/storage/v1/object/public/visualisation/whYF4hcTBT69VrQtngo9UPtYPR/carte_3d.html" />
+                      <UniversalPreview url="https://odlkagfeqkbrruajlcxm.supabase.co/storage/v1/object/public/visualisation/whYF4hcTBT69VrQtngo9UPtYPR/carte_3d.html" />
                     </div>
                     <p className="text-md text-center text-[#030303]/80 mt-4 leading-relaxed">
                     Topographie LiDAR

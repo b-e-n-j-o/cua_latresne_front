@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
-import { X, FileSearch } from "lucide-react";
+import { X } from "lucide-react";
 
 interface Props {
   url: string;
@@ -11,6 +11,9 @@ export default function UniversalPreview({ url, title }: Props) {
   const [hovered, setHovered] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const blobUrlRef = useRef<string | null>(null);
 
   const extension = url
     ?.split("?")[0]
@@ -19,33 +22,96 @@ export default function UniversalPreview({ url, title }: Props) {
     ?.toLowerCase();
 
   useEffect(() => {
-    switch (extension) {
-      case "html":
-      case "htm":
-      case "map":
-        setViewerUrl(url);
-        break;
+    async function prepareViewer() {
+      if (!url) return;
 
-      case "doc":
-      case "docx":
-      case "pdf":
-      case "xls":
-      case "xlsx":
-      case "ppt":
-      case "pptx":
+      // 🔹 CAS MAPS HTML (charger le contenu et générer un blob comme avant)
+      if (extension === "html" || extension === "htm" || extension === "map") {
+        try {
+          setLoading(true);
+          setError(null);
+          const res = await fetch(url);
+          if (!res.ok) throw new Error("Impossible de charger la carte");
+
+          const html = await res.text();
+          const blob = new Blob([html], { type: "text/html" });
+          const blobUrl = URL.createObjectURL(blob);
+
+          // Nettoyer l'ancien blob URL s'il existe
+          if (blobUrlRef.current) {
+            URL.revokeObjectURL(blobUrlRef.current);
+          }
+          blobUrlRef.current = blobUrl;
+
+          setViewerUrl(blobUrl);
+          setLoading(false);
+          return;
+        } catch (err) {
+          console.error("Erreur chargement carte HTML:", err);
+          setError(err instanceof Error ? err.message : "Erreur inattendue");
+          setLoading(false);
+          setViewerUrl(null);
+          return;
+        }
+      }
+
+      // 🔹 CAS DOCUMENTS OFFICE/PDF
+      if (
+        ["doc", "docx", "pdf", "xls", "xlsx", "ppt", "pptx"].includes(
+          extension || ""
+        )
+      ) {
         setViewerUrl(
           `https://docs.google.com/gview?url=${encodeURIComponent(
             url
           )}&embedded=true`
         );
-        break;
+        return;
+      }
 
-      default:
-        setViewerUrl(url);
+      // 🔹 CAS SIMPLE (images, svg, json, etc)
+      setViewerUrl(url);
     }
+
+    prepareViewer();
+
+    // Cleanup: revoke blob URL on unmount or when url/extension changes
+    return () => {
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = null;
+      }
+    };
   }, [url, extension]);
 
+  // ESC support pour fermer le fullscreen
+  useEffect(() => {
+    const escClose = (e: KeyboardEvent) =>
+      e.key === "Escape" && setFullscreen(false);
+
+    if (fullscreen) {
+      window.addEventListener("keydown", escClose);
+      return () => window.removeEventListener("keydown", escClose);
+    }
+  }, [fullscreen]);
+
   function renderPreview() {
+    if (loading) {
+      return (
+        <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+          Chargement…
+        </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <div className="flex items-center justify-center h-full text-red-600 text-sm text-center px-4">
+          Erreur : {error}
+        </div>
+      );
+    }
+
     if (!viewerUrl) {
       return (
         <div className="flex items-center justify-center h-full text-gray-500 text-sm">
@@ -123,15 +189,19 @@ export default function UniversalPreview({ url, title }: Props) {
       {fullscreen &&
         createPortal(
           <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[9999] flex flex-col p-6">
-            {/* Close button */}
+            {/* 🔧 Bouton fermeture visible */}
             <button
               onClick={() => setFullscreen(false)}
-              className="absolute top-6 right-6 bg-white/15 hover:bg-white/30 text-white p-2 rounded-xl shadow-lg"
+              className="absolute top-6 right-6 bg-white/15 hover:bg-white/30 text-black p-2 rounded-xl shadow-lg backdrop-blur transition"
+              style={{ zIndex: 10000 }}
             >
               <X size={26} />
             </button>
 
-            <div className="flex-1 border border-white/20 rounded-2xl overflow-hidden relative bg-white">
+            <div
+              className="flex-1 border border-white/20 rounded-2xl overflow-hidden relative bg-white"
+              style={{ zIndex: 9000 }}
+            >
               {renderPreview()}
             </div>
           </div>,
