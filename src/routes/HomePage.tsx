@@ -2,10 +2,11 @@ import { motion } from "framer-motion";
 import { useState } from "react";
 import AudienceSmartForm from "../components/AudienceSmartForm";
 import Map2DHomePage from "../components/Map2DHomePage";
+import DocumentViewerHomePage from "../components/DocumentViewerHomePage";
 
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
-import { Upload, Database, FileCheck, Map } from "lucide-react";
+import { MapPlus, Sparkles, FileCheck } from "lucide-react";
 
 export default function HomePage() {
   const [selectedProfile, setSelectedProfile] = useState<string | null>(null);
@@ -70,7 +71,7 @@ export default function HomePage() {
         Cartographie et IA<br />au service des territoires.
       </h1>
       <p className="text-xl text-black/80 mb-10">
-        Mise à jour automatique des PLU, cartographie réglementaire & génération des certificats
+        Mise à jour automatique des PLU, cartographie réglementaire & génération de certificats
         d’urbanisme avec annexes cartographiques.
       </p>
 
@@ -174,7 +175,7 @@ export default function HomePage() {
                 <li>• Conformité réglementaire documentée</li>
                 <li>• Pilotage fin du territoire</li>
               </ul>
-              <span className="text-[#FF4F3B] font-semibold text-sm hover:underline">
+              <span className="text-[#FF4F3B] font-semibold text-xl hover:underline">
                 Je suis une collectivité →
               </span>
             </motion.div>
@@ -199,7 +200,7 @@ export default function HomePage() {
                 <li>• Accès simplifié aux données réglementaires</li>
                 <li>• Meilleure anticipation des contraintes</li>
               </ul>
-              <span className="text-[#FF4F3B] font-semibold text-sm hover:underline">
+              <span className="text-[#FF4F3B] font-semibold text-xl hover:underline">
                 Je suis un professionnel →
               </span>
             </motion.div>
@@ -224,7 +225,7 @@ export default function HomePage() {
                 <li>• Réponses plus rapides aux demandes</li>
                 <li>• Vision claire des droits à construire</li>
               </ul>
-              <span className="text-[#FF4F3B] font-semibold text-sm hover:underline">
+              <span className="text-[#FF4F3B] font-semibold text-xl hover:underline">
                 Je suis un particulier →
               </span>
             </motion.div>
@@ -247,7 +248,7 @@ export default function HomePage() {
           </motion.h2>
 
           <p className="text-xl text-center text-[#1A2B42] mb-16 max-w-3xl mx-auto">
-            Un processus en cinq étapes pour traiter automatiquement vos demandes.
+            Du CERFA au certificat d'urbanisme, un traitement automatisé en 5 étapes.
           </p>
 
           <div className="max-w-5xl mx-auto space-y-16">
@@ -262,15 +263,14 @@ export default function HomePage() {
               <div className="order-2 lg:order-1">
                 <Card className="p-8 bg-secondary/50 border-border rounded-3xl">
                   <div className="aspect-video bg-gradient-to-br from-chart-1/20 to-chart-2/20 rounded-2xl flex items-center justify-center">
-                    <Upload className="w-20 h-20 text-chart-1" />
+                    <FileCheck className="w-20 h-20 text-chart-1" />
                   </div>
                 </Card>
               </div>
               <div className="order-1 lg:order-2">
-                <StepHeader step="1" title="Import des documents" />
+                <StepHeader step="1" title="Import du formulaire CERFA" />
                 <p className="text-lg text-[#1A2B42]/80 leading-relaxed">
-                  Téléchargement des formulaires CERFA, documents PLU, fichiers cadastraux
-                  et autres pièces réglementaires nécessaires à l&apos;instruction.
+                  Téléchargement du formulaire CERFA de demande de certificat d'urbanisme.
                 </p>
               </div>
             </motion.div>
@@ -287,13 +287,13 @@ export default function HomePage() {
                 <StepHeader step="2" title="Analyse par IA" />
                 <p className="text-lg text-[#1A2B42]/80 leading-relaxed">
                   Extraction automatique des informations pertinentes, croisement des données
-                  réglementaires et identification des contraintes applicables à la parcelle.
+                  réglementaires et identification des contraintes applicables à l'unité foncière.
                 </p>
               </div>
               <div>
                 <Card className="p-8 bg-secondary/50 border-border rounded-3xl">
                   <div className="aspect-video bg-gradient-to-br from-chart-2/20 to-chart-3/20 rounded-2xl flex items-center justify-center">
-                    <Database className="w-20 h-20 text-chart-2" />
+                    <Sparkles className="w-20 h-20 text-chart-2" />
                   </div>
                 </Card>
               </div>
@@ -310,14 +310,14 @@ export default function HomePage() {
               <div className="order-2 lg:order-1">
                 <Card className="p-8 bg-secondary/50 border-border rounded-3xl">
                   <div className="aspect-video bg-gradient-to-br from-chart-3/20 to-chart-4/20 rounded-2xl flex items-center justify-center">
-                    <FileCheck className="w-20 h-20 text-chart-3" />
+                    <MapPlus className="w-20 h-20 text-chart-3" />
                   </div>
                 </Card>
               </div>
               <div className="order-1 lg:order-2">
-                <StepHeader step="3" title="Vérification réglementaire" />
+                <StepHeader step="3" title="Analyse géographique réglementaire" />
                 <p className="text-lg text-[#1A2B42]/80 leading-relaxed">
-                  Contrôle automatique de conformité avec l&apos;ensemble des règles applicables :
+                  Contrôle automatique de conformité avec l&apos;ensemble des règles géographiquement applicables :
                   PLU, SUP, PPRI, servitudes d&apos;utilité publique, règles nationales.
                 </p>
               </div>
@@ -333,18 +333,15 @@ export default function HomePage() {
             >
               <div className="order-1 lg:order-2">
                 <Card className="p-8 bg-secondary/50 border-border rounded-3xl">
-                  <img
-                    src="/images/certificate-preview.png"
-                    alt="Aperçu certificat d'urbanisme"
-                    className="rounded-2xl w-full"
-                  />
+                  <div className="aspect-video rounded-2xl overflow-hidden">
+                    <DocumentViewerHomePage url="https://odlkagfeqkbrruajlcxm.supabase.co/storage/v1/object/public/visualisation/s1XLHBcseD6CR4Vkc22WCRiZJk/CUA_unite_fonciere.docx" />
+                  </div>
                 </Card>
               </div>
               <div className="order-2 lg:order-1">
                 <StepHeader step="4" title="Génération du certificat" />
                 <p className="text-lg text-[#1A2B42]/80 leading-relaxed">
-                  Production du document final avec l&apos;ensemble des annexes cartographiques :
-                  carte réglementaire, carte topographique, identification foncière.
+                  Production du document final de certificat d'urbanisme avec les réglementations, les servitudes,les prescriptions, et autres informations applicables à l'unité foncière.
                 </p>
               </div>
             </motion.div>
@@ -360,8 +357,7 @@ export default function HomePage() {
               <div className="text-center">
                 <StepHeader step="5" title="Visualisation cartographique" center />
                 <p className="text-lg text-[#1A2B42]/80 leading-relaxed max-w-3xl mx-auto mt-2">
-                  Les cartes générées permettent une compréhension immédiate des contraintes
-                  réglementaires et du contexte topographique de la parcelle.
+                  Génération des cartes réglementaires et topographiques de l'unité foncière.
                 </p>
               </div>
 
@@ -375,8 +371,8 @@ export default function HomePage() {
                 >
                   <Card className="p-8 bg-white border border-[#D5E1E3] rounded-3xl">
                     <h4 className="text-xl font-bold mb-4">Carte réglementaire 2D</h4>
-                    <div className="aspect-square rounded-2xl overflow-hidden border-2 border-[#D5E1E3]">
-                      <Map2DHomePage url="https://odlkagfeqkbrruajlcxm.supabase.co/storage/v1/object/public/visualisation/hYbGtcWD9hT4fi5HqgwojVmKDw/carte_2d.html" />
+                    <div className="aspect-video rounded-2xl">
+                      <Map2DHomePage url="https://odlkagfeqkbrruajlcxm.supabase.co/storage/v1/object/public/visualisation/s1XLHBcseD6CR4Vkc22WCRiZJk/carte_2d.html" />
                     </div>
                     <p className="text-sm text-[#030303]/80 mt-4 leading-relaxed">
                       Zonage PLU, servitudes et contraintes réglementaires appliquées à la parcelle
@@ -394,19 +390,8 @@ export default function HomePage() {
                 >
                   <Card className="p-8 bg-white border border-[#D5E1E3] rounded-3xl">
                     <h4 className="text-xl font-bold mb-4">Carte topographique 3D</h4>
-                    <div className="aspect-square bg-secondary/50 rounded-2xl flex items-center justify-center border-2 border-dashed border-border">
-                      <div className="text-center p-8">
-                        <Map className="w-16 h-16 text-chart-4 mx-auto mb-4" />
-                        <p className="text-sm text-[#64748b]">
-                          Placeholder pour votre carte topographique 3D
-                        </p>
-                        <p className="text-xs text-[#94a3b8] mt-2">
-                          Remplacer l&apos;image :{" "}
-                          <code className="bg-secondary px-2 py-1 rounded">
-                            /images/carte-topographique-3d.png
-                          </code>
-                        </p>
-                      </div>
+                    <div className="aspect-video rounded-2xl">
+                      <Map2DHomePage url="https://odlkagfeqkbrruajlcxm.supabase.co/storage/v1/object/public/visualisation/s1XLHBcseD6CR4Vkc22WCRiZJk/carte_3d.html" />
                     </div>
                     <p className="text-sm text-[#030303]/80 mt-4 leading-relaxed">
                       Visualisation 3D du terrain, relief, bâtiments existants et contexte urbain environnant.
@@ -424,34 +409,62 @@ export default function HomePage() {
         id="results"
         className="py-28 bg-gradient-to-br from-primary/10 to-secondary/20"
       >
-        <div className="max-w-[1400px] mx-auto px-6 text-center">
-          <motion.h2
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            transition={{ duration: 0.6 }}
-            className="text-4xl font-bold mb-16"
+        <div className="max-w-[1400px] mx-auto px-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.5 }}
+            transition={{ duration: 0.7 }}
+            className="text-center mb-12"
           >
-            Résultats
-          </motion.h2>
+            <h2 className="text-4xl font-bold text-[#0B131F] mb-4">
+              Résultats mesurables et impact concret
+            </h2>
+            <p className="text-lg text-[#1A2B42] leading-relaxed max-w-3xl mx-auto">
+              Kerelia transforme la complexité réglementaire en processus automatisé et fiable.
+              Les collectivités, professionnels et particuliers bénéficient d&apos;une analyse rapide,
+              exhaustive et cohérente, tout en conservant le contrôle sur les décisions finales.
+            </p>
+          </motion.div>
 
           <div className="grid md:grid-cols-4 gap-8 max-w-6xl mx-auto">
             {[
-              { val: "1 minute", desc: "Pour générer un pré-diagnostic CU" },
-              { val: "100%", desc: "Conformité réglementaire consolidée" },
-              { val: "x10", desc: "Gain sur les temps de recherche foncière" },
-              { val: "∞", desc: "Potentiel d’analyse territoriale" }
-            ].map(({ val, desc }) => (
+              {
+                val: "1 minute",
+                title: "Rapidité d'exécution",
+                desc: "Génération automatique d'un pré-diagnostic CU complet en quelques minutes, réduisant drastiquement les délais liés aux recherches manuelles et à la consolidation des données réglementaires."
+              },
+              {
+                val: "100%",
+                title: "Conformité garantie",
+                desc: "Conformité réglementaire consolidée et documentée. Toutes les sources pertinentes (PLU, SUP, PPRI, servitudes) sont automatiquement croisées pour éviter les oublis et garantir une cohérence constante."
+              },
+              {
+                val: "x10",
+                title: "Gain de productivité",
+                desc: "Gain significatif sur les temps de recherche foncière et d'analyse réglementaire. L'automatisation libère du temps pour se concentrer sur l'instruction et la validation finale des dossiers."
+              },
+              {
+                val: "∞",
+                title: "Potentiel d'analyse",
+                desc: "Potentiel d'analyse territoriale illimité. Kerelia permet de traiter des volumes importants de demandes tout en maintenant la qualité et la précision de chaque analyse."
+              }
+            ].map(({ val, title, desc }, index) => (
               <motion.div
                 key={val}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
+                viewport={{ once: true, amount: 0.4 }}
+                transition={{ duration: 0.6, delay: index * 0.1 }}
                 className="bg-white p-8 rounded-xl shadow-sm border border-[#D5E1E3]"
               >
-                <div className="text-4xl font-bold text-[#FF4F3B] mb-2">
+                <div className="text-4xl font-bold text-[#FF4F3B] mb-3">
                   {val}
                 </div>
-                <p className="text-sm text-[#030303]/70">{desc}</p>
+                <h3 className="text-lg font-semibold text-[#0B131F] mb-3">
+                  {title}
+                </h3>
+                <p className="text-sm text-[#030303]/80 leading-relaxed">{desc}</p>
               </motion.div>
             ))}
           </div>
