@@ -26,6 +26,7 @@ import CuaViewer from "./routes/CuaViewer";
 import TestPage from "./routes/TestPage";
 import HomePage from "./routes/HomePage";
 import TeamPage from "./pages/TeamPage";
+import ChatUrba from "./routes/ChatUrba";
 
 
 
@@ -50,6 +51,7 @@ const PUBLIC_EXACT_ROUTES = [
   "/test",
   "/new",
   "/notre-equipe",
+  "/chat-urba",
 ];
 const PUBLIC_PREFIX_ROUTES = ["/m/", "/maps", "/cua"];
 
@@ -81,6 +83,7 @@ function RouterWithAuthGate() {
         <Route path="/cua" element={<CuaViewer />} />
         <Route path="/ressources" element={<ResourcesPage />} />
         <Route path="/test" element={<TestPage />} />
+        <Route path="/chat-urba" element={<ChatUrba />} />
         <Route path="/m/:slug" element={<RedirectSlugPage />} />
         <Route path="*" element={<div>Page introuvable</div>} />
       </Routes>
