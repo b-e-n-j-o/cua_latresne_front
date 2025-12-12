@@ -12,6 +12,7 @@ import UpdatePasswordPage from "./auth/UpdatePasswordPage";
 import AuthGate from "./auth/AuthGate";
 import supabase from "./supabaseClient";
 import HomePage from "./routes/HomePage";
+import ChatUrba from "./routes/ChatUrba";
 
 import type { User } from "@supabase/supabase-js";
 
@@ -57,6 +58,7 @@ export default function App() {
       <Route path="/m/:slug" element={<RedirectSlugPage />} />
       <Route path="/ressources" element={<ResourcesPage />} />
       <Route path="/test" element={<TestPage />} />
+      <Route path="/chat-urba" element={<ChatUrba />} />
 
       {/* Pages protégées */}
       <Route
