@@ -3,17 +3,24 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, ArrowUp } from "lucide-react";
 import SiteHeader from "../components/layout/SIteHeader";
 import MarkdownContent from "../components/MarkdownContent";
+import CodeSelector, { type LegalCode } from "../components/rag_components/CodeSelector";
+import ArticleCards from "../components/rag_components/ArticleCards";
+import type { RAGArticleSource } from "../components/rag_components/types";
 
 type Message = {
   role: "user" | "assistant";
   content: string;
+  sources?: RAGArticleSource[];
 };
 
 export default function ChatUrba() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sourcesSidebarOpen, setSourcesSidebarOpen] = useState(false);
+  const [activeSources, setActiveSources] = useState<RAGArticleSource[]>([]);
   const [isTyping, setIsTyping] = useState(false);
+  const [selectedCodes, setSelectedCodes] = useState<LegalCode[]>([]);
 
   const hasStarted = messages.length > 0;
 
@@ -41,7 +48,7 @@ export default function ChatUrba() {
           },
           body: JSON.stringify({
             query: userMessage,
-            // codes: ["urbanisme"], // optionnel
+            codes: selectedCodes.length ? selectedCodes : ["all"],
           }),
         }
       );
@@ -57,8 +64,12 @@ export default function ChatUrba() {
         {
           role: "assistant",
           content: data.response,
+          sources: data.sources || [],
         },
       ]);
+
+      setActiveSources(data.sources || []);
+      setSourcesSidebarOpen(true);
     } catch (err) {
       setMessages((prev) => [
         ...prev,
@@ -108,6 +119,16 @@ export default function ChatUrba() {
               className="absolute top-24 left-4 z-10 bg-white border border-[#D5E1E3] rounded-lg p-2 shadow-sm hover:bg-[#F7FAFB]"
             >
               <Menu className="w-5 h-5" />
+            </button>
+          )}
+
+          {/* Bouton "Voir les sources" */}
+          {!sourcesSidebarOpen && activeSources.length > 0 && (
+            <button
+              onClick={() => setSourcesSidebarOpen(true)}
+              className="absolute top-24 right-4 z-10 bg-white border border-[#D5E1E3] rounded-lg px-3 py-2 shadow-sm hover:bg-[#F7FAFB] text-xs"
+            >
+              Voir les sources
             </button>
           )}
 
@@ -207,51 +228,85 @@ export default function ChatUrba() {
               rounded-2xl
               shadow-md
               flex
-              items-center
+              flex-col
               gap-3
               z-20
             "
           >
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Posez votre question juridique…"
-              disabled={isTyping}
-              className="
-                flex-1
-                px-5
-                py-3
-                rounded-xl
-                border
-                border-[#D5E1E3]
-                focus:outline-none
-                focus:ring-2
-                focus:ring-[#FF4F3B]/40
-                disabled:bg-[#F7FAFB]
-                disabled:cursor-not-allowed
-              "
-            />
-            <button
-              type="submit"
-              disabled={isTyping}
-              className="
-                bg-black
-                text-white
-                p-3
-                rounded-xl
-                hover:opacity-90
-                transition
-                disabled:opacity-50
-                disabled:cursor-not-allowed
-                flex
-                items-center
-                justify-center
-              "
-            >
-              <ArrowUp className="w-5 h-5" />
-            </button>
+            <div className="w-full">
+              <CodeSelector
+                selectedCodes={selectedCodes}
+                onChange={setSelectedCodes}
+              />
+              <div className="flex items-center gap-3">
+                <input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Posez votre question juridique…"
+                  disabled={isTyping}
+                  className="
+                    flex-1
+                    px-5
+                    py-3
+                    rounded-xl
+                    border
+                    border-[#D5E1E3]
+                    focus:outline-none
+                    focus:ring-2
+                    focus:ring-[#FF4F3B]/40
+                    disabled:bg-[#F7FAFB]
+                    disabled:cursor-not-allowed
+                  "
+                />
+                <button
+                  type="submit"
+                  disabled={isTyping}
+                  className="
+                    bg-black
+                    text-white
+                    p-3
+                    rounded-xl
+                    hover:opacity-90
+                    transition
+                    disabled:opacity-50
+                    disabled:cursor-not-allowed
+                    flex
+                    items-center
+                    justify-center
+                  "
+                >
+                  <ArrowUp className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
           </motion.form>
         </div>
+
+        {/* ================= SIDEBAR DROITE (SOURCES) ================= */}
+        <AnimatePresence>
+          {sourcesSidebarOpen && (
+            <motion.aside
+              initial={{ x: 360, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: 360, opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              className="w-[360px] bg-white border-l border-[#D5E1E3] pt-24 px-4 pb-4 flex flex-col"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <span className="font-semibold text-sm">
+                  Articles juridiques
+                </span>
+                <button onClick={() => setSourcesSidebarOpen(false)}>
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto space-y-3">
+                <ArticleCards sources={activeSources} />
+              </div>
+            </motion.aside>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
