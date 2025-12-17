@@ -6,6 +6,7 @@ import AudienceSmartForm from "../components/AudienceSmartForm";
 import UniversalPreview from "../components/UniversalPreview";
 import SiteHeader from "../components/layout/SIteHeader";
 import SiteFooter from "../components/layout/SiteFooter";
+import TopographicAnimation from "../components/TopographicAnimation";
 
 import { Card } from "../components/ui/card";
 import { MapPlus, Sparkles, FileCheck, MonitorCog, Map, FileCog } from "lucide-react";
@@ -51,7 +52,7 @@ export default function HomePage() {
     style={{ opacity: fadeOpacity }}
     className="pointer-events-none z-0 absolute inset-0"
   >
-    <UrbanHeroAnimation />
+    <TopographicAnimation />
   </motion.div>
 
   <motion.div
