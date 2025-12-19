@@ -4,6 +4,7 @@ import { Menu, X, ArrowUp } from "lucide-react";
 import SiteHeader from "../components/layout/SIteHeader";
 import MarkdownContent from "../components/MarkdownContent";
 import CodeSelector, { type LegalCode } from "../components/rag_components/CodeSelector";
+import PLUSelector, { type Commune } from "../components/rag_components/PLUSelector";
 import ArticleCards from "../components/rag_components/ArticleCards";
 import type { RAGArticleSource } from "../components/rag_components/types";
 
@@ -20,13 +21,36 @@ export default function ChatUrba() {
   const [sourcesSidebarOpen, setSourcesSidebarOpen] = useState(false);
   const [activeSources, setActiveSources] = useState<RAGArticleSource[]>([]);
   const [isTyping, setIsTyping] = useState(false);
-  const [selectedCodes, setSelectedCodes] = useState<LegalCode[]>([]);
+
+  const [selectedCodes, setSelectedCodes] = useState<LegalCode[]>([
+    "urbanisme",
+    "construction",
+    "environnement",
+  ]);
+
+  const [usePLU, setUsePLU] = useState(false);
+  const [pluCommune, setPluCommune] = useState<string | null>(null);
+
+  // TODO: à remplacer par un endpoint (ex: GET /plu/communes) quand dispo
+  const communesDisponibles: Commune[] = [
+    { insee: "33234", nom: "Latresne (33234)" },
+  ];
 
   const hasStarted = messages.length > 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isTyping) return;
+
+    if (usePLU && !pluCommune) {
+      alert("Veuillez sélectionner une commune pour interroger le PLU.");
+      return;
+    }
+
+    if (!usePLU && selectedCodes.length === 0) {
+      alert("Veuillez sélectionner au moins une source juridique.");
+      return;
+    }
 
     const userMessage = input;
 
@@ -39,44 +63,49 @@ export default function ChatUrba() {
     setIsTyping(true);
 
     try {
-      const res = await fetch(
-        `${import.meta.env.VITE_API_BASE}/chat-urba`,
+      // Un seul appel à l'endpoint orchestrateur parallèle
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE}/chat-urba-parallel`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             query: userMessage,
-            codes: selectedCodes.length ? selectedCodes : ["all"],
+            codes: selectedCodes.length > 0 ? selectedCodes : null,
+            commune_insee: usePLU ? pluCommune : null,
           }),
         }
       );
 
-      if (!res.ok) {
+      if (!response.ok) {
         throw new Error("Erreur backend");
       }
 
-      const data = await res.json();
+      const result = await response.json();
+
+      // Combiner les sources des codes et du PLU
+      const codesSources = (result.sources?.codes || []) as RAGArticleSource[];
+      const pluSources = (result.sources?.plu || []) as RAGArticleSource[];
+      const allSources = [...codesSources, ...pluSources];
 
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: data.response,
-          sources: data.sources || [],
+          content: result.response || "Aucune synthèse n'a pu être générée.",
+          sources: allSources,
         },
       ]);
 
-      setActiveSources(data.sources || []);
-      setSourcesSidebarOpen(true);
+      setActiveSources(allSources);
+      setSourcesSidebarOpen(allSources.length > 0);
     } catch (err) {
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
           content:
-            "Une erreur est survenue lors de l'interrogation du moteur juridique.",
+            "Une erreur est survenue lors de l'interrogation des sources.",
         },
       ]);
     } finally {
@@ -133,7 +162,7 @@ export default function ChatUrba() {
           )}
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-6 pt-24 pb-40">
+          <div className="flex-1 overflow-y-auto px-6 pt-24 pb-10">
             <div className="max-w-3xl mx-auto space-y-8">
               {/* Message d’intro */}
               {messages.length === 0 && (
@@ -192,94 +221,150 @@ export default function ChatUrba() {
                   </div>
                 </motion.div>
               )}
+
+              {/* ================= INPUT (PRIORITAIRE) ================= */}
+              {!hasStarted && (
+                <div className="w-full pt-10">
+                  <div className="w-full px-6 pb-4">
+                    <form onSubmit={handleSubmit} className="max-w-2xl mx-auto">
+                      <div className="flex items-center gap-3">
+                        <input
+                          value={input}
+                          onChange={(e) => setInput(e.target.value)}
+                          placeholder="Posez votre question juridique…"
+                          disabled={isTyping}
+                          className="
+                            flex-1
+                            px-5 py-3
+                            rounded-xl
+                            border border-[#D5E1E3]
+                            focus:outline-none
+                            focus:ring-2
+                            focus:ring-[#FF4F3B]/40
+                            disabled:bg-[#F7FAFB]
+                          "
+                        />
+                        <button
+                          type="submit"
+                          disabled={isTyping}
+                          className="
+                            bg-black text-white
+                            p-3 rounded-xl
+                            hover:opacity-90
+                            disabled:opacity-50
+                          "
+                        >
+                          <ArrowUp className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+
+                  {/* ================= OUTILS (SECONDAIRES) ================= */}
+                  <div className="w-full px-6 pb-10">
+                    <div className="max-w-2xl mx-auto space-y-4 rounded-2xl p-6">
+                      {/* Codes */}
+                      <div>
+                        <p className="text-xs font-medium text-[#1A2B42] mb-1">
+                          Codes juridiques
+                        </p>
+                        <p className="text-[11px] text-[#1A2B42]/70 mb-2">
+                          Sélectionnez les codes légaux dans lesquels vous souhaitez tirer des informations.
+                        </p>
+
+                        <CodeSelector
+                          selectedCodes={selectedCodes}
+                          onChange={setSelectedCodes}
+                        />
+                      </div>
+
+                      {/* PLU */}
+                      <PLUSelector
+                        enabled={usePLU}
+                        commune={pluCommune}
+                        communes={communesDisponibles}
+                        onToggle={(enabled) => {
+                          setUsePLU(enabled);
+                          if (!enabled) setPluCommune(null);
+                        }}
+                        onCommuneChange={(insee) => setPluCommune(insee || null)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* ================= INPUT ================= */}
-          <motion.form
-            onSubmit={handleSubmit}
-            initial={false}
-            animate={
-              hasStarted
-                ? {
-                    bottom: 24,
-                    top: "auto",
-                    transform: "translateY(0)",
-                  }
-                : {
-                    top: "50%",
-                    bottom: "auto",
-                    transform: "translateY(-50%)",
-                  }
-            }
-            transition={{ duration: 0.45, ease: "easeInOut" }}
-            className="
-              absolute
-              left-0
-              right-0
-              mx-auto
-              w-full
-              max-w-2xl
-              px-4
-              py-4
-              bg-white
-              border
-              border-[#D5E1E3]
-              rounded-2xl
-              shadow-md
-              flex
-              flex-col
-              gap-3
-              z-20
-            "
-          >
-            <div className="w-full">
-              <CodeSelector
-                selectedCodes={selectedCodes}
-                onChange={setSelectedCodes}
-              />
-              <div className="flex items-center gap-3">
-                <input
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="Posez votre question juridique…"
-                  disabled={isTyping}
-                  className="
-                    flex-1
-                    px-5
-                    py-3
-                    rounded-xl
-                    border
-                    border-[#D5E1E3]
-                    focus:outline-none
-                    focus:ring-2
-                    focus:ring-[#FF4F3B]/40
-                    disabled:bg-[#F7FAFB]
-                    disabled:cursor-not-allowed
-                  "
-                />
-                <button
-                  type="submit"
-                  disabled={isTyping}
-                  className="
-                    bg-black
-                    text-white
-                    p-3
-                    rounded-xl
-                    hover:opacity-90
-                    transition
-                    disabled:opacity-50
-                    disabled:cursor-not-allowed
-                    flex
-                    items-center
-                    justify-center
-                  "
-                >
-                  <ArrowUp className="w-5 h-5" />
-                </button>
+          {/* ================= INPUT + OUTILS (BAS) ================= */}
+          {hasStarted && (
+            <div className="w-full bg-white/90 backdrop-blur border-t border-[#D5E1E3]">
+              {/* INPUT (PRIORITAIRE) */}
+              <div className="w-full px-6 pb-4 pt-4">
+                <form onSubmit={handleSubmit} className="max-w-2xl mx-auto">
+                  <div className="flex items-center gap-3">
+                    <input
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      placeholder="Posez votre question juridique…"
+                      disabled={isTyping}
+                      className="
+                        flex-1
+                        px-5 py-3
+                        rounded-xl
+                        border border-[#D5E1E3]
+                        focus:outline-none
+                        focus:ring-2
+                        focus:ring-[#FF4F3B]/40
+                        disabled:bg-[#F7FAFB]
+                      "
+                    />
+                    <button
+                      type="submit"
+                      disabled={isTyping}
+                      className="
+                        bg-black text-white
+                        p-3 rounded-xl
+                        hover:opacity-90
+                        disabled:opacity-50
+                      "
+                    >
+                      <ArrowUp className="w-5 h-5" />
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {/* OUTILS (SECONDAIRES) */}
+              <div className="w-full px-6 pb-10">
+                <div className="max-w-2xl mx-auto space-y-4 border-2 border-[#D5E1E3] rounded-2xl p-6">
+                  <div>
+                    <p className="text-xs font-medium text-[#1A2B42] mb-1">
+                      Codes juridiques
+                    </p>
+                    <p className="text-[11px] text-[#1A2B42]/70 mb-2">
+                      Sélectionnez les codes légaux dans lesquels vous souhaitez tirer des informations.
+                    </p>
+                    <CodeSelector
+                      selectedCodes={selectedCodes}
+                      onChange={setSelectedCodes}
+                    />
+                  </div>
+
+                  <PLUSelector
+                    enabled={usePLU}
+                    commune={pluCommune}
+                    communes={communesDisponibles}
+                    onToggle={(enabled) => {
+                      setUsePLU(enabled);
+                      if (!enabled) setPluCommune(null);
+                    }}
+                    onCommuneChange={(insee) => setPluCommune(insee || null)}
+                  />
+                </div>
               </div>
             </div>
-          </motion.form>
+          )}
         </div>
 
         {/* ================= SIDEBAR DROITE (SOURCES) ================= */}

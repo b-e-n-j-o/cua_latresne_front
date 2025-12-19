@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { X } from "lucide-react";
 
 export type LegalCode =
   | "urbanisme"
@@ -54,12 +54,38 @@ export default function CodeSelector({ selectedCodes, onChange }: Props) {
           className={`px-3 py-1 rounded-full text-xs border ${
             selectedCodes.includes(code.key)
               ? "bg-[#FF4F3B] text-white border-[#FF4F3B]"
-              : "bg-white border-[#D5E1E3]"
+              : "bg-white border-[#D5E1E3] text-[#1A2B42]/70"
           }`}
         >
-          {code.label}
+          <span className="inline-flex items-center gap-2">
+            <span>{code.label}</span>
+            {selectedCodes.includes(code.key) && (
+              <span
+                role="button"
+                tabIndex={0}
+                title="Désélectionner"
+                aria-label={`Désélectionner ${code.label}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onChange(selectedCodes.filter((c) => c !== code.key));
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onChange(selectedCodes.filter((c) => c !== code.key));
+                  }
+                }}
+                className="inline-flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 transition w-5 h-5"
+              >
+                <X className="w-3.5 h-3.5" />
+              </span>
+            )}
+          </span>
         </button>
       ))}
     </div>
   );
 }
+
