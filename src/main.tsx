@@ -27,6 +27,7 @@ import TestPage from "./routes/TestPage";
 import HomePage from "./routes/HomePage";
 import TeamPage from "./pages/TeamPage";
 import ChatUrba from "./routes/ChatUrba";
+import MapPage from "./pages/MapPage";
 
 
 
@@ -46,7 +47,8 @@ const PUBLIC_EXACT_ROUTES = [
   "/reset-password",
   "/update-password",
   
-  "/maps", 
+  "/maps",
+  "/map", 
   "/ressources", 
   "/test",
   "/new",
@@ -80,6 +82,7 @@ function RouterWithAuthGate() {
         {/* ➡️ AUTRES ROUTES PUBLIQUES */}
         <Route path="/notre-equipe" element={<TeamPage />} />
         <Route path="/maps" element={<MapsViewer />} />
+        <Route path="/map" element={<MapPage />} />
         <Route path="/cua" element={<CuaViewer />} />
         <Route path="/ressources" element={<ResourcesPage />} />
         <Route path="/test" element={<TestPage />} />
