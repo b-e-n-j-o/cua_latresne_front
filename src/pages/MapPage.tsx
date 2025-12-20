@@ -1,11 +1,23 @@
 // src/pages/MapPage.tsx
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import * as turf from "@turf/turf";
 
 export default function MapPage() {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [isReady, setIsReady] = useState(false);
+  const [minDelayDone, setMinDelayDone] = useState(false);
+  const [loaderVisible, setLoaderVisible] = useState(true);
+
+  // Délai minimum pour le chargement
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setMinDelayDone(true);
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -15,9 +27,16 @@ export default function MapPage() {
       style: "https://demotiles.maplibre.org/style.json",
       center: [2.5, 46.5], // Centre géographique de la France
       zoom: 5.5, // Vue de la France entière
+      // Désactiver les contrôles par défaut
+      attributionControl: false,
     });
 
     mapRef.current = map;
+
+    // Écouter l'événement "idle" pour savoir quand la carte est prête
+    map.on("idle", () => {
+      setIsReady(true);
+    });
 
     map.on("load", async () => {
       // 1. Charger les deux sources en parallèle
@@ -276,5 +295,45 @@ export default function MapPage() {
     return () => map.remove();
   }, []);
 
-  return <div ref={containerRef} style={{ width: "100%", height: "100vh" }} />;
+  // Gérer le fade-out du loader
+  useEffect(() => {
+    if (isReady && minDelayDone) {
+      // Attendre la fin de la transition avant de retirer du DOM
+      const timer = setTimeout(() => {
+        setLoaderVisible(false);
+      }, 500); // Durée de la transition
+
+      return () => clearTimeout(timer);
+    }
+  }, [isReady, minDelayDone]);
+
+  const shouldFadeOut = isReady && minDelayDone;
+
+  return (
+    <div className="relative w-full h-full" style={{ width: "100%", height: "100vh" }}>
+      {/* Loader - prend toute la page avec fade-out */}
+      {loaderVisible && (
+        <div
+          className={`fixed inset-0 z-50 flex flex-col items-center justify-center bg-white transition-opacity duration-500 ${
+            shouldFadeOut ? "opacity-0 pointer-events-none" : "opacity-100"
+          }`}
+          style={{ width: "100vw", height: "100vh" }}
+        >
+          {/* Spinner noir */}
+          <div className="relative w-12 h-12 mb-4">
+            <div className="absolute inset-0 border-4 border-gray-200 rounded-full"></div>
+            <div className="absolute inset-0 border-4 border-transparent border-t-black rounded-full animate-spin"></div>
+          </div>
+          
+          {/* Texte noir */}
+          <div className="text-black text-sm">
+            Chargement des données territoriales…
+          </div>
+        </div>
+      )}
+
+      {/* Carte */}
+      <div ref={containerRef} className="w-full h-full" style={{ width: "100%", height: "100vh" }} />
+    </div>
+  );
 }
