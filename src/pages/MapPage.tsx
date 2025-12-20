@@ -22,8 +22,8 @@ export default function MapPage() {
     map.on("load", async () => {
       // 1. Charger les deux sources en parallèle
       const [resDeps, resComs] = await Promise.all([
-        fetch("http://localhost:8000/departements"),
-        fetch("http://localhost:8000/communes")
+        fetch(`${import.meta.env.VITE_API_BASE}/departements`),
+        fetch(`${import.meta.env.VITE_API_BASE}/communes`)
       ]);
 
       const depsData = await resDeps.json();
@@ -85,7 +85,7 @@ export default function MapPage() {
       map.addSource("plui", {
         type: "vector",
         tiles: [
-          "http://localhost:8000/tiles/plui/{z}/{x}/{y}.mvt"
+          `${import.meta.env.VITE_API_BASE}/tiles/plui/{z}/{x}/{y}.mvt`
         ],
         maxzoom: 18,
         // ⚠️ Pas de minzoom sur la source - laissé aux layers uniquement
