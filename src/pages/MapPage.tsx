@@ -10,6 +10,13 @@ export default function MapPage() {
   const [minDelayDone, setMinDelayDone] = useState(false);
   const [loaderVisible, setLoaderVisible] = useState(true);
 
+  // Cache des communes par département
+  const communesCacheRef = useRef<Map<string, GeoJSON.FeatureCollection>>(new Map());
+  const activeDepartementRef = useRef<string | null>(null);
+  
+  // Zoom à partir duquel on considère que l'utilisateur est "dans" un département
+  const COMMUNES_ZOOM_THRESHOLD = 8.5;
+
   // Délai minimum pour le chargement
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -39,39 +46,62 @@ export default function MapPage() {
     });
 
     map.on("load", async () => {
-      // 1. Charger les deux sources en parallèle
-      const [resDeps, resComs] = await Promise.all([
-        fetch(`${import.meta.env.VITE_API_BASE}/departements`),
-        fetch(`${import.meta.env.VITE_API_BASE}/communes`)
-      ]);
-
+      // 1. Charger uniquement les départements
+      const resDeps = await fetch(`${import.meta.env.VITE_API_BASE}/departements`);
       const depsData = await resDeps.json();
-      const comsData = await resComs.json();
 
       // 2. Ajouter les sources
       map.addSource("departements", { type: "geojson", data: depsData });
-      map.addSource("communes", { type: "geojson", data: comsData });
+      
+      // Source communes vide (chargée à la demande)
+      map.addSource("communes", {
+        type: "geojson",
+        data: {
+          type: "FeatureCollection",
+          features: []
+        }
+      });
 
-      // 3. Layer Départements (Visible de loin)
-      // Layer fill pour les clics
+      // 3. Layer Départements (Visible de loin, reste visible avec opacité réduite)
+      // Layer fill pour les clics (reste actif pour les interactions)
       map.addLayer({
         id: "departements-fill",
         type: "fill",
         source: "departements",
-        maxzoom: 9,
+        // Pas de maxzoom - reste toujours actif pour les clics
         paint: {
           "fill-color": "transparent",
           "fill-opacity": 0
         }
       });
 
-      // Layer line pour l'affichage
+      // Layer line pour l'affichage (opacité réduite progressivement au zoom)
       map.addLayer({
         id: "deps-layer",
         type: "line",
         source: "departements",
-        maxzoom: 9, // Disparaît quand on zoome assez
-        paint: { "line-color": "#4A5568", "line-width": 1.5 }
+        // Pas de maxzoom - reste visible mais avec opacité réduite
+        paint: {
+          "line-color": "#4A5568",
+          "line-width": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            5, 1.5,    // Épaisseur normale à zoom 5
+            9, 1.5,    // Épaisseur normale jusqu'à zoom 9
+            12, 0.8,   // Épaisseur réduite à zoom 12
+            15, 0.5    // Très fine à zoom 15
+          ],
+          "line-opacity": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            5, 1,      // Pleinement visible à zoom 5
+            9, 1,      // Pleinement visible jusqu'à zoom 9
+            12, 0.4,   // Opacité réduite à zoom 12
+            15, 0.2    // Très transparent à zoom 15
+          ]
+        }
       });
 
       // 4. Layer Communes (Apparaît en zoomant)
@@ -217,14 +247,59 @@ export default function MapPage() {
       });
 
       // ============================================================
+      // 🎯 Fonction centrale : charger les communes d'un département
+      // ============================================================
+      
+      async function loadCommunesForDepartement(depInsee: string, map: maplibregl.Map) {
+        // déjà actif → rien à faire
+        if (activeDepartementRef.current === depInsee) return;
+
+        // cache hit
+        const cache = communesCacheRef.current;
+        if (cache.has(depInsee)) {
+          const source = map.getSource("communes") as maplibregl.GeoJSONSource;
+          if (source) {
+            source.setData(cache.get(depInsee)!);
+          }
+          activeDepartementRef.current = depInsee;
+          return;
+        }
+
+        // fetch
+        const res = await fetch(
+          `${import.meta.env.VITE_API_BASE}/communes?departement=${depInsee}`
+        );
+        const geojson = await res.json();
+
+        // Limitation FIFO du cache (max 15 départements)
+        if (cache.size > 15) {
+          const firstKey = cache.keys().next().value;
+          if (firstKey) {
+            cache.delete(firstKey); // Supprime le plus ancien (FIFO)
+          }
+        }
+
+        cache.set(depInsee, geojson);
+        const source = map.getSource("communes") as maplibregl.GeoJSONSource;
+        if (source) {
+          source.setData(geojson);
+        }
+        activeDepartementRef.current = depInsee;
+      }
+
+      // ============================================================
       // 🎯 Navigation hiérarchique : Zoom fluide au clic
       // ============================================================
 
       // Zoom au clic sur un département
-      map.on("click", "departements-fill", (e) => {
-        if (!e.features || !e.features[0]) return;
+      map.on("click", "departements-fill", async (e) => {
+        if (!e.features?.[0]) return;
 
-        const geom = e.features[0].geometry as GeoJSON.Geometry;
+        const feature = e.features[0];
+        const depInsee = feature.properties?.insee;
+        if (!depInsee) return;
+
+        const geom = feature.geometry as GeoJSON.Geometry;
         const bbox = turf.bbox(geom);
 
         map.fitBounds(
@@ -238,6 +313,9 @@ export default function MapPage() {
             easing: (t) => t * (2 - t) // easeOutQuad
           }
         );
+
+        // Charger les communes du département
+        await loadCommunesForDepartement(depInsee, map);
       });
 
       // Zoom au clic sur une commune
@@ -247,9 +325,6 @@ export default function MapPage() {
         const feature = e.features[0];
         const geom = feature.geometry as GeoJSON.Geometry;
         const bbox = turf.bbox(geom);
-        
-        // Récupérer l'insee de la commune cliquée
-        const insee = feature.properties?.insee;
 
         map.fitBounds(
           [
@@ -263,12 +338,8 @@ export default function MapPage() {
           }
         );
 
-        // Filtrer les layers PLU/PLUi par commune (optionnel mais recommandé)
-        if (insee) {
-          map.setFilter("plui-fill", ["==", ["get", "insee"], insee]);
-          map.setFilter("plui-outline", ["==", ["get", "insee"], insee]);
-          map.setFilter("plui-labels", ["==", ["get", "insee"], insee]);
-        }
+        // Pas de filtre sur les layers PLUI : les tuiles MVT se chargent automatiquement
+        // pour la zone visible après le zoom
       });
 
       // ============================================================
@@ -289,6 +360,54 @@ export default function MapPage() {
       });
       map.on("mouseleave", "communes-fill", () => {
         map.getCanvas().style.cursor = "";
+      });
+
+      // ============================================================
+      // 🎯 Détection automatique du département dominant au zoom
+      // ============================================================
+      
+      map.on("moveend", async () => {
+        const zoom = map.getZoom();
+        if (zoom < COMMUNES_ZOOM_THRESHOLD) return;
+
+        const bounds = map.getBounds();
+        const bboxPoly = turf.bboxPolygon([
+          bounds.getWest(),
+          bounds.getSouth(),
+          bounds.getEast(),
+          bounds.getNorth()
+        ]);
+
+        // Requête des départements visibles
+        const features = map.queryRenderedFeatures(undefined, {
+          layers: ["departements-fill"]
+        });
+
+        if (!features.length) return;
+
+        let bestDep: { insee: string; area: number } | null = null;
+
+        for (const f of features) {
+          const depInsee = f.properties?.insee;
+          if (!depInsee) continue;
+
+          const intersection = turf.intersect(
+            bboxPoly,
+            f.geometry as GeoJSON.Geometry
+          );
+
+          if (!intersection) continue;
+
+          const area = turf.area(intersection);
+
+          if (!bestDep || area > bestDep.area) {
+            bestDep = { insee: depInsee, area };
+          }
+        }
+
+        if (bestDep) {
+          await loadCommunesForDepartement(bestDep.insee, map);
+        }
       });
     });
 
