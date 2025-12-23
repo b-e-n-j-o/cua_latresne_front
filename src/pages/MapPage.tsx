@@ -3,9 +3,6 @@ import maplibregl from "maplibre-gl";
 import * as turf from "@turf/turf";
 import LayerSwitcher from "../components/carto/LayerSwitcher";
 
-// ✅ Couches (modulaires)
-import registerPLUILayer from "../carto/layers/plui";
-
 export default function MapPage() {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -61,10 +58,19 @@ export default function MapPage() {
       const resDeps = await fetch(`${import.meta.env.VITE_API_BASE}/departements`);
       const depsData = await resDeps.json();
 
+      // On s'assure que chaque département a un id stable pour feature-state
+      const depsWithId = {
+        ...depsData,
+        features: depsData.features.map((f: any, idx: number) => ({
+          ...f,
+          id: f.id ?? f.properties?.insee ?? idx,
+        })),
+      };
+
       // ============================================================
       // 2) Sources GeoJSON (deps + communes à la demande)
       // ============================================================
-      map.addSource("departements", { type: "geojson", data: depsData });
+      map.addSource("departements", { type: "geojson", data: depsWithId });
 
       map.addSource("communes", {
         type: "geojson",
@@ -78,7 +84,15 @@ export default function MapPage() {
         id: "departements-fill",
         type: "fill",
         source: "departements",
-        paint: { "fill-color": "transparent", "fill-opacity": 0 },
+        paint: {
+          "fill-color": "#CBD5E0",
+          "fill-opacity": [
+            "case",
+            ["boolean", ["feature-state", "hover"], false],
+            0.25,
+            0
+          ],
+        },
       });
 
       map.addLayer({
@@ -100,7 +114,15 @@ export default function MapPage() {
         type: "fill",
         source: "communes",
         minzoom: 8,
-        paint: { "fill-color": "transparent", "fill-opacity": 0 },
+        paint: {
+          "fill-color": "#E2E8F0",
+          "fill-opacity": [
+            "case",
+            ["boolean", ["feature-state", "hover"], false],
+            0.25,
+            0
+          ],
+        },
       });
 
       map.addLayer({
@@ -122,9 +144,6 @@ export default function MapPage() {
       // ============================================================
       const apiBase = import.meta.env.VITE_API_BASE;
 
-      // Exemple : si l'on souhaite pré-enregistrer PLUI au chargement
-      registerPLUILayer(map, apiBase);
-
       // ============================================================
       // 6) Fonction centrale : charger les communes d'un département
       // ============================================================
@@ -144,20 +163,92 @@ export default function MapPage() {
         const res = await fetch(`${apiBase}/communes?departement=${depInsee}`);
         const geojson = await res.json();
 
+        // Ajout d'un id stable aux communes pour pouvoir utiliser feature-state (hover)
+        const communesWithId = {
+          ...geojson,
+          features: geojson.features.map((f: any, idx: number) => ({
+            ...f,
+            id: f.id ?? f.properties?.insee ?? idx,
+          })),
+        };
+
         // FIFO cache (max 15)
         if (cache.size >= 15) {
           const firstKey = cache.keys().next().value;
           if (firstKey) cache.delete(firstKey);
         }
 
-        cache.set(depInsee, geojson);
-        source.setData(geojson);
+        cache.set(depInsee, communesWithId);
+        source.setData(communesWithId);
         activeDepartementRef.current = depInsee;
       }
 
       // ============================================================
       // 7) Navigation hiérarchique
+      //    + mise en évidence visuelle au survol
       // ============================================================
+      let hoveredDepartementId: string | number | null = null;
+      let hoveredCommuneId: string | number | null = null;
+
+      map.on("mousemove", "departements-fill", (e) => {
+        const feature = e.features?.[0];
+        if (!feature) return;
+
+        if (hoveredDepartementId != null) {
+          map.setFeatureState(
+            { source: "departements", id: hoveredDepartementId },
+            { hover: false }
+          );
+        }
+
+        hoveredDepartementId = feature.id as string | number | null;
+        if (hoveredDepartementId != null) {
+          map.setFeatureState(
+            { source: "departements", id: hoveredDepartementId },
+            { hover: true }
+          );
+        }
+      });
+
+      map.on("mouseleave", "departements-fill", () => {
+        if (hoveredDepartementId != null) {
+          map.setFeatureState(
+            { source: "departements", id: hoveredDepartementId },
+            { hover: false }
+          );
+        }
+        hoveredDepartementId = null;
+      });
+
+      map.on("mousemove", "communes-fill", (e) => {
+        const feature = e.features?.[0];
+        if (!feature) return;
+
+        if (hoveredCommuneId != null) {
+          map.setFeatureState(
+            { source: "communes", id: hoveredCommuneId },
+            { hover: false }
+          );
+        }
+
+        hoveredCommuneId = feature.id as string | number | null;
+        if (hoveredCommuneId != null) {
+          map.setFeatureState(
+            { source: "communes", id: hoveredCommuneId },
+            { hover: true }
+          );
+        }
+      });
+
+      map.on("mouseleave", "communes-fill", () => {
+        if (hoveredCommuneId != null) {
+          map.setFeatureState(
+            { source: "communes", id: hoveredCommuneId },
+            { hover: false }
+          );
+        }
+        hoveredCommuneId = null;
+      });
       map.on("click", "departements-fill", async (e) => {
         const feature = e.features?.[0];
         if (!feature) return;

@@ -16,7 +16,7 @@ export default function registerAC4Layer(map: maplibregl.Map, apiBase: string) {
       type: "fill",
       source: "ac4",
       "source-layer": "ac4",
-      minzoom: 15,
+      minzoom: 14,
       paint: {
         "fill-color": "#FFD700",
         "fill-opacity": 0.25
@@ -31,14 +31,14 @@ export default function registerAC4Layer(map: maplibregl.Map, apiBase: string) {
       type: "line",
       source: "ac4",
       "source-layer": "ac4",
-      minzoom: 15,
+      minzoom: 14,
       paint: {
         "line-color": "#D69E2E",
         "line-width": [
           "interpolate",
           ["linear"],
           ["zoom"],
-          15, 0.6,
+          14, 0.6,
           18, 1.3
         ],
         "line-opacity": 0.9
