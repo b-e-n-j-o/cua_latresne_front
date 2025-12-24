@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import * as turf from "@turf/turf";
 import LayerSwitcher from "../components/carto/LayerSwitcher";
+import ParcelleSearchForm from "../components/carto/ParcelleSearchform";
+import ParcelleCard from "../components/carto/ParcelleCard";
 
 export default function MapPage() {
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -10,10 +12,22 @@ export default function MapPage() {
   const [isReady, setIsReady] = useState(false);
   const [minDelayDone, setMinDelayDone] = useState(false);
   const [loaderVisible, setLoaderVisible] = useState(true);
+  
+  // Tooltip et infos parcelle
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; content: string } | null>(null);
+  const [selectedParcelle, setSelectedParcelle] = useState<{
+    section: string;
+    numero: string;
+    commune: string;
+    insee: string;
+  } | null>(null);
 
   // Cache des communes par département
   const communesCacheRef = useRef<Map<string, GeoJSON.FeatureCollection>>(new Map());
   const activeDepartementRef = useRef<string | null>(null);
+  
+  // Référence pour la fonction d'affichage des résultats de recherche de parcelle
+  const showParcelleResultRef = useRef<((geojson: any, addressPoint?: [number, number]) => void) | null>(null);
 
   // Zoom à partir duquel on considère que l'utilisateur est "dans" un département
   const COMMUNES_ZOOM_THRESHOLD = 8.5;
@@ -34,6 +48,7 @@ export default function MapPage() {
       style: "https://data.geopf.fr/annexes/ressources/vectorTiles/styles/PLAN.IGN/standard.json",
       center: [2.5, 46.5],
       zoom: 5.5,
+      maxZoom: 22, // autorise l'overzoom (réutilisation de la dernière tuile z18)
       attributionControl: false,
     });
 
@@ -86,12 +101,7 @@ export default function MapPage() {
         source: "departements",
         paint: {
           "fill-color": "#CBD5E0",
-          "fill-opacity": [
-            "case",
-            ["boolean", ["feature-state", "hover"], false],
-            0.25,
-            0
-          ],
+          "fill-opacity": 0,
         },
       });
 
@@ -116,12 +126,7 @@ export default function MapPage() {
         minzoom: 8,
         paint: {
           "fill-color": "#E2E8F0",
-          "fill-opacity": [
-            "case",
-            ["boolean", ["feature-state", "hover"], false],
-            0.25,
-            0
-          ],
+          "fill-opacity": 0,
         },
       });
 
@@ -145,7 +150,215 @@ export default function MapPage() {
       const apiBase = import.meta.env.VITE_API_BASE;
 
       // ============================================================
-      // 6) Fonction centrale : charger les communes d'un département
+      // 6) Fonction d'affichage des résultats de recherche de parcelle
+      // ============================================================
+      function showParcelleResult(geojson: any, addressPoint?: [number, number]) {
+        // Nettoyage : supprimer les layers et les sources
+        // Les event listeners sont automatiquement supprimés quand on supprime les layers
+        
+        // Nettoyage du point d'adresse
+        if (map.getSource("address-point")) {
+          if (map.getLayer("address-ping")) map.removeLayer("address-ping");
+          if (map.getLayer("address-halo")) map.removeLayer("address-halo");
+          map.removeSource("address-point");
+        }
+        
+        // Nettoyage des parcelles
+        if (map.getSource("parcelle-search")) {
+          // Supprimer les layers (dans l'ordre inverse de leur création)
+          if (map.getLayer("parcelle-target")) map.removeLayer("parcelle-target");
+          if (map.getLayer("parcelle-target-fill")) map.removeLayer("parcelle-target-fill");
+          if (map.getLayer("parcelle-outline")) map.removeLayer("parcelle-outline");
+          if (map.getLayer("parcelle-fill")) map.removeLayer("parcelle-fill");
+          
+          // Supprimer la source
+          map.removeSource("parcelle-search");
+        }
+
+        // Source GeoJSON des parcelles
+        map.addSource("parcelle-search", {
+          type: "geojson",
+          data: geojson
+        });
+
+        // Source point d'adresse (si recherche par adresse)
+        if (addressPoint) {
+          map.addSource("address-point", {
+            type: "geojson",
+            data: {
+              type: "FeatureCollection",
+              features: [
+                {
+                  type: "Feature",
+                  geometry: {
+                    type: "Point",
+                    coordinates: addressPoint
+                  },
+                  properties: {}
+                }
+              ]
+            }
+          });
+
+          // Halo autour du point
+          map.addLayer({
+            id: "address-halo",
+            type: "circle",
+            source: "address-point",
+            paint: {
+              "circle-radius": 14,
+              "circle-color": "#E53E3E",
+              "circle-opacity": 0.15
+            }
+          });
+
+          // Point central
+          map.addLayer({
+            id: "address-ping",
+            type: "circle",
+            source: "address-point",
+            paint: {
+              "circle-radius": 6,
+              "circle-color": "#E53E3E",
+              "circle-opacity": 1,
+              "circle-stroke-width": 2,
+              "circle-stroke-color": "#FFFFFF"
+            }
+          });
+        }
+
+        // ------------------------------------------------------------
+        // 🟦 Surface de TOUTES les parcelles (transparente, hoverable)
+        // ------------------------------------------------------------
+        map.addLayer({
+          id: "parcelle-fill",
+          type: "fill",
+          source: "parcelle-search",
+          paint: {
+            "fill-color": "#000000",
+            "fill-opacity": 0
+          }
+        });
+
+        // ------------------------------------------------------------
+        // ⚫ Contours de TOUTES les parcelles (noir)
+        // ------------------------------------------------------------
+        map.addLayer({
+          id: "parcelle-outline",
+          type: "line",
+          source: "parcelle-search",
+          paint: {
+            "line-color": "#000000",
+            "line-width": 1.2,
+            "line-opacity": 0.9
+          }
+        });
+
+        // ------------------------------------------------------------
+        // 🟡 Remplissage de la parcelle cible (jaune clair)
+        // ------------------------------------------------------------
+        map.addLayer({
+          id: "parcelle-target-fill",
+          type: "fill",
+          source: "parcelle-search",
+          filter: ["==", ["get", "is_target"], true],
+          paint: {
+            "fill-color": "#FFF8DC",
+            "fill-opacity": 0.6
+          }
+        });
+
+        // ------------------------------------------------------------
+        // 🔴 Parcelle cible (contour rouge, au-dessus)
+        // ------------------------------------------------------------
+        map.addLayer({
+          id: "parcelle-target",
+          type: "line",
+          source: "parcelle-search",
+          filter: ["==", ["get", "is_target"], true],
+          paint: {
+            "line-color": "#E53E3E",
+            "line-width": 3,
+            "line-opacity": 1
+          }
+        });
+
+        // ------------------------------------------------------------
+        // 🎯 Zoom sur la zone
+        // ------------------------------------------------------------
+        const bounds = turf.bbox(geojson);
+        map.fitBounds(
+          [
+            [bounds[0], bounds[1]],
+            [bounds[2], bounds[3]]
+          ],
+          {
+            padding: 100,
+            maxZoom: 18,
+            duration: 800
+          }
+        );
+
+        // ------------------------------------------------------------
+        // 🖱️ Interactions hover et click sur les parcelles
+        // ------------------------------------------------------------
+        // Utiliser la couche fill (transparente) pour les interactions
+        // car elle couvre toute la surface, pas seulement les lignes
+        
+        // Hover : afficher tooltip
+        map.on("mousemove", "parcelle-fill", (e) => {
+          if (!e.features?.length) return;
+          const props = e.features[0].properties as any;
+          
+          map.getCanvas().style.cursor = "pointer";
+          
+          setTooltip({
+            x: e.point.x,
+            y: e.point.y,
+            content: `Section ${props.section} – Parcelle ${props.numero}`
+          });
+        });
+
+        map.on("mouseleave", "parcelle-fill", () => {
+          map.getCanvas().style.cursor = "";
+          setTooltip(null);
+        });
+
+        // Click : afficher infos détaillées + zoom
+        map.on("click", "parcelle-fill", (e) => {
+          const feature = e.features?.[0];
+          if (!feature) return;
+          
+          const props = feature.properties as any;
+          if (!props) return;
+
+          // Zoom sur la parcelle
+          const geom = feature.geometry as GeoJSON.Geometry;
+          const bbox = turf.bbox(geom);
+
+          map.fitBounds(
+            [
+              [bbox[0], bbox[1]],
+              [bbox[2], bbox[3]]
+            ],
+            { padding: 80, duration: 1200, easing: (t) => t * (2 - t) }
+          );
+
+          // Afficher les infos de la parcelle
+          setSelectedParcelle({
+            section: props.section,
+            numero: props.numero,
+            commune: props.commune,
+            insee: props.insee
+          });
+        });
+      }
+
+      // Stocker la fonction dans la ref pour qu'elle soit accessible depuis le JSX
+      showParcelleResultRef.current = showParcelleResult;
+
+      // ============================================================
+      // 7) Fonction centrale : charger les communes d'un département
       // ============================================================
       async function loadCommunesForDepartement(depInsee: string) {
         if (activeDepartementRef.current === depInsee) return;
@@ -184,71 +397,10 @@ export default function MapPage() {
       }
 
       // ============================================================
-      // 7) Navigation hiérarchique
-      //    + mise en évidence visuelle au survol
+      // 8) Navigation hiérarchique (clic uniquement)
       // ============================================================
-      let hoveredDepartementId: string | number | null = null;
-      let hoveredCommuneId: string | number | null = null;
-
-      map.on("mousemove", "departements-fill", (e) => {
-        const feature = e.features?.[0];
-        if (!feature) return;
-
-        if (hoveredDepartementId != null) {
-          map.setFeatureState(
-            { source: "departements", id: hoveredDepartementId },
-            { hover: false }
-          );
-        }
-
-        hoveredDepartementId = feature.id as string | number | null;
-        if (hoveredDepartementId != null) {
-          map.setFeatureState(
-            { source: "departements", id: hoveredDepartementId },
-            { hover: true }
-          );
-        }
-      });
-
-      map.on("mouseleave", "departements-fill", () => {
-        if (hoveredDepartementId != null) {
-          map.setFeatureState(
-            { source: "departements", id: hoveredDepartementId },
-            { hover: false }
-          );
-        }
-        hoveredDepartementId = null;
-      });
-
-      map.on("mousemove", "communes-fill", (e) => {
-        const feature = e.features?.[0];
-        if (!feature) return;
-
-        if (hoveredCommuneId != null) {
-          map.setFeatureState(
-            { source: "communes", id: hoveredCommuneId },
-            { hover: false }
-          );
-        }
-
-        hoveredCommuneId = feature.id as string | number | null;
-        if (hoveredCommuneId != null) {
-          map.setFeatureState(
-            { source: "communes", id: hoveredCommuneId },
-            { hover: true }
-          );
-        }
-      });
-
-      map.on("mouseleave", "communes-fill", () => {
-        if (hoveredCommuneId != null) {
-          map.setFeatureState(
-            { source: "communes", id: hoveredCommuneId },
-            { hover: false }
-          );
-        }
-        hoveredCommuneId = null;
-      });
+      
+      // Clic sur département : zoom + charger communes
       map.on("click", "departements-fill", async (e) => {
         const feature = e.features?.[0];
         if (!feature) return;
@@ -270,6 +422,7 @@ export default function MapPage() {
         await loadCommunesForDepartement(depInsee);
       });
 
+      // Clic sur commune : zoom
       map.on("click", "communes-fill", (e) => {
         const feature = e.features?.[0];
         if (!feature) return;
@@ -286,14 +439,14 @@ export default function MapPage() {
         );
       });
 
-      // UX curseur
+      // UX curseur pour départements et communes
       map.on("mouseenter", "departements-fill", () => (map.getCanvas().style.cursor = "pointer"));
       map.on("mouseleave", "departements-fill", () => (map.getCanvas().style.cursor = ""));
       map.on("mouseenter", "communes-fill", () => (map.getCanvas().style.cursor = "pointer"));
       map.on("mouseleave", "communes-fill", () => (map.getCanvas().style.cursor = ""));
 
       // ============================================================
-      // 8) Détection automatique du département dominant au zoom
+      // 9) Détection automatique du département dominant au zoom
       // ============================================================
       map.on("moveend", async () => {
         const zoom = map.getZoom();
@@ -363,7 +516,40 @@ export default function MapPage() {
 
       <div ref={containerRef} className="w-full h-full" style={{ width: "100%", height: "100vh" }} />
 
+      {mapRef.current && (
+        <ParcelleSearchForm
+          onSearch={(geojson, addressPoint) => {
+            if (!mapRef.current || !showParcelleResultRef.current) return;
+            showParcelleResultRef.current(geojson, addressPoint);
+            setSelectedParcelle(null); // Réinitialiser la sélection
+          }}
+        />
+      )}
+
       {mapRef.current && <LayerSwitcher map={mapRef.current} />}
+
+      {/* Tooltip au survol des parcelles */}
+      {tooltip && (
+        <div
+          className="absolute z-50 bg-black text-white text-xs px-2 py-1 rounded pointer-events-none"
+          style={{
+            left: `${tooltip.x}px`,
+            top: `${tooltip.y}px`,
+            transform: "translate(-50%, -100%)",
+            marginTop: "-8px"
+          }}
+        >
+          {tooltip.content}
+        </div>
+      )}
+
+      {/* Panneau latéral avec infos parcelle */}
+      {selectedParcelle && (
+        <ParcelleCard
+          parcelle={selectedParcelle}
+          onClose={() => setSelectedParcelle(null)}
+        />
+      )}
     </div>
   );
 }
