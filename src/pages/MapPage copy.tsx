@@ -25,9 +25,8 @@ export default function MapPage() {
   const communesCacheRef = useRef<Map<string, GeoJSON.FeatureCollection>>(new Map());
   const activeDepartementRef = useRef<string | null>(null);
   
-      // Références pour les fonctions de gestion des parcelles
-      const showParcelleResultRef = useRef<((geojson: any) => void) | null>(null);
-      const clearParcellesRef = useRef<(() => void) | null>(null);
+  // Référence pour la fonction d'affichage des résultats de recherche de parcelle
+  const showParcelleResultRef = useRef<((geojson: any) => void) | null>(null);
 
   // Zoom à partir duquel on considère que l'utilisateur est "dans" un département
   const COMMUNES_ZOOM_THRESHOLD = 8.5;
@@ -158,23 +157,12 @@ export default function MapPage() {
       // ============================================================
       const apiBase = import.meta.env.VITE_API_BASE;
 
-      // Flag pour désactiver les interactions admin en mode parcelle
-      let parcelleModeActive = false;
-
       // ============================================================
       // 6) Fonction d'affichage des résultats de recherche de parcelle
       // ============================================================
       function showParcelleResult(geojson: any) {
-        // Activer le mode parcelle
-        parcelleModeActive = true;
-        
-        // Nettoyage : supprimer les layers, source et event listeners
+        // Nettoyage
         if (map.getSource("parcelle-search")) {
-          // Supprimer les event listeners existants
-          map.off("mousemove", "parcelle-outline");
-          map.off("mouseleave", "parcelle-outline");
-          map.off("click", "parcelle-outline");
-          
           map.removeLayer("parcelle-target");
           map.removeLayer("parcelle-target-fill");
           map.removeLayer("parcelle-outline");
@@ -245,66 +233,10 @@ export default function MapPage() {
             duration: 800
           }
         );
-
-        // ------------------------------------------------------------
-        // 🖱️ Interactions hover et click sur les parcelles
-        // ------------------------------------------------------------
-        
-        // Hover : afficher tooltip
-        map.on("mousemove", "parcelle-outline", (e) => {
-          if (!e.features?.length) return;
-          const props = e.features[0].properties as any;
-          
-          map.getCanvas().style.cursor = "pointer";
-          
-          setTooltip({
-            x: e.point.x,
-            y: e.point.y,
-            content: `Section ${props.section} – Parcelle ${props.numero}`
-          });
-        });
-
-        map.on("mouseleave", "parcelle-outline", () => {
-          map.getCanvas().style.cursor = "";
-          setTooltip(null);
-        });
-
-        // Click : afficher infos détaillées
-        map.on("click", "parcelle-outline", (e) => {
-          const props = (e.features?.[0]?.properties as any);
-          if (!props) return;
-
-          setSelectedParcelle({
-            section: props.section,
-            numero: props.numero,
-            commune: props.commune,
-            insee: props.insee
-          });
-        });
       }
 
-      // Fonction pour nettoyer les parcelles et réinitialiser le mode
-      function clearParcelles() {
-        parcelleModeActive = false;
-        setTooltip(null);
-        setSelectedParcelle(null);
-        
-        if (map.getSource("parcelle-search")) {
-          // Supprimer les event listeners existants
-          map.off("mousemove", "parcelle-outline");
-          map.off("mouseleave", "parcelle-outline");
-          map.off("click", "parcelle-outline");
-          
-          map.removeLayer("parcelle-target");
-          map.removeLayer("parcelle-target-fill");
-          map.removeLayer("parcelle-outline");
-          map.removeSource("parcelle-search");
-        }
-      }
-
-      // Stocker les fonctions dans les refs pour qu'elles soient accessibles depuis le JSX
+      // Stocker la fonction dans la ref pour qu'elle soit accessible depuis le JSX
       showParcelleResultRef.current = showParcelleResult;
-      clearParcellesRef.current = clearParcelles;
 
       // ============================================================
       // 7) Fonction centrale : charger les communes d'un département
@@ -353,8 +285,6 @@ export default function MapPage() {
       let hoveredCommuneId: string | number | null = null;
 
       map.on("mousemove", "departements-fill", (e) => {
-        if (parcelleModeActive) return;
-        
         const feature = e.features?.[0];
         if (!feature) return;
 
@@ -375,8 +305,6 @@ export default function MapPage() {
       });
 
       map.on("mouseleave", "departements-fill", () => {
-        if (parcelleModeActive) return;
-        
         if (hoveredDepartementId != null) {
           map.setFeatureState(
             { source: "departements", id: hoveredDepartementId },
@@ -387,8 +315,6 @@ export default function MapPage() {
       });
 
       map.on("mousemove", "communes-fill", (e) => {
-        if (parcelleModeActive) return;
-        
         const feature = e.features?.[0];
         if (!feature) return;
 
@@ -409,8 +335,6 @@ export default function MapPage() {
       });
 
       map.on("mouseleave", "communes-fill", () => {
-        if (parcelleModeActive) return;
-        
         if (hoveredCommuneId != null) {
           map.setFeatureState(
             { source: "communes", id: hoveredCommuneId },
@@ -420,8 +344,6 @@ export default function MapPage() {
         hoveredCommuneId = null;
       });
       map.on("click", "departements-fill", async (e) => {
-        if (parcelleModeActive) return;
-        
         const feature = e.features?.[0];
         if (!feature) return;
 
@@ -443,8 +365,6 @@ export default function MapPage() {
       });
 
       map.on("click", "communes-fill", (e) => {
-        if (parcelleModeActive) return;
-        
         const feature = e.features?.[0];
         if (!feature) return;
 
@@ -461,18 +381,10 @@ export default function MapPage() {
       });
 
       // UX curseur
-      map.on("mouseenter", "departements-fill", () => {
-        if (!parcelleModeActive) map.getCanvas().style.cursor = "pointer";
-      });
-      map.on("mouseleave", "departements-fill", () => {
-        if (!parcelleModeActive) map.getCanvas().style.cursor = "";
-      });
-      map.on("mouseenter", "communes-fill", () => {
-        if (!parcelleModeActive) map.getCanvas().style.cursor = "pointer";
-      });
-      map.on("mouseleave", "communes-fill", () => {
-        if (!parcelleModeActive) map.getCanvas().style.cursor = "";
-      });
+      map.on("mouseenter", "departements-fill", () => (map.getCanvas().style.cursor = "pointer"));
+      map.on("mouseleave", "departements-fill", () => (map.getCanvas().style.cursor = ""));
+      map.on("mouseenter", "communes-fill", () => (map.getCanvas().style.cursor = "pointer"));
+      map.on("mouseleave", "communes-fill", () => (map.getCanvas().style.cursor = ""));
 
       // ============================================================
       // 9) Détection automatique du département dominant au zoom
@@ -550,59 +462,11 @@ export default function MapPage() {
           onSearch={(geojson) => {
             if (!mapRef.current || !showParcelleResultRef.current) return;
             showParcelleResultRef.current(geojson);
-            setSelectedParcelle(null); // Réinitialiser la sélection
           }}
         />
       )}
 
       {mapRef.current && <LayerSwitcher map={mapRef.current} />}
-
-      {/* Tooltip au survol des parcelles */}
-      {tooltip && (
-        <div
-          className="absolute z-50 bg-black text-white text-xs px-2 py-1 rounded pointer-events-none"
-          style={{
-            left: `${tooltip.x}px`,
-            top: `${tooltip.y}px`,
-            transform: "translate(-50%, -100%)",
-            marginTop: "-8px"
-          }}
-        >
-          {tooltip.content}
-        </div>
-      )}
-
-      {/* Panneau latéral avec infos parcelle */}
-      {selectedParcelle && (
-        <div className="absolute top-4 right-4 z-40 bg-white shadow-lg rounded-md p-4 w-64">
-          <div className="flex justify-between items-start mb-2">
-            <h3 className="font-semibold text-sm">Parcelle</h3>
-            <button
-              onClick={() => {
-                setSelectedParcelle(null);
-                // Ne pas désactiver le mode parcelle ici, car les parcelles restent affichées
-              }}
-              className="text-gray-500 hover:text-gray-700 text-lg leading-none"
-            >
-              ×
-            </button>
-          </div>
-          <div className="space-y-1 text-sm">
-            <div>
-              <span className="font-medium">Section :</span> {selectedParcelle.section}
-            </div>
-            <div>
-              <span className="font-medium">Numéro :</span> {selectedParcelle.numero}
-            </div>
-            <div>
-              <span className="font-medium">Commune :</span> {selectedParcelle.commune}
-            </div>
-            <div className="text-xs text-gray-500">
-              INSEE : {selectedParcelle.insee}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
