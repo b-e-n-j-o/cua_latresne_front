@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Mountain } from "lucide-react";
+import { Mountain, FileText } from "lucide-react";
 import TopographyViewer from "./TopographyViewer";
+import DPEViewer from "./DPEViewer";
 
 type ParcelleInfo = {
   section: string;
@@ -16,6 +17,7 @@ type Props = {
 
 export default function ParcelleCard({ parcelle, onClose }: Props) {
   const [show3D, setShow3D] = useState(false);
+  const [showDPE, setShowDPE] = useState(false);
 
   return (
     <>
@@ -44,21 +46,36 @@ export default function ParcelleCard({ parcelle, onClose }: Props) {
           </div>
         </div>
 
-        {/* Bouton Topographie 3D */}
-        <button
-          onClick={() => setShow3D(true)}
-          className="mt-3 w-full flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-800 text-white py-2 px-3 rounded text-sm transition-colors"
-        >
-          <Mountain size={16} />
-          <span>Topographie 3D</span>
-        </button>
+        <div className="space-y-2 mt-3">
+          <button
+            onClick={() => setShow3D(true)}
+            className="w-full flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-800 text-white py-2 px-3 rounded text-sm transition-colors"
+          >
+            <Mountain size={16} />
+            <span>Topographie 3D</span>
+          </button>
+
+          <button
+            onClick={() => setShowDPE(true)}
+            className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-2 px-3 rounded text-sm transition-colors"
+          >
+            <FileText size={16} />
+            <span>Rapport DPE</span>
+          </button>
+        </div>
       </div>
 
-      {/* Viewer 3D modal */}
       {show3D && (
         <TopographyViewer
           parcelle={parcelle}
           onClose={() => setShow3D(false)}
+        />
+      )}
+      
+      {showDPE && (
+        <DPEViewer
+          parcelle={parcelle}
+          onClose={() => setShowDPE(false)}
         />
       )}
     </>
