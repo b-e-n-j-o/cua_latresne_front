@@ -4,6 +4,7 @@ import * as turf from "@turf/turf";
 import LayerSwitcher from "../components/carto/LayerSwitcher";
 import ParcelleSearchForm from "../components/carto/ParcelleSearchform";
 import ParcelleCard from "../components/carto/ParcelleCard";
+import { PLUConsultation } from "../components/carto/PLUConsultation";
 
 export default function MapPage() {
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -21,16 +22,31 @@ export default function MapPage() {
     commune: string;
     insee: string;
   } | null>(null);
+  
+  const [currentInsee, setCurrentInsee] = useState<string | null>(null);
+  const [currentCommune, setCurrentCommune] = useState<string | null>(null);
+  
+  // État pour le zoom et l'affichage du message informatif
+  const [currentZoom, setCurrentZoom] = useState(5.5);
+  const [parcellesDisplayed, setParcellesDisplayed] = useState(false);
+  
+  // Ref pour éviter les appels multiples lors de l'affichage auto
+  const autoFetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastAutoFetchCenterRef = useRef<[number, number] | null>(null);
 
   // Cache des communes par département
   const communesCacheRef = useRef<Map<string, GeoJSON.FeatureCollection>>(new Map());
   const activeDepartementRef = useRef<string | null>(null);
   
   // Référence pour la fonction d'affichage des résultats de recherche de parcelle
-  const showParcelleResultRef = useRef<((geojson: any, addressPoint?: [number, number]) => void) | null>(null);
+  const showParcelleResultRef = useRef<((geojson: any, addressPoint?: [number, number], targetZoom?: number) => void) | null>(null);
 
   // Zoom à partir duquel on considère que l'utilisateur est "dans" un département
   const COMMUNES_ZOOM_THRESHOLD = 8.5;
+  // Seuil : au-delà, on active les clics parcelles (désactive les clics communes)
+  const PARCELLE_CLICK_ZOOM = 13;
+  // Seuil : au-delà, affichage automatique des parcelles au centre de l'écran
+  const PARCELLE_AUTO_ZOOM = 17;
 
   // Délai minimum pour le chargement
   useEffect(() => {
@@ -53,6 +69,9 @@ export default function MapPage() {
     });
 
     mapRef.current = map;
+    
+    // Initialiser le zoom
+    setCurrentZoom(5.5);
 
     // Carte prête (tuiles + rendu)
     map.on("idle", () => setIsReady(true));
@@ -152,7 +171,7 @@ export default function MapPage() {
       // ============================================================
       // 6) Fonction d'affichage des résultats de recherche de parcelle
       // ============================================================
-      function showParcelleResult(geojson: any, addressPoint?: [number, number]) {
+      function showParcelleResult(geojson: any, addressPoint?: [number, number], targetZoom?: number) {
         // Nettoyage : supprimer les layers et les sources
         // Les event listeners sont automatiquement supprimés quand on supprime les layers
         
@@ -166,6 +185,8 @@ export default function MapPage() {
         // Nettoyage des parcelles
         if (map.getSource("parcelle-search")) {
           // Supprimer les layers (dans l'ordre inverse de leur création)
+          if (map.getLayer("parcelle-selected")) map.removeLayer("parcelle-selected");
+          if (map.getLayer("parcelle-selected-fill")) map.removeLayer("parcelle-selected-fill");
           if (map.getLayer("parcelle-target")) map.removeLayer("parcelle-target");
           if (map.getLayer("parcelle-target-fill")) map.removeLayer("parcelle-target-fill");
           if (map.getLayer("parcelle-outline")) map.removeLayer("parcelle-outline");
@@ -173,6 +194,12 @@ export default function MapPage() {
           
           // Supprimer la source
           map.removeSource("parcelle-search");
+        }
+        
+        // Si pas de features dans le geojson, on nettoie donc réinitialiser l'état
+        if (!geojson?.features?.length) {
+          setParcellesDisplayed(false);
+          return; // Ne pas continuer si on nettoie
         }
 
         // Source GeoJSON des parcelles
@@ -284,20 +311,64 @@ export default function MapPage() {
         });
 
         // ------------------------------------------------------------
+        // 🟡 Remplissage de la parcelle sélectionnée (jaune clair)
+        // ------------------------------------------------------------
+        map.addLayer({
+          id: "parcelle-selected-fill",
+          type: "fill",
+          source: "parcelle-search",
+          filter: ["==", ["get", "section"], ""], // Sera mis à jour dynamiquement
+          paint: {
+            "fill-color": "#FFF8DC",
+            "fill-opacity": 0.6
+          }
+        });
+
+        // ------------------------------------------------------------
+        // 🔴 Parcelle sélectionnée (contour rouge, au-dessus)
+        // ------------------------------------------------------------
+        map.addLayer({
+          id: "parcelle-selected",
+          type: "line",
+          source: "parcelle-search",
+          filter: ["==", ["get", "section"], ""], // Sera mis à jour dynamiquement
+          paint: {
+            "line-color": "#E53E3E",
+            "line-width": 3,
+            "line-opacity": 1
+          }
+        });
+
+        // ------------------------------------------------------------
         // 🎯 Zoom sur la zone
         // ------------------------------------------------------------
         const bounds = turf.bbox(geojson);
-        map.fitBounds(
-          [
-            [bounds[0], bounds[1]],
-            [bounds[2], bounds[3]]
-          ],
-          {
-            padding: 100,
-            maxZoom: 18,
+        
+        if (targetZoom !== undefined) {
+          // Si un zoom cible est spécifié, centrer sur le centre des bounds et zoomer à ce niveau
+          const center = turf.center(geojson);
+          map.easeTo({
+            center: center.geometry.coordinates as [number, number],
+            zoom: targetZoom,
             duration: 800
-          }
-        );
+          });
+        } else {
+          // Sinon, utiliser fitBounds comme avant
+          map.fitBounds(
+            [
+              [bounds[0], bounds[1]],
+              [bounds[2], bounds[3]]
+            ],
+            {
+              padding: 100,
+              maxZoom: 18,
+              duration: 800
+            }
+          );
+        }
+        
+        // Marquer que des parcelles sont maintenant affichées
+        setParcellesDisplayed(true);
 
         // ------------------------------------------------------------
         // 🖱️ Interactions hover et click sur les parcelles
@@ -422,10 +493,16 @@ export default function MapPage() {
         await loadCommunesForDepartement(depInsee);
       });
 
-      // Clic sur commune : zoom
+      // Clic sur commune : uniquement si zoom < seuil
       map.on("click", "communes-fill", (e) => {
+        if (map.getZoom() >= PARCELLE_CLICK_ZOOM) return; // Ignorer si trop zoomé
+        
         const feature = e.features?.[0];
         if (!feature) return;
+
+        const props = feature.properties;
+        setCurrentInsee(props?.insee || null);
+        setCurrentCommune(props?.nom || null);
 
         const geom = feature.geometry as GeoJSON.Geometry;
         const bbox = turf.bbox(geom);
@@ -442,46 +519,197 @@ export default function MapPage() {
       // UX curseur pour départements et communes
       map.on("mouseenter", "departements-fill", () => (map.getCanvas().style.cursor = "pointer"));
       map.on("mouseleave", "departements-fill", () => (map.getCanvas().style.cursor = ""));
-      map.on("mouseenter", "communes-fill", () => (map.getCanvas().style.cursor = "pointer"));
+      // Curseur pour communes : pointer uniquement si on est en dessous du seuil
+      map.on("mouseenter", "communes-fill", () => {
+        if (map.getZoom() < PARCELLE_CLICK_ZOOM) {
+          map.getCanvas().style.cursor = "pointer";
+        }
+      });
       map.on("mouseleave", "communes-fill", () => (map.getCanvas().style.cursor = ""));
 
       // ============================================================
-      // 9) Détection automatique du département dominant au zoom
+      // 9) Handler unifié pour moveend (communes + parcelles auto)
       // ============================================================
       map.on("moveend", async () => {
         const zoom = map.getZoom();
-        if (zoom < COMMUNES_ZOOM_THRESHOLD) return;
-
         const bounds = map.getBounds();
-        const bboxPoly = turf.bboxPolygon([
-          bounds.getWest(),
-          bounds.getSouth(),
-          bounds.getEast(),
-          bounds.getNorth(),
-        ]);
+        
+        // 1. Charger communes si zoom approprié
+        if (zoom >= COMMUNES_ZOOM_THRESHOLD) {
+          const bboxPoly = turf.bboxPolygon([
+            bounds.getWest(),
+            bounds.getSouth(),
+            bounds.getEast(),
+            bounds.getNorth(),
+          ]);
 
-        // features visibles (viewport)
-        const features = map.queryRenderedFeatures(undefined, { layers: ["departements-fill"] });
-        if (!features.length) return;
+          const features = map.queryRenderedFeatures(undefined, { layers: ["departements-fill"] });
+          if (features.length) {
+            let bestDep: { insee: string; area: number } | null = null;
 
-        let bestDep: { insee: string; area: number } | null = null;
+            for (const f of features) {
+              const depInsee = (f.properties as any)?.insee;
+              if (!depInsee) continue;
 
-        for (const f of features) {
-          const depInsee = (f.properties as any)?.insee;
-          if (!depInsee) continue;
+              const intersection = turf.intersect(bboxPoly, f.geometry as any);
+              if (!intersection) continue;
 
-          const intersection = turf.intersect(bboxPoly, f.geometry as any);
-          if (!intersection) continue;
+              const area = turf.area(intersection);
+              if (!bestDep || area > bestDep.area) bestDep = { insee: depInsee, area };
+            }
 
-          const area = turf.area(intersection);
-          if (!bestDep || area > bestDep.area) bestDep = { insee: depInsee, area };
+            if (bestDep) await loadCommunesForDepartement(bestDep.insee);
+          }
         }
+        
+        // 2. Auto-fetch parcelles si zoom > 16
+        if (zoom >= PARCELLE_AUTO_ZOOM) {
+          if (autoFetchTimeoutRef.current) {
+            clearTimeout(autoFetchTimeoutRef.current);
+          }
+          autoFetchTimeoutRef.current = setTimeout(() => {
+            autoFetchParcellesAtCenter();
+          }, 500);
+        }
+      });
 
-        if (bestDep) await loadCommunesForDepartement(bestDep.insee);
+      // ============================================================
+      // 10) Clic sur la carte pour récupérer la parcelle au point
+      // ============================================================
+      async function getInseeFromCoordinates(lon: number, lat: number) {
+        try {
+          const res = await fetch(
+            `https://api-adresse.data.gouv.fr/reverse/?lon=${lon}&lat=${lat}`
+          );
+          const data = await res.json();
+          const feature = data.features?.[0];
+          
+          if (feature?.properties) {
+            return {
+              insee: feature.properties.citycode,
+              commune: feature.properties.city
+            };
+          }
+        } catch (err) {
+          console.error("Erreur reverse geocoding:", err);
+        }
+        return null;
+      }
+
+      async function fetchParcelleParPoint(lon: number, lat: number) {
+        try {
+          // Récupérer l'INSEE d'abord
+          const communeInfo = await getInseeFromCoordinates(lon, lat);
+          if (communeInfo) {
+            setCurrentInsee(communeInfo.insee);
+            setCurrentCommune(communeInfo.commune);
+          }
+          
+          const res = await fetch(
+            `${apiBase}/parcelle/par-coordonnees?lon=${lon}&lat=${lat}`
+          );
+          if (!res.ok) return;
+          
+          const data = await res.json();
+          // Zoomer directement à 17 lors d'un clic
+          showParcelleResult(data, undefined, PARCELLE_AUTO_ZOOM);
+          setSelectedParcelle(null); // Réinitialiser la sélection
+        } catch {
+          // Silencieux
+        }
+      }
+
+      // Clic global pour parcelles : uniquement si zoom >= seuil
+      map.on("click", async (e) => {
+        if (map.getZoom() < PARCELLE_CLICK_ZOOM) return;
+        
+        // Ignorer si clic sur UI (parcelles déjà affichées)
+        const features = map.queryRenderedFeatures(e.point, {
+          layers: ["parcelle-fill"]
+        });
+        if (features.length > 0) return; // Clic sur parcelle existante
+        
+        const { lng, lat } = e.lngLat;
+        await fetchParcelleParPoint(lng, lat);
+      });
+
+      // ============================================================
+      // 11) Affichage automatique des parcelles au centre si zoom > 16
+      // ============================================================
+      async function autoFetchParcellesAtCenter() {
+        const zoom = map.getZoom();
+        console.log("Auto-fetch check, zoom:", zoom);
+        if (zoom < PARCELLE_AUTO_ZOOM) return;
+        
+        // Vérifier si des parcelles sont déjà visibles à l'écran
+        const visibleParcelles = map.queryRenderedFeatures(undefined, {
+          layers: ["parcelle-fill"]
+        });
+        
+        if (visibleParcelles.length > 0) {
+          console.log("Parcelles déjà visibles, skip");
+          return; // Skip si parcelles déjà affichées
+        }
+        
+        const center = map.getCenter();
+        const centerKey: [number, number] = [center.lng, center.lat];
+        
+        // Vérifier si le centre a changé significativement (éviter les appels inutiles)
+        const lastCenter = lastAutoFetchCenterRef.current;
+        if (lastCenter) {
+          const distance = turf.distance(
+            turf.point([lastCenter[0], lastCenter[1]]),
+            turf.point([centerKey[0], centerKey[1]]),
+            { units: "meters" }
+          );
+          // Si le centre n'a pas bougé de plus de 10m, ne pas refaire l'appel
+          if (distance < 10) {
+            console.log("Centre n'a pas changé significativement, skip");
+            return;
+          }
+        }
+        
+        console.log("Fetching parcelles at:", centerKey);
+        lastAutoFetchCenterRef.current = centerKey;
+        await fetchParcelleParPoint(centerKey[0], centerKey[1]);
+      }
+
+      // ============================================================
+      // 12) Listener sur le zoom pour mettre à jour l'état
+      // ============================================================
+      map.on("zoom", () => {
+        setCurrentZoom(map.getZoom());
+      });
+      
+      map.on("zoomend", async () => {
+        const zoom = map.getZoom();
+        setCurrentZoom(zoom);
+        
+        // Si on zoom en dessous du seuil, réinitialiser l'état des parcelles
+        if (zoom < PARCELLE_CLICK_ZOOM) {
+          setParcellesDisplayed(false);
+          lastAutoFetchCenterRef.current = null;
+        }
+        
+        // Si on est au-dessus du seuil auto, afficher les parcelles au centre
+        if (zoom >= PARCELLE_AUTO_ZOOM) {
+          // Debounce pour éviter trop d'appels
+          if (autoFetchTimeoutRef.current) {
+            clearTimeout(autoFetchTimeoutRef.current);
+          }
+          autoFetchTimeoutRef.current = setTimeout(() => {
+            autoFetchParcellesAtCenter();
+          }, 300); // Attendre 300ms après la fin du zoom
+        }
       });
     });
 
     return () => {
+      // Nettoyer le timeout si présent
+      if (autoFetchTimeoutRef.current) {
+        clearTimeout(autoFetchTimeoutRef.current);
+        autoFetchTimeoutRef.current = null;
+      }
       map.remove();
       mapRef.current = null;
     };
@@ -494,6 +722,34 @@ export default function MapPage() {
       return () => clearTimeout(timer);
     }
   }, [isReady, minDelayDone]);
+
+  // Mettre à jour les filtres des layers de sélection quand selectedParcelle change
+  useEffect(() => {
+    if (!mapRef.current) return;
+    
+    const map = mapRef.current;
+    const selectedLayer = map.getLayer("parcelle-selected");
+    const selectedFillLayer = map.getLayer("parcelle-selected-fill");
+    
+    if (!selectedLayer || !selectedFillLayer) return;
+    
+    if (selectedParcelle) {
+      // Filtrer pour afficher la parcelle sélectionnée
+      const filter: any = [
+        "all",
+        ["==", ["get", "section"], selectedParcelle.section],
+        ["==", ["get", "numero"], selectedParcelle.numero]
+      ];
+      
+      map.setFilter("parcelle-selected", filter);
+      map.setFilter("parcelle-selected-fill", filter);
+    } else {
+      // Masquer la sélection si aucune parcelle n'est sélectionnée
+      const emptyFilter: any = ["==", ["get", "section"], ""];
+      map.setFilter("parcelle-selected", emptyFilter);
+      map.setFilter("parcelle-selected-fill", emptyFilter);
+    }
+  }, [selectedParcelle]);
 
   const shouldFadeOut = isReady && minDelayDone;
 
@@ -528,6 +784,13 @@ export default function MapPage() {
 
       {mapRef.current && <LayerSwitcher map={mapRef.current} />}
 
+      {/* Message informatif pour les clics parcelles (dès zoom >= 15) */}
+      {currentZoom >= PARCELLE_CLICK_ZOOM && !parcellesDisplayed && (
+        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-40 bg-black text-white px-4 py-2 rounded-lg shadow-lg pointer-events-none">
+          <span className="text-sm font-medium">Cliquer sur la carte pour afficher les parcelles</span>
+        </div>
+      )}
+
       {/* Tooltip au survol des parcelles */}
       {tooltip && (
         <div
@@ -550,6 +813,12 @@ export default function MapPage() {
           onClose={() => setSelectedParcelle(null)}
         />
       )}
+
+      <PLUConsultation
+        inseeCode={currentInsee}
+        communeName={currentCommune}
+        visible={currentZoom >= 14}
+      />
     </div>
   );
 }
