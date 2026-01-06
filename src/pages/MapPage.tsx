@@ -25,6 +25,7 @@ export default function MapPage() {
   
   const [currentInsee, setCurrentInsee] = useState<string | null>(null);
   const [currentCommune, setCurrentCommune] = useState<string | null>(null);
+  const [currentZones, setCurrentZones] = useState<string[]>([]);
   
   // État pour le zoom et l'affichage du message informatif
   const [currentZoom, setCurrentZoom] = useState(5.5);
@@ -598,24 +599,37 @@ export default function MapPage() {
 
       async function fetchParcelleParPoint(lon: number, lat: number) {
         try {
-          // Récupérer l'INSEE d'abord
+          // 1. Récupérer commune + zonage
           const communeInfo = await getInseeFromCoordinates(lon, lat);
           if (communeInfo) {
             setCurrentInsee(communeInfo.insee);
             setCurrentCommune(communeInfo.commune);
+            
+            // Récupérer le zonage PLU/PLUI
+            const zonageRes = await fetch(
+              `${apiBase}/api/plu/zonage/${communeInfo.insee}?lon=${lon}&lat=${lat}`
+            );
+            const zonageData = await zonageRes.json();
+            
+            if (zonageData.zones?.length > 0) {
+              console.log("Zonage détecté:", zonageData.zones);
+              setCurrentZones(zonageData.zones);
+            } else {
+              setCurrentZones([]);
+            }
           }
           
+          // 2. Récupérer parcelle
           const res = await fetch(
             `${apiBase}/parcelle/par-coordonnees?lon=${lon}&lat=${lat}`
           );
           if (!res.ok) return;
           
           const data = await res.json();
-          // Zoomer directement à 17 lors d'un clic
           showParcelleResult(data, undefined, PARCELLE_AUTO_ZOOM);
-          setSelectedParcelle(null); // Réinitialiser la sélection
-        } catch {
-          // Silencieux
+          setSelectedParcelle(null);
+        } catch (err) {
+          console.error(err);
         }
       }
 
@@ -817,6 +831,7 @@ export default function MapPage() {
       <PLUConsultation
         inseeCode={currentInsee}
         communeName={currentCommune}
+        zones={currentZones}
         visible={currentZoom >= 14}
       />
     </div>
