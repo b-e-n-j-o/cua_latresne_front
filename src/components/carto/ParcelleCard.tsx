@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Mountain, FileText } from "lucide-react";
 import TopographyViewer from "./TopographyViewer";
 import DPEViewer from "./DPEViewer";
+import { CUAGenerator } from "./CUAGenerator";
 
 type ParcelleInfo = {
   section: string;
@@ -63,6 +64,9 @@ export default function ParcelleCard({ parcelle, onClose }: Props) {
             <span>Rapport DPE</span>
           </button>
         </div>
+
+        {/* Nouveau composant CUA */}
+        <CUAGenerator parcelle={parcelle} />
       </div>
 
       {show3D && (

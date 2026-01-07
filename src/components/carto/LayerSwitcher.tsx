@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import maplibregl from "maplibre-gl";
 
 import registerPLUILayer from "../../carto/layers/plui";
+import registerPluiBordeauxLayer from "../../carto/layers/pluiBordeaux";
 import registerI4Layer from "../../carto/layers/i4";
 import registerAC1Layer from "../../carto/layers/ac1";
 import registerAC2Layer from "../../carto/layers/ac2";
@@ -41,6 +42,13 @@ const LAYERS: LayerConfig[] = [
     label: "Zonage PLU / PLUi",
     mapLayers: ["plui-fill", "plui-outline", "plui-labels"],
     register: registerPLUILayer,
+    defaultVisible: false
+  },
+  {
+    id: "plui-bordeaux",
+    label: "PLUI Bordeaux Métropole",
+    mapLayers: ["plui-bordeaux-fill", "plui-bordeaux-outline", "plui-bordeaux-labels"],
+    register: registerPluiBordeauxLayer,
     defaultVisible: false
   },
   {

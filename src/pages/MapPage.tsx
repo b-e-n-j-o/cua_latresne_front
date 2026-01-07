@@ -5,6 +5,7 @@ import LayerSwitcher from "../components/carto/LayerSwitcher";
 import ParcelleSearchForm from "../components/carto/ParcelleSearchform";
 import ParcelleCard from "../components/carto/ParcelleCard";
 import { PLUConsultation } from "../components/carto/PLUConsultation";
+import registerPluiBordeauxLayer from "../carto/layers/pluiBordeaux";
 
 export default function MapPage() {
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -168,6 +169,9 @@ export default function MapPage() {
       //    -> dans ce projet, leur activation est pilotée par le LayerSwitcher
       // ============================================================
       const apiBase = import.meta.env.VITE_API_BASE;
+
+      // Enregistrer la couche PLUI Bordeaux
+      registerPluiBordeauxLayer(map, apiBase);
 
       // ============================================================
       // 6) Fonction d'affichage des résultats de recherche de parcelle
