@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Box, Button, CircularProgress, Alert } from '@mui/material';
 import DescriptionIcon from '@mui/icons-material/Description';
 import ChatIcon from '@mui/icons-material/Chat';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { ChatPLU } from './ChatPLU';
 
 interface PLUConsultationProps {
@@ -140,6 +141,7 @@ export const PLUConsultation: React.FC<PLUConsultationProps> = ({
               <Button
                 variant="outlined"
                 startIcon={<ChatIcon />}
+                endIcon={<AutoAwesomeIcon fontSize="small" />}
                 onClick={() => setShowChat(!showChat)}
                 fullWidth
               >
