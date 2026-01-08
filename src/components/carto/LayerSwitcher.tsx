@@ -3,6 +3,13 @@ import maplibregl from "maplibre-gl";
 
 import registerPLUILayer from "../../carto/layers/plui";
 import registerPluiBordeauxLayer from "../../carto/layers/pluiBordeaux";
+import registerPLUIPrescriptionsSurfLayer from "../../carto/layers/presc_surf_bdx_metropole";
+import registerPLUIPrescriptionsLinLayer from "../../carto/layers/presc_lin_bdx_metropole";
+import registerPLUIPrescriptionsPctLayer from "../../carto/layers/presc_pct_bdx_metropole";
+import registerPLUIInfoSurfLayer from "../../carto/layers/infos_surf_bdx_metropole";
+import registerPLUIInfoPctLayer from "../../carto/layers/info_pct_bdx_metropole";
+import registerPLUIHabillageLinLayer from "../../carto/layers/habillage_lin_bdx_metropole";
+import registerPLUIHabillagePctLayer from "../../carto/layers/habillage_pct_bdx_metropole";
 import registerI4Layer from "../../carto/layers/i4";
 import registerAC1Layer from "../../carto/layers/ac1";
 import registerAC2Layer from "../../carto/layers/ac2";
@@ -52,6 +59,55 @@ const LAYERS: LayerConfig[] = [
     defaultVisible: false
   },
   {
+    id: "plui-presc-surf",
+    label: "PLUi – Prescriptions surfaciques",
+    mapLayers: ["plui-presc-surf-fill", "plui-presc-surf-outline", "plui-presc-surf-labels"],
+    register: registerPLUIPrescriptionsSurfLayer,
+    defaultVisible: false
+  },
+  {
+    id: "plui-info-surf",
+    label: "PLUi – Informations surfaciques",
+    mapLayers: ["plui-info-surf-fill", "plui-info-surf-outline", "plui-info-surf-labels"],
+    register: registerPLUIInfoSurfLayer,
+    defaultVisible: false
+  },
+  {
+    id: "plui-prescriptions-lin",
+    label: "PLUi – Prescriptions linéaires",
+    mapLayers: ["plui-presc-lin"],
+    register: registerPLUIPrescriptionsLinLayer,
+    defaultVisible: false
+  },
+  {
+    id: "plui-prescriptions-pct",
+    label: "PLUi – Prescriptions ponctuelles",
+    mapLayers: ["plui-presc-pct"],
+    register: registerPLUIPrescriptionsPctLayer,
+    defaultVisible: false
+  },
+  {
+    id: "plui-info-pct",
+    label: "PLUi – Informations ponctuelles",
+    mapLayers: ["plui-info-pct"],
+    register: registerPLUIInfoPctLayer,
+    defaultVisible: false
+  },
+  {
+    id: "plui-habillage-lin",
+    label: "PLUi – Habillage linéaire",
+    mapLayers: ["plui-habillage-lin"],
+    register: registerPLUIHabillageLinLayer,
+    defaultVisible: false
+  },
+  {
+    id: "plui-habillage-pct",
+    label: "PLUi – Habillage ponctuel",
+    mapLayers: ["plui-habillage-pct"],
+    register: registerPLUIHabillagePctLayer,
+    defaultVisible: false
+  },
+  {
     id: "i4",
     label: "Servitudes I4",
     mapLayers: ["i4-fill"],
@@ -90,6 +146,7 @@ export default function LayerSwitcher({ map }: Props) {
   const [visibility, setVisibility] = useState<Record<string, boolean>>({});
   const [loaded, setLoaded] = useState<Record<string, boolean>>({});
   const [zoom, setZoom] = useState<number>(() => map.getZoom());
+  const [collapsed, setCollapsed] = useState(false);
 
   // Initialisation
   useEffect(() => {
@@ -144,23 +201,48 @@ export default function LayerSwitcher({ map }: Props) {
   }
 
   return (
-    <div className="absolute top-4 right-4 z-40 bg-white shadow-md rounded-md p-3 space-y-2 text-sm">
-      <div className="flex items-baseline justify-between mb-1 gap-3">
-        <div className="font-semibold">Couches</div>
-        <div className="text-xs text-gray-500">
-          Zoom&nbsp;:&nbsp;{zoom.toFixed(2)}
+    <div className="absolute top-4 right-4 z-40 bg-white shadow-md rounded-md p-3 text-sm w-56">
+      <div className="flex items-center justify-between mb-2">
+        <div className="font-semibold text-sm">
+          Couches
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="text-xs text-gray-500">
+            Zoom&nbsp;:&nbsp;{zoom.toFixed(2)}
+          </div>
+          <button
+            onClick={() => setCollapsed(v => !v)}
+            className="text-gray-500 hover:text-black transition"
+            title={collapsed ? "Afficher les couches" : "Masquer"}
+          >
+            {collapsed ? "▼" : "×"}
+          </button>
         </div>
       </div>
-      {LAYERS.map(layer => (
-        <label key={layer.id} className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={!!visibility[layer.id]}
-            onChange={() => toggleLayer(layer.id)}
-          />
-          {layer.label}
-        </label>
-      ))}
+
+      {collapsed && (
+        <div className="text-xs text-gray-400 italic">
+          {Object.values(visibility).filter(Boolean).length} couche(s) active(s)
+        </div>
+      )}
+
+      {!collapsed && (
+        <div className="space-y-2">
+          {LAYERS.map(layer => (
+            <label
+              key={layer.id}
+              className="flex items-center gap-2 cursor-pointer"
+            >
+              <input
+                type="checkbox"
+                checked={!!visibility[layer.id]}
+                onChange={() => toggleLayer(layer.id)}
+              />
+              {layer.label}
+            </label>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Mountain, FileText } from "lucide-react";
+import { Mountain, FileText, Scan } from "lucide-react";
 import TopographyViewer from "./TopographyViewer";
 import DPEViewer from "./DPEViewer";
 import { CUAGenerator } from "./CUAGenerator";
+import ParcelleIdentity from "./ParcelleIdentity";
 
 type ParcelleInfo = {
   section: string;
@@ -19,6 +20,60 @@ type Props = {
 export default function ParcelleCard({ parcelle, onClose }: Props) {
   const [show3D, setShow3D] = useState(false);
   const [showDPE, setShowDPE] = useState(false);
+  const [showCUA, setShowCUA] = useState(false);
+  const [showIdentity, setShowIdentity] = useState(false);
+  const [lidarLoading, setLidarLoading] = useState(false);
+  const [lidarError, setLidarError] = useState<string | null>(null);
+  const [lidarGenerated, setLidarGenerated] = useState(false);
+
+  const handleLidarClick = async () => {
+    // Si déjà généré, juste ouvrir la visualisation
+    if (lidarGenerated) {
+      window.open(
+        `/lidar/${parcelle.insee}/${parcelle.section}/${parcelle.numero}`, 
+        '_blank'
+      );
+      return;
+    }
+
+    // Sinon, générer d'abord
+    setLidarLoading(true);
+    setLidarError(null);
+    
+    const apiBase = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
+    
+    try {
+      console.log('🚀 Génération nuage LIDAR...');
+      const response = await fetch(
+        `${apiBase}/api/lidar/parcelle/${parcelle.insee}/${parcelle.section}/${parcelle.numero}`
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Erreur ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Génération échouée');
+      }
+      
+      console.log('✅ Nuage généré');
+      setLidarGenerated(true);
+      
+      // Ouvrir immédiatement après génération
+      window.open(
+        `/lidar/${parcelle.insee}/${parcelle.section}/${parcelle.numero}`, 
+        '_blank'
+      );
+      
+    } catch (err: any) {
+      console.error('❌ Erreur génération LIDAR:', err);
+      setLidarError(err.message);
+    } finally {
+      setLidarLoading(false);
+    }
+  };
 
   return (
     <>
@@ -39,12 +94,6 @@ export default function ParcelleCard({ parcelle, onClose }: Props) {
           <div>
             <span className="font-medium">Numéro :</span> {parcelle.numero}
           </div>
-          <div>
-            <span className="font-medium">Commune :</span> {parcelle.commune}
-          </div>
-          <div className="text-xs text-gray-500">
-            INSEE : {parcelle.insee}
-          </div>
         </div>
 
         <div className="space-y-2 mt-3">
@@ -56,6 +105,33 @@ export default function ParcelleCard({ parcelle, onClose }: Props) {
             <span>Topographie 3D</span>
           </button>
 
+          <button 
+            onClick={handleLidarClick}
+            disabled={lidarLoading}
+            className={`w-full flex items-center justify-center gap-2 ${
+              lidarLoading 
+                ? 'bg-orange-400 cursor-wait' 
+                : lidarGenerated
+                ? 'bg-green-600 hover:bg-green-700'
+                : 'bg-orange-600 hover:bg-orange-700'
+            } text-white py-2 px-3 rounded text-sm transition-colors`}
+          >
+            <Scan size={16} />
+            <span>
+              {lidarLoading 
+                ? 'Génération...' 
+                : lidarGenerated 
+                ? 'Visualiser LIDAR' 
+                : 'Générer LIDAR'}
+            </span>
+          </button>
+          
+          {lidarError && (
+            <div className="text-xs text-red-600 bg-red-50 p-2 rounded">
+              {lidarError}
+            </div>
+          )}
+
           <button
             onClick={() => setShowDPE(true)}
             className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-2 px-3 rounded text-sm transition-colors"
@@ -63,10 +139,23 @@ export default function ParcelleCard({ parcelle, onClose }: Props) {
             <FileText size={16} />
             <span>Rapport DPE</span>
           </button>
-        </div>
 
-        {/* Nouveau composant CUA */}
-        <CUAGenerator parcelle={parcelle} />
+          <button
+            onClick={() => setShowCUA(true)}
+            className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-2 px-3 rounded text-sm transition-colors"
+          >
+            <FileText size={16} />
+            <span>Générer le CUA</span>
+          </button>
+
+          <button
+            onClick={() => setShowIdentity(true)}
+            className="w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white py-2 px-3 rounded text-sm transition-colors"
+          >
+            <FileText size={16} />
+            <span>Identité parcelle</span>
+          </button>
+        </div>
       </div>
 
       {show3D && (
@@ -81,6 +170,36 @@ export default function ParcelleCard({ parcelle, onClose }: Props) {
           parcelle={parcelle}
           onClose={() => setShowDPE(false)}
         />
+      )}
+
+      {showCUA && (
+        <div className="absolute top-20 left-80 z-50 bg-white shadow-xl rounded-lg p-6 w-96 max-h-[80vh] overflow-y-auto">
+          <div className="flex justify-between items-start mb-4">
+            <h3 className="font-semibold text-lg">Générer le CUA</h3>
+            <button
+              onClick={() => setShowCUA(false)}
+              className="text-gray-500 hover:text-gray-700 text-xl leading-none"
+            >
+              ×
+            </button>
+          </div>
+          <CUAGenerator parcelle={parcelle} />
+        </div>
+      )}
+
+      {showIdentity && (
+        <div className="absolute top-20 left-80 z-50 bg-white shadow-xl rounded-lg p-6 w-96 max-h-[80vh] overflow-y-auto">
+          <div className="flex justify-between items-start mb-4">
+            <h3 className="font-semibold text-lg">Identité parcelle</h3>
+            <button
+              onClick={() => setShowIdentity(false)}
+              className="text-gray-500 hover:text-gray-700 text-xl leading-none"
+            >
+              ×
+            </button>
+          </div>
+          <ParcelleIdentity parcelle={parcelle} />
+        </div>
       )}
     </>
   );
