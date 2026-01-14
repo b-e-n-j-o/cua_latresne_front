@@ -4,12 +4,14 @@ import TopographyViewer from "./TopographyViewer";
 import DPEViewer from "./DPEViewer";
 import { CUAGenerator } from "./CUAGenerator";
 import ParcelleIdentity from "./ParcelleIdentity";
+import ParcellePatrimoine from "./latresne/ParcellePatrimoineCard";
 
 type ParcelleInfo = {
   section: string;
   numero: string;
   commune: string;
   insee: string;
+  patrimoine?: any;
 };
 
 type Props = {
@@ -22,9 +24,13 @@ export default function ParcelleCard({ parcelle, onClose }: Props) {
   const [showDPE, setShowDPE] = useState(false);
   const [showCUA, setShowCUA] = useState(false);
   const [showIdentity, setShowIdentity] = useState(false);
+  const [showPatrimoine, setShowPatrimoine] = useState(false);
   const [lidarLoading, setLidarLoading] = useState(false);
   const [lidarError, setLidarError] = useState<string | null>(null);
   const [lidarGenerated, setLidarGenerated] = useState(false);
+  const [patrimoineData, setPatrimoineData] = useState<any | null>(null);
+  const [patrimoineLoading, setPatrimoineLoading] = useState(false);
+  const [patrimoineError, setPatrimoineError] = useState<string | null>(null);
 
   const handleLidarClick = async () => {
     // Si déjà généré, juste ouvrir la visualisation
@@ -72,6 +78,44 @@ export default function ParcelleCard({ parcelle, onClose }: Props) {
       setLidarError(err.message);
     } finally {
       setLidarLoading(false);
+    }
+  };
+
+  const handlePatrimoineClick = async () => {
+    setShowPatrimoine(true);
+
+    // Déjà chargé → ne pas refetch
+    if (patrimoineData || patrimoineLoading) return;
+
+    setPatrimoineLoading(true);
+    setPatrimoineError(null);
+
+    const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+
+    // 👉 construire parcelle_i = "AE380" (normaliser le numéro pour supprimer les zéros de tête)
+    const numeroNormalise = String(Number(parcelle.numero));
+    const parcelleI = `${parcelle.section}${numeroNormalise}`;
+
+    try {
+      console.log("🧩 Parcelle ID normalisée:", parcelleI);
+      console.log("📡 Fetch patrimoine:", parcelleI);
+
+      const res = await fetch(
+        `${apiBase}/latresne/patrimoine/${parcelleI}`
+      );
+
+      if (!res.ok) {
+        throw new Error(`Erreur ${res.status}`);
+      }
+
+      const data = await res.json();
+      setPatrimoineData(data);
+
+    } catch (err: any) {
+      console.error("❌ Erreur patrimoine:", err);
+      setPatrimoineError(err.message);
+    } finally {
+      setPatrimoineLoading(false);
     }
   };
 
@@ -155,6 +199,27 @@ export default function ParcelleCard({ parcelle, onClose }: Props) {
             <FileText size={16} />
             <span>Identité parcelle</span>
           </button>
+
+          <button
+            onClick={handlePatrimoineClick}
+            disabled={patrimoineLoading}
+            className={`w-full flex items-center justify-center gap-2 ${
+              patrimoineLoading
+                ? 'bg-amber-400 cursor-wait'
+                : 'bg-amber-600 hover:bg-amber-700'
+            } text-white py-2 px-3 rounded text-sm transition-colors`}
+          >
+            <FileText size={16} />
+            <span>
+              {patrimoineLoading ? 'Chargement...' : 'Données patrimoine'}
+            </span>
+          </button>
+          
+          {patrimoineError && (
+            <div className="text-xs text-red-600 bg-red-50 p-2 rounded">
+              {patrimoineError}
+            </div>
+          )}
         </div>
       </div>
 
@@ -200,6 +265,13 @@ export default function ParcelleCard({ parcelle, onClose }: Props) {
           </div>
           <ParcelleIdentity parcelle={parcelle} />
         </div>
+      )}
+
+      {showPatrimoine && (
+        <ParcellePatrimoine
+          patrimoine={patrimoineData}
+          onClose={() => setShowPatrimoine(false)}
+        />
       )}
     </>
   );

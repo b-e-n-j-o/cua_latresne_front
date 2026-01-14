@@ -29,6 +29,7 @@ import TeamPage from "./pages/TeamPage";
 import ChatUrba from "./routes/ChatUrba";
 import MapPage from "./pages/MapPage";
 import PageNuageLidar from "./pages/lidar/LidarViewer";
+import LatresneMap from "./pages/LatresneMap";
 
 
 
@@ -55,6 +56,7 @@ const PUBLIC_EXACT_ROUTES = [
   "/new",
   "/notre-equipe",
   "/chat-urba",
+  "/latresne",
 ];
 const PUBLIC_PREFIX_ROUTES = ["/m/", "/maps", "/cua", "/lidar/"];
 
@@ -88,6 +90,7 @@ function RouterWithAuthGate() {
         <Route path="/ressources" element={<ResourcesPage />} />
         <Route path="/test" element={<TestPage />} />
         <Route path="/chat-urba" element={<ChatUrba />} />
+        <Route path="/latresne" element={<LatresneMap />} />
         <Route path="/lidar/:insee/:section/:numero" element={<PageNuageLidar />} />
         <Route path="/m/:slug" element={<RedirectSlugPage />} />
         <Route path="*" element={<div>Page introuvable</div>} />
