@@ -60,6 +60,17 @@ export default function ParcellePatrimoine({ patrimoine, onClose }: Props) {
                 <span className="ml-1">{patrimoine.type_projet}</span>
               </div>
             )}
+
+            {patrimoine.etablissements_et_projets && (
+              <div>
+                <span className="font-medium">Etablissements et projets :</span>{" "}
+                <span className="ml-1">
+                  {Array.isArray(patrimoine.etablissements_et_projets)
+                    ? patrimoine.etablissements_et_projets.join(", ")
+                    : patrimoine.etablissements_et_projets}
+                </span>
+              </div>
+            )}
           </Section>
 
           {/* ====================================================== */}
