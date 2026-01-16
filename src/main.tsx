@@ -28,8 +28,8 @@ import HomePage from "./routes/HomePage";
 import TeamPage from "./pages/TeamPage";
 import ChatUrba from "./routes/ChatUrba";
 import MapPage from "./pages/MapPage";
-import PageNuageLidar from "./pages/lidar/LidarViewer";
 import LatresneMap from "./pages/LatresneMap";
+import PortailApp from "./portail/PortailApp";
 
 
 
@@ -58,7 +58,7 @@ const PUBLIC_EXACT_ROUTES = [
   "/chat-urba",
   "/latresne",
 ];
-const PUBLIC_PREFIX_ROUTES = ["/m/", "/maps", "/cua", "/lidar/"];
+const PUBLIC_PREFIX_ROUTES = ["/m/", "/maps", "/cua"];
 
 function RouterWithAuthGate() {
   const location = useLocation();
@@ -91,7 +91,6 @@ function RouterWithAuthGate() {
         <Route path="/test" element={<TestPage />} />
         <Route path="/chat-urba" element={<ChatUrba />} />
         <Route path="/latresne" element={<LatresneMap />} />
-        <Route path="/lidar/:insee/:section/:numero" element={<PageNuageLidar />} />
         <Route path="/m/:slug" element={<RedirectSlugPage />} />
         <Route path="*" element={<div>Page introuvable</div>} />
       </Routes>
@@ -106,6 +105,9 @@ function RouterWithAuthGate() {
         <Route path="/app" element={<MainApp />} />
         <Route path="/history" element={<HistoryPage />} />
         <Route path="/admin" element={<AdminPage />} />
+        
+        {/* 🆕 PORTAIL PROTÉGÉ */}
+        <Route path="/portail/*" element={<PortailApp />} />
         
         {/* Redirige la racine vers /app (pour les utilisateurs connectés) */}
         <Route path="/" element={<Navigate to="/app" replace />} />

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Mountain, FileText, Scan } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Mountain, FileText } from "lucide-react";
 import TopographyViewer from "./TopographyViewer";
 import DPEViewer from "./DPEViewer";
 import { CUAGenerator } from "./CUAGenerator";
@@ -12,6 +12,8 @@ type ParcelleInfo = {
   commune: string;
   insee: string;
   patrimoine?: any;
+  isUF?: boolean;
+  ufParcelles?: Array<{section: string; numero: string; commune: string; insee: string}>;
 };
 
 type Props = {
@@ -25,61 +27,65 @@ export default function ParcelleCard({ parcelle, onClose }: Props) {
   const [showCUA, setShowCUA] = useState(false);
   const [showIdentity, setShowIdentity] = useState(false);
   const [showPatrimoine, setShowPatrimoine] = useState(false);
-  const [lidarLoading, setLidarLoading] = useState(false);
-  const [lidarError, setLidarError] = useState<string | null>(null);
-  const [lidarGenerated, setLidarGenerated] = useState(false);
   const [patrimoineData, setPatrimoineData] = useState<any | null>(null);
   const [patrimoineLoading, setPatrimoineLoading] = useState(false);
   const [patrimoineError, setPatrimoineError] = useState<string | null>(null);
+  const [patrimoineExists, setPatrimoineExists] = useState<boolean | null>(null);
+  const [dpeExists, setDpeExists] = useState<boolean | null>(null);
 
-  const handleLidarClick = async () => {
-    // Si déjà généré, juste ouvrir la visualisation
-    if (lidarGenerated) {
-      window.open(
-        `/lidar/${parcelle.insee}/${parcelle.section}/${parcelle.numero}`, 
-        '_blank'
-      );
-      return;
-    }
+  // Vérifier l'existence des données patrimoine au chargement
+  useEffect(() => {
+    const checkPatrimoineExists = async () => {
+      const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+      
+      // 👉 construire parcelle_i = "AE380" (normaliser le numéro pour supprimer les zéros de tête)
+      const numeroNormalise = String(Number(parcelle.numero));
+      const parcelleI = `${parcelle.section}${numeroNormalise}`;
 
-    // Sinon, générer d'abord
-    setLidarLoading(true);
-    setLidarError(null);
-    
-    const apiBase = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
-    
-    try {
-      console.log('🚀 Génération nuage LIDAR...');
-      const response = await fetch(
-        `${apiBase}/api/lidar/parcelle/${parcelle.insee}/${parcelle.section}/${parcelle.numero}`
-      );
-      
-      if (!response.ok) {
-        throw new Error(`Erreur ${response.status}`);
+      try {
+        const res = await fetch(
+          `${apiBase}/latresne/patrimoine/${parcelleI}/exists`
+        );
+
+        if (res.ok) {
+          const data = await res.json();
+          setPatrimoineExists(data.exists);
+        } else {
+          setPatrimoineExists(false);
+        }
+      } catch (err) {
+        console.error("❌ Erreur vérification patrimoine:", err);
+        setPatrimoineExists(false);
       }
-      
-      const data = await response.json();
-      
-      if (!data.success) {
-        throw new Error(data.error || 'Génération échouée');
+    };
+
+    checkPatrimoineExists();
+  }, [parcelle.section, parcelle.numero]);
+
+  // Vérifier l'existence d'un DPE au chargement
+  useEffect(() => {
+    const checkDpeExists = async () => {
+      const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+
+      try {
+        const res = await fetch(
+          `${apiBase}/rapport-dpe/exists/${parcelle.insee}/${parcelle.section}/${parcelle.numero}`
+        );
+
+        if (res.ok) {
+          const data = await res.json();
+          setDpeExists(data.exists);
+        } else {
+          setDpeExists(false);
+        }
+      } catch (err) {
+        console.error("❌ Erreur vérification DPE:", err);
+        setDpeExists(false);
       }
-      
-      console.log('✅ Nuage généré');
-      setLidarGenerated(true);
-      
-      // Ouvrir immédiatement après génération
-      window.open(
-        `/lidar/${parcelle.insee}/${parcelle.section}/${parcelle.numero}`, 
-        '_blank'
-      );
-      
-    } catch (err: any) {
-      console.error('❌ Erreur génération LIDAR:', err);
-      setLidarError(err.message);
-    } finally {
-      setLidarLoading(false);
-    }
-  };
+    };
+
+    checkDpeExists();
+  }, [parcelle.insee, parcelle.section, parcelle.numero]);
 
   const handlePatrimoineClick = async () => {
     setShowPatrimoine(true);
@@ -132,12 +138,33 @@ export default function ParcelleCard({ parcelle, onClose }: Props) {
           </button>
         </div>
         <div className="space-y-1 text-sm">
-          <div>
-            <span className="font-medium">Section :</span> {parcelle.section}
-          </div>
-          <div>
-            <span className="font-medium">Numéro :</span> {parcelle.numero}
-          </div>
+          {parcelle.isUF ? (
+            <>
+              <div className="bg-amber-50 border border-amber-200 rounded p-2 mb-2">
+                <div className="text-xs font-semibold text-amber-800 mb-1">
+                  Unité Foncière
+                </div>
+                <div className="text-xs text-amber-700">
+                  {parcelle.ufParcelles?.map(p => `${p.section} ${p.numero}`).join(", ")}
+                </div>
+              </div>
+              <div>
+                <span className="font-medium">Sections :</span> {parcelle.section}
+              </div>
+              <div>
+                <span className="font-medium">Numéros :</span> {parcelle.numero}
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <span className="font-medium">Section :</span> {parcelle.section}
+              </div>
+              <div>
+                <span className="font-medium">Numéro :</span> {parcelle.numero}
+              </div>
+            </>
+          )}
         </div>
 
         <div className="space-y-2 mt-3">
@@ -149,40 +176,15 @@ export default function ParcelleCard({ parcelle, onClose }: Props) {
             <span>Topographie 3D</span>
           </button>
 
-          <button 
-            onClick={handleLidarClick}
-            disabled={lidarLoading}
-            className={`w-full flex items-center justify-center gap-2 ${
-              lidarLoading 
-                ? 'bg-orange-400 cursor-wait' 
-                : lidarGenerated
-                ? 'bg-green-600 hover:bg-green-700'
-                : 'bg-orange-600 hover:bg-orange-700'
-            } text-white py-2 px-3 rounded text-sm transition-colors`}
-          >
-            <Scan size={16} />
-            <span>
-              {lidarLoading 
-                ? 'Génération...' 
-                : lidarGenerated 
-                ? 'Visualiser LIDAR' 
-                : 'Générer LIDAR'}
-            </span>
-          </button>
-          
-          {lidarError && (
-            <div className="text-xs text-red-600 bg-red-50 p-2 rounded">
-              {lidarError}
-            </div>
+          {dpeExists === true && (
+            <button
+              onClick={() => setShowDPE(true)}
+              className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-2 px-3 rounded text-sm transition-colors"
+            >
+              <FileText size={16} />
+              <span>Rapport DPE</span>
+            </button>
           )}
-
-          <button
-            onClick={() => setShowDPE(true)}
-            className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-2 px-3 rounded text-sm transition-colors"
-          >
-            <FileText size={16} />
-            <span>Rapport DPE</span>
-          </button>
 
           <button
             onClick={() => setShowCUA(true)}
@@ -200,25 +202,29 @@ export default function ParcelleCard({ parcelle, onClose }: Props) {
             <span>Identité parcelle</span>
           </button>
 
-          <button
-            onClick={handlePatrimoineClick}
-            disabled={patrimoineLoading}
-            className={`w-full flex items-center justify-center gap-2 ${
-              patrimoineLoading
-                ? 'bg-amber-400 cursor-wait'
-                : 'bg-amber-600 hover:bg-amber-700'
-            } text-white py-2 px-3 rounded text-sm transition-colors`}
-          >
-            <FileText size={16} />
-            <span>
-              {patrimoineLoading ? 'Chargement...' : 'Données patrimoine'}
-            </span>
-          </button>
-          
-          {patrimoineError && (
-            <div className="text-xs text-red-600 bg-red-50 p-2 rounded">
-              {patrimoineError}
-            </div>
+          {patrimoineExists === true && (
+            <>
+              <button
+                onClick={handlePatrimoineClick}
+                disabled={patrimoineLoading}
+                className={`w-full flex items-center justify-center gap-2 ${
+                  patrimoineLoading
+                    ? 'bg-amber-400 cursor-wait'
+                    : 'bg-amber-600 hover:bg-amber-700'
+                } text-white py-2 px-3 rounded text-sm transition-colors`}
+              >
+                <FileText size={16} />
+                <span>
+                  {patrimoineLoading ? 'Chargement...' : 'Données patrimoine'}
+                </span>
+              </button>
+              
+              {patrimoineError && (
+                <div className="text-xs text-red-600 bg-red-50 p-2 rounded">
+                  {patrimoineError}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -229,7 +235,7 @@ export default function ParcelleCard({ parcelle, onClose }: Props) {
           onClose={() => setShow3D(false)}
         />
       )}
-      
+
       {showDPE && (
         <DPEViewer
           parcelle={parcelle}

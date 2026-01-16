@@ -5,6 +5,7 @@ import * as turf from "@turf/turf";
 import LayerSwitcherLatresne from "../components/carto/latresne/LayerSwitcherLatresne";
 import ParcelleSearchForm from "../components/carto/ParcelleSearchform";
 import ParcelleCard from "../components/carto/ParcelleCard";
+import UniteFonciereCard from "../components/carto/UniteFonciereCard";
 import registerPLULatresneLayer from "../carto/layers/latresne/plu";
 
 const LATRESNE_BOUNDS: [number, number, number, number] = [
@@ -145,10 +146,45 @@ export default function LatresneMap() {
     numero: string;
     commune: string;
     insee: string;
+    isUF?: boolean;
+    ufParcelles?: Array<{section: string; numero: string; commune: string; insee: string}>;
+    ufUnionGeometry?: GeoJSON.Geometry;
   } | null>(null);
   const [currentZoom, setCurrentZoom] = useState(5.5);
   const [parcellesDisplayed, setParcellesDisplayed] = useState(false);
   const [pluVisible, setPluVisible] = useState<boolean>(true);
+  
+  // État pour le mode UF builder
+  const [ufBuilderMode, setUfBuilderMode] = useState(false);
+  const [selectedUfParcelles, setSelectedUfParcelles] = useState<Array<{
+    section: string;
+    numero: string;
+    commune: string;
+    insee: string;
+    geometry: GeoJSON.Geometry;
+  }>>([]);
+  
+  // État pour l'UF confirmée (avec géométrie de l'union) - accessible pour les intersections
+  // Stockée dans selectedParcelle.ufUnionGeometry quand isUF est true
+  
+  // Refs pour accéder aux états depuis les closures
+  const ufBuilderModeRef = useRef(false);
+  const selectedUfParcellesRef = useRef<Array<{
+    section: string;
+    numero: string;
+    commune: string;
+    insee: string;
+    geometry: GeoJSON.Geometry;
+  }>>([]);
+  
+  // Synchroniser les refs avec l'état
+  useEffect(() => {
+    ufBuilderModeRef.current = ufBuilderMode;
+  }, [ufBuilderMode]);
+  
+  useEffect(() => {
+    selectedUfParcellesRef.current = selectedUfParcelles;
+  }, [selectedUfParcelles]);
   
   const PARCELLE_CLICK_ZOOM = 13;
   const showParcelleResultRef = useRef<((geojson: any, addressPoint?: [number, number], targetZoom?: number) => void) | null>(null);
@@ -197,6 +233,65 @@ export default function LatresneMap() {
       registerPLULatresneLayer(map, API_BASE);
 
       // ============================================================
+      // Couche de fond cadastral (toujours disponible)
+      // ============================================================
+      map.addSource("cadastre-parcelles", {
+        type: "vector",
+        tiles: [
+          `${API_BASE}/latresne/mbtiles/latresne_parcelles/{z}/{x}/{y}.mvt`
+        ],
+        minzoom: 14,
+        maxzoom: 19
+      });
+
+      map.addLayer({
+        id: "cadastre-parcelles-outline",
+        type: "line",
+        source: "cadastre-parcelles",
+        "source-layer": "parcelles",
+        minzoom: 14,
+        paint: {
+          "line-color": "#1f2937",
+          "line-width": [
+            "interpolate", ["linear"], ["zoom"],
+            14, 0.4,
+            16, 0.8,
+            18, 1.5
+          ],
+          "line-opacity": 0.9
+        }
+      });
+
+      // ============================================================
+      // Couches pour le mode UF Builder
+      // ============================================================
+      map.addSource("uf-builder", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] }
+      });
+
+      map.addLayer({
+        id: "uf-builder-fill",
+        type: "fill",
+        source: "uf-builder",
+        paint: {
+          "fill-color": "#F59E0B", // Amber pour sélection UF
+          "fill-opacity": 0.5
+        }
+      });
+
+      map.addLayer({
+        id: "uf-builder-outline",
+        type: "line",
+        source: "uf-builder",
+        paint: {
+          "line-color": "#D97706",
+          "line-width": 2,
+          "line-dasharray": [3, 2]
+        }
+      });
+
+      // ============================================================
       // Fonction d'affichage des résultats de recherche de parcelle
       // ============================================================
       function showParcelleResult(geojson: any, addressPoint?: [number, number], targetZoom?: number) {
@@ -217,7 +312,6 @@ export default function LatresneMap() {
           if (map.getLayer("parcelle-selected-fill")) map.removeLayer("parcelle-selected-fill");
           if (map.getLayer("parcelle-target")) map.removeLayer("parcelle-target");
           if (map.getLayer("parcelle-target-fill")) map.removeLayer("parcelle-target-fill");
-          if (map.getLayer("parcelle-outline")) map.removeLayer("parcelle-outline");
           if (map.getLayer("parcelle-fill")) map.removeLayer("parcelle-fill");
           
           // Supprimer la source
@@ -230,7 +324,7 @@ export default function LatresneMap() {
           return; // Ne pas continuer si on nettoie
         }
 
-        // Source GeoJSON des parcelles
+        // Source GeoJSON des parcelles (maintenant seulement la parcelle cible)
         map.addSource("parcelle-search", {
           type: "geojson",
           data: geojson
@@ -283,7 +377,7 @@ export default function LatresneMap() {
         }
 
         // ------------------------------------------------------------
-        // 🟦 Surface de TOUTES les parcelles (transparente, hoverable)
+        // 🟦 Surface de la parcelle (transparente, hoverable)
         // ------------------------------------------------------------
         map.addLayer({
           id: "parcelle-fill",
@@ -296,41 +390,12 @@ export default function LatresneMap() {
         });
 
         // ------------------------------------------------------------
-        // ⚫ Contours de TOUTES les parcelles (noir)
-        // ------------------------------------------------------------
-        map.addLayer({
-          id: "parcelle-outline",
-          type: "line",
-          source: "parcelle-search",
-          paint: {
-            "line-color": "#000000",
-            "line-width": 1.2,
-            "line-opacity": 0.9
-          }
-        });
-
-        // ------------------------------------------------------------
-        // 🟡 Remplissage de la parcelle cible (jaune clair)
-        // ------------------------------------------------------------
-        map.addLayer({
-          id: "parcelle-target-fill",
-          type: "fill",
-          source: "parcelle-search",
-          filter: ["==", ["get", "is_target"], true],
-          paint: {
-            "fill-color": "#FFF8DC",
-            "fill-opacity": 0.6
-          }
-        });
-
-        // ------------------------------------------------------------
-        // 🔴 Parcelle cible (contour rouge, au-dessus)
+        // 🔴 Contour rouge de la parcelle cible
         // ------------------------------------------------------------
         map.addLayer({
           id: "parcelle-target",
           type: "line",
           source: "parcelle-search",
-          filter: ["==", ["get", "is_target"], true],
           paint: {
             "line-color": "#E53E3E",
             "line-width": 3,
@@ -368,7 +433,7 @@ export default function LatresneMap() {
         });
 
         // ------------------------------------------------------------
-        // 🎯 Zoom sur la zone
+        // 🎯 Zoom sur la parcelle
         // ------------------------------------------------------------
         const bounds = turf.bbox(geojson);
         
@@ -399,7 +464,7 @@ export default function LatresneMap() {
         setParcellesDisplayed(true);
 
         // ------------------------------------------------------------
-        // 🖱️ Interactions hover et click sur les parcelles
+        // 🖱️ Interactions hover et click sur la parcelle
         // ------------------------------------------------------------
         // Utiliser la couche fill (transparente) pour les interactions
         // car elle couvre toute la surface, pas seulement les lignes
@@ -423,15 +488,19 @@ export default function LatresneMap() {
           setTooltip(null);
         });
 
-        // Click : afficher infos détaillées + zoom
+        // Click : afficher infos détaillées + zoom (comportement normal uniquement)
+        // Le mode UF builder est géré dans le handler général map.on("click")
         map.on("click", "parcelle-fill", (e) => {
+          // Ignorer en mode UF builder (géré par le handler général)
+          if (ufBuilderModeRef.current) return;
+          
           const feature = e.features?.[0];
           if (!feature) return;
           
           const props = feature.properties as any;
           if (!props) return;
 
-          // Zoom sur la parcelle
+          // Comportement normal : zoom et affichage des infos
           const geom = feature.geometry as GeoJSON.Geometry;
           const bbox = turf.bbox(geom);
 
@@ -460,13 +529,108 @@ export default function LatresneMap() {
       // Clic sur la carte pour récupérer la parcelle au point
       // ============================================================
       map.on("click", async (e) => {
+        // Mode UF builder : accumuler les parcelles
+        if (ufBuilderModeRef.current) {
+          if (map.getZoom() < PARCELLE_CLICK_ZOOM) {
+            alert("Veuillez zoomer davantage pour sélectionner des parcelles");
+            return;
+          }
+          
+          const { lng, lat } = e.lngLat;
+          
+          try {
+            const res = await fetch(
+              `${API_BASE}/parcelle/par-coordonnees?lon=${lng}&lat=${lat}&buffer=0`
+            );
+            if (!res.ok) return;
+            
+            const data = await res.json();
+            const targetFeature = data.features.find((f: any) => f.properties.is_target);
+            
+            if (targetFeature) {
+              const props = targetFeature.properties;
+              const currentSelection = selectedUfParcellesRef.current;
+              
+              // Vérifier si déjà sélectionnée
+              const alreadySelected = currentSelection.some(
+                p => p.section === props.section && p.numero === props.numero
+              );
+              
+              if (alreadySelected) {
+                // Désélectionner
+                setSelectedUfParcelles(prev => 
+                  prev.filter(p => !(p.section === props.section && p.numero === props.numero))
+                );
+              } else {
+                // Ajouter à la sélection (max 5)
+                if (currentSelection.length >= 5) {
+                  alert("Maximum 5 parcelles pour une unité foncière");
+                  return;
+                }
+                
+                setSelectedUfParcelles(prev => [...prev, {
+                  section: props.section,
+                  numero: props.numero,
+                  commune: props.commune || "",
+                  insee: props.insee || "",
+                  geometry: targetFeature.geometry
+                }]);
+              }
+            }
+          } catch (err) {
+            console.error("Erreur lors de la sélection de parcelle pour UF:", err);
+          }
+          return; // Ne pas déclencher le comportement normal
+        }
+        
+        // Comportement normal (recherche de parcelle)
         if (map.getZoom() < PARCELLE_CLICK_ZOOM) return;
         
-        // Ignorer si clic sur UI (parcelles déjà affichées)
-        const features = map.queryRenderedFeatures(e.point, {
-          layers: ["parcelle-fill"]
-        });
-        if (features.length > 0) return; // Clic sur parcelle existante
+        // En mode UF builder, gérer aussi les clics sur parcelles déjà affichées
+        if (ufBuilderModeRef.current) {
+          const features = map.queryRenderedFeatures(e.point, {
+            layers: ["parcelle-fill"]
+          });
+          if (features.length > 0) {
+            // Clic sur parcelle affichée en mode UF - gérer la sélection
+            const feature = features[0];
+            const props = feature.properties as any;
+            if (props) {
+              const currentSelection = selectedUfParcellesRef.current;
+              const alreadySelected = currentSelection.some(
+                p => p.section === props.section && p.numero === props.numero
+              );
+              
+              if (alreadySelected) {
+                // Désélectionner
+                setSelectedUfParcelles(prev => 
+                  prev.filter(p => !(p.section === props.section && p.numero === props.numero))
+                );
+              } else {
+                // Ajouter à la sélection (max 5)
+                if (currentSelection.length >= 5) {
+                  alert("Maximum 5 parcelles pour une unité foncière");
+                  return;
+                }
+                
+                setSelectedUfParcelles(prev => [...prev, {
+                  section: props.section,
+                  numero: props.numero,
+                  commune: props.commune || "",
+                  insee: props.insee || "",
+                  geometry: feature.geometry as GeoJSON.Geometry
+                }]);
+              }
+            }
+            return;
+          }
+        } else {
+          // En mode normal, ignorer si clic sur parcelles déjà affichées
+          const features = map.queryRenderedFeatures(e.point, {
+            layers: ["parcelle-fill"]
+          });
+          if (features.length > 0) return; // Clic sur parcelle existante
+        }
         
         const { lng, lat } = e.lngLat;
         
@@ -554,6 +718,41 @@ export default function LatresneMap() {
     }
   }, [selectedParcelle]);
 
+  // Mettre à jour la couche UF builder quand la sélection change
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const map = mapRef.current;
+    
+    const source = map.getSource("uf-builder") as maplibregl.GeoJSONSource;
+    if (!source) return;
+    
+    const geojson = {
+      type: "FeatureCollection" as const,
+      features: selectedUfParcelles.map(p => ({
+        type: "Feature" as const,
+        geometry: p.geometry,
+        properties: {
+          section: p.section,
+          numero: p.numero
+        }
+      }))
+    };
+    
+    source.setData(geojson);
+  }, [selectedUfParcelles]);
+
+  // Gérer la visibilité de la couche UF builder selon le mode
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const map = mapRef.current;
+    
+    const visibility = ufBuilderMode ? "visible" : "none";
+    if (map.getLayer("uf-builder-fill")) {
+      map.setLayoutProperty("uf-builder-fill", "visibility", visibility);
+      map.setLayoutProperty("uf-builder-outline", "visibility", visibility);
+    }
+  }, [ufBuilderMode]);
+
   const toggleLayer = (layerId: string) => {
     if (!mapRef.current) return;
     const map = mapRef.current;
@@ -580,8 +779,9 @@ export default function LatresneMap() {
     // sinon → sera chargée au prochain moveend
   };
 
+
   return (
-    <div style={{ position: "relative", width: "100vw", height: "100vh" }}>
+    <div style={{ position: "relative", width: "100%", height: "100%" }}>
       <div
         ref={containerRef}
         style={{ width: "100%", height: "100%" }}
@@ -593,6 +793,64 @@ export default function LatresneMap() {
             if (!mapRef.current || !showParcelleResultRef.current) return;
             showParcelleResultRef.current(geojson, addressPoint);
             setSelectedParcelle(null); // Réinitialiser la sélection
+            
+            // Si c'est une UF, nettoyer la couche UF builder et réinitialiser le mode
+            if (geojson?.features?.some((f: any) => f.properties?.is_target)) {
+              const map = mapRef.current;
+              const source = map.getSource("uf-builder") as maplibregl.GeoJSONSource;
+              if (source) {
+                source.setData({ type: "FeatureCollection", features: [] });
+              }
+              setUfBuilderMode(false);
+              setSelectedUfParcelles([]);
+            }
+          }}
+          ufBuilderMode={ufBuilderMode}
+          selectedUfParcelles={selectedUfParcelles.map(p => ({
+            section: p.section,
+            numero: p.numero,
+            commune: p.commune,
+            insee: p.insee
+          }))}
+          onUfBuilderToggle={(active) => {
+            setUfBuilderMode(active);
+            if (!active) {
+              // Désactiver le mode → effacer la sélection par clic
+              setSelectedUfParcelles([]);
+            }
+          }}
+          onUfParcelleRemove={(section, numero) => {
+            setSelectedUfParcelles(prev => 
+              prev.filter(p => !(p.section === section && p.numero === numero))
+            );
+          }}
+          onConfirmUF={(parcelles, unionGeometry, commune, insee) => {
+            // Créer une parcelle virtuelle pour l'UF avec la géométrie de l'union
+            const ufParcelle = {
+              section: parcelles.map(p => p.section).join("+"),
+              numero: parcelles.map(p => p.numero).join("+"),
+              commune,
+              insee,
+              isUF: true,
+              ufParcelles: parcelles,
+              ufUnionGeometry: unionGeometry // Géométrie de l'union pour les intersections
+            };
+
+            // Afficher la carte de l'UF
+            setSelectedParcelle(ufParcelle);
+
+            // Nettoyer la couche UF builder
+            if (mapRef.current) {
+              const map = mapRef.current;
+              const source = map.getSource("uf-builder") as maplibregl.GeoJSONSource;
+              if (source) {
+                source.setData({ type: "FeatureCollection", features: [] });
+              }
+            }
+
+            // Réinitialiser le mode UF builder
+            setUfBuilderMode(false);
+            setSelectedUfParcelles([]);
           }}
         />
       )}
@@ -633,10 +891,18 @@ export default function LatresneMap() {
         />
       )}
 
+
       {/* Message informatif pour les clics parcelles (dès zoom >= 13) */}
-      {currentZoom >= PARCELLE_CLICK_ZOOM && !parcellesDisplayed && (
+      {currentZoom >= PARCELLE_CLICK_ZOOM && !parcellesDisplayed && !ufBuilderMode && (
         <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-40 bg-black text-white px-4 py-2 rounded-lg shadow-lg pointer-events-none">
           <span className="text-sm font-medium">Cliquer sur la carte pour afficher les parcelles</span>
+        </div>
+      )}
+
+      {/* Message informatif pour le mode UF builder */}
+      {ufBuilderMode && currentZoom >= PARCELLE_CLICK_ZOOM && (
+        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-40 bg-amber-600 text-white px-4 py-2 rounded-lg shadow-lg pointer-events-none">
+          <span className="text-sm font-medium">Mode UF actif - Cliquez sur les parcelles pour les ajouter</span>
         </div>
       )}
 
@@ -655,12 +921,22 @@ export default function LatresneMap() {
         </div>
       )}
 
-      {/* Panneau latéral avec infos parcelle */}
+      {/* Panneau latéral avec infos parcelle ou unité foncière */}
       {selectedParcelle && (
-        <ParcelleCard
-          parcelle={selectedParcelle}
-          onClose={() => setSelectedParcelle(null)}
-        />
+        selectedParcelle.isUF && selectedParcelle.ufParcelles ? (
+          <UniteFonciereCard
+            ufParcelles={selectedParcelle.ufParcelles}
+            commune={selectedParcelle.commune}
+            insee={selectedParcelle.insee}
+            unionGeometry={selectedParcelle.ufUnionGeometry}
+            onClose={() => setSelectedParcelle(null)}
+          />
+        ) : (
+          <ParcelleCard
+            parcelle={selectedParcelle}
+            onClose={() => setSelectedParcelle(null)}
+          />
+        )
       )}
     </div>
   );
