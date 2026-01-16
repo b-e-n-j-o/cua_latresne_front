@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 
 type Props = {
-  onSearch: (data: any, addressPoint?: [number, number]) => void;
+  onSearch: (data: any, addressPoint?: [number, number], keepSelection?: boolean) => void;
   ufBuilderMode?: boolean;
   selectedUfParcelles?: Array<{
     section: string;
@@ -158,8 +158,8 @@ export default function ParcelleSearchForm({
         );
       }
 
-      // Affichage carte
-      onSearch(geojson, undefined);
+      // Affichage carte (ne pas réinitialiser selectedParcelle car onConfirmUF l'a déjà géré)
+      onSearch(geojson, undefined, true);
     } catch (err: any) {
       console.error("Erreur lors de la confirmation de l'UF:", err);
       alert(`Erreur : ${err.message || "Impossible de créer l'unité foncière"}`);

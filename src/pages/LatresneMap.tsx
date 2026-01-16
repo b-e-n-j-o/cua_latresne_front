@@ -7,6 +7,8 @@ import ParcelleSearchForm from "../components/carto/ParcelleSearchform";
 import ParcelleCard from "../components/carto/ParcelleCard";
 import UniteFonciereCard from "../components/carto/UniteFonciereCard";
 import registerPLULatresneLayer from "../carto/layers/latresne/plu";
+import registerParcellesLatresneLayer from "../carto/layers/latresne/parcelles";
+import registerBatiLatresneLayer from "../carto/layers/latresne/bati";
 
 const LATRESNE_BOUNDS: [number, number, number, number] = [
   -0.533033,
@@ -229,38 +231,12 @@ export default function LatresneMap() {
       });
       setVisibility(initialVisibility);
 
-      // Enregistrer la couche PLU Latresne (système spécial avec couleurs dynamiques)
-      registerPLULatresneLayer(map, API_BASE);
-
-      // ============================================================
-      // Couche de fond cadastral (toujours disponible)
-      // ============================================================
-      map.addSource("cadastre-parcelles", {
-        type: "vector",
-        tiles: [
-          `${API_BASE}/latresne/mbtiles/latresne_parcelles/{z}/{x}/{y}.mvt`
-        ],
-        minzoom: 14,
-        maxzoom: 19
-      });
-
-      map.addLayer({
-        id: "cadastre-parcelles-outline",
-        type: "line",
-        source: "cadastre-parcelles",
-        "source-layer": "parcelles",
-        minzoom: 14,
-        paint: {
-          "line-color": "#1f2937",
-          "line-width": [
-            "interpolate", ["linear"], ["zoom"],
-            14, 0.4,
-            16, 0.8,
-            18, 1.5
-          ],
-          "line-opacity": 0.9
-        }
-      });
+      // Enregistrement des modules MBTiles (l'ordre définit le Z-Index)
+      registerPLULatresneLayer(map, API_BASE);      // Fond (les zones de couleur)
+      registerParcellesLatresneLayer(map, API_BASE); // Cadastre + Hover
+      registerBatiLatresneLayer(map, API_BASE);     // Bâtiment (au-dessus)
+      
+      console.log("✅ Couches MBTiles initialisées");
 
       // ============================================================
       // Couches pour le mode UF Builder
@@ -789,10 +765,14 @@ export default function LatresneMap() {
       
       {mapRef.current && (
         <ParcelleSearchForm
-          onSearch={(geojson, addressPoint) => {
+          onSearch={(geojson, addressPoint, keepSelection = false) => {
             if (!mapRef.current || !showParcelleResultRef.current) return;
             showParcelleResultRef.current(geojson, addressPoint);
-            setSelectedParcelle(null); // Réinitialiser la sélection
+            
+            // Ne pas réinitialiser selectedParcelle si keepSelection est true (cas d'une UF confirmée)
+            if (!keepSelection) {
+              setSelectedParcelle(null); // Réinitialiser la sélection
+            }
             
             // Si c'est une UF, nettoyer la couche UF builder et réinitialiser le mode
             if (geojson?.features?.some((f: any) => f.properties?.is_target)) {
