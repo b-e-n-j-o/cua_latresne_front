@@ -5,7 +5,16 @@ import DPEViewer from "./DPEViewer";
 import { CUAGenerator } from "./CUAGenerator";
 import ParcelleIdentity from "./ParcelleIdentity";
 import ParcellePatrimoine from "./latresne/ParcellePatrimoineCard";
-import type { ParcelleInfo } from "../../types/parcelle";
+
+type ParcelleInfo = {
+  section: string;
+  numero: string;
+  commune: string;
+  insee: string;
+  patrimoine?: any;
+  isUF?: boolean;
+  ufParcelles?: Array<{section: string; numero: string; commune: string; insee: string}>;
+};
 
 type Props = {
   parcelle: ParcelleInfo;
@@ -154,40 +163,7 @@ export default function ParcelleCard({ parcelle, onClose }: Props) {
               <div>
                 <span className="font-medium">Numéro :</span> {parcelle.numero}
               </div>
-              {parcelle.surface && (
-                <div>
-                  <span className="font-medium">Surface :</span> {parcelle.surface.toLocaleString('fr-FR')} m²
-                </div>
-              )}
             </>
-          )}
-
-          {/* Affichage des zonages */}
-          {parcelle.isUF && parcelle.zonages && parcelle.zonages.length > 0 ? (
-            <div className="mt-2 bg-blue-50 border border-blue-200 rounded p-2">
-              <div className="text-xs font-semibold text-blue-800 mb-1">
-                Zonages ({parcelle.zonages.length})
-              </div>
-              <div className="space-y-1 max-h-32 overflow-y-auto">
-                {parcelle.zonages.map((z, idx) => (
-                  <div key={idx} className="text-xs bg-white rounded p-1.5 border border-blue-100">
-                    <div className="font-medium text-blue-900">
-                      {z.section} {z.numero}
-                    </div>
-                    {z.etiquette ? (
-                      <div className="text-blue-700">{z.etiquette}</div>
-                    ) : (
-                      <div className="text-gray-500 italic">Hors zonage</div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : parcelle.zonage && (
-            <div className="mt-2 bg-blue-50 border border-blue-200 rounded p-2">
-              <div className="text-xs font-semibold text-blue-800">Zonage</div>
-              <div className="text-sm text-blue-900">{parcelle.zonage}</div>
-            </div>
           )}
         </div>
 

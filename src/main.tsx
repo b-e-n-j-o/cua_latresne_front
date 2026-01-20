@@ -27,7 +27,7 @@ import TestPage from "./routes/TestPage";
 import HomePage from "./routes/HomePage";
 import TeamPage from "./pages/TeamPage";
 import ChatUrba from "./routes/ChatUrba";
-import MapPage from "./pages/MapPage";
+import MapPage from "./pages/BordeauxMetropoleMap";
 import LatresneMap from "./pages/LatresneMap";
 import PortailApp from "./portail/PortailApp";
 

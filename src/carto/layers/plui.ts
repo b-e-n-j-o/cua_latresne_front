@@ -4,8 +4,10 @@ export default function registerPLUILayer(
   map: maplibregl.Map,
   apiBase: string
 ) {
+  if (map.getSource("plui")) return;
+
   // ============================================================
-  // 🎨 Palette fixe de 30 couleurs (urbanisme-safe)
+  // Palette de couleurs
   // ============================================================
   const PALETTE = [
     "#4C51BF", "#6B46C1", "#805AD5", "#9F7AEA", "#B794F4",
@@ -16,155 +18,131 @@ export default function registerPLUILayer(
     "#285E61", "#319795", "#4FD1C5", "#81E6D9", "#B2F5EA"
   ];
 
-  // ============================================================
-  // 🗂️ Dictionnaire libellé → couleur (persistant pendant la session)
-  // ============================================================
-  const libelleColorMap = new Map<string, string>();
+  const colorMap = new Map<string, string>();
 
-  function getColorForLibelle(libelle: string) {
-    if (!libelleColorMap.has(libelle)) {
-      const color =
-        PALETTE[Math.floor(Math.random() * PALETTE.length)];
-      libelleColorMap.set(libelle, color);
+  function getColor(etiquette: string) {
+    if (!colorMap.has(etiquette)) {
+      colorMap.set(etiquette, PALETTE[Math.floor(Math.random() * PALETTE.length)]);
     }
-    return libelleColorMap.get(libelle)!;
+    return colorMap.get(etiquette)!;
   }
 
   function buildMatchExpression() {
-    const expr: any[] = ["match", ["get", "libelle"]];
-    for (const [libelle, color] of libelleColorMap.entries()) {
-      expr.push(libelle, color);
+    const expr: any[] = ["match", ["get", "etiquette"]];
+    for (const [etiq, color] of colorMap.entries()) {
+      expr.push(etiq, color);
     }
     expr.push("#cccccc"); // fallback
     return expr;
   }
 
   // ============================================================
-  // 🔌 Source vectorielle PLUI
+  // Source vectorielle
   // ============================================================
-  if (!map.getSource("plui")) {
-    map.addSource("plui", {
-      type: "vector",
-      tiles: [`${apiBase}/tiles/plui/{z}/{x}/{y}.mvt`],
-      maxzoom: 18,
-      volatile: false
-    });
-  }
+  map.addSource("plui", {
+    type: "vector",
+    tiles: [`${apiBase}/tiles/plui_bordeaux/{z}/{x}/{y}.mvt`],
+    minzoom: 15,
+    maxzoom: 18
+  });
 
   // ============================================================
-  // 🗺️ Remplissage des zonages PLUI
+  // Layers
   // ============================================================
-  if (!map.getLayer("plui-fill")) {
-    map.addLayer({
-      id: "plui-fill",
-      type: "fill",
-      source: "plui",
-      "source-layer": "plui",
-      minzoom: 11,
-      paint: {
-        "fill-color": "#cccccc",
-        "fill-opacity": 0.25
-      }
-    });
-  }
+  
+  // Remplissage
+  map.addLayer({
+    id: "plui-fill",
+    type: "fill",
+    source: "plui",
+    "source-layer": "plui-bordeaux", // ✅ Confirmé par l'audit
+    minzoom: 15,
+    paint: {
+      "fill-color": "#cccccc",
+      "fill-opacity": 0.3
+    },
+    layout: {
+      visibility: "none"
+    }
+  });
+
+  // Contours
+  map.addLayer({
+    id: "plui-outline",
+    type: "line",
+    source: "plui",
+    "source-layer": "plui-bordeaux",
+    minzoom: 15,
+    paint: {
+      "line-color": "#2D3748",
+      "line-width": [
+        "interpolate", ["linear"], ["zoom"],
+        15, 0.5,
+        17, 1.2,
+        18, 1.8
+      ],
+      "line-opacity": 0.8
+    },
+    layout: {
+      visibility: "none"
+    }
+  });
+
+  // Labels (étiquettes)
+  map.addLayer({
+    id: "plui-labels",
+    type: "symbol",
+    source: "plui",
+    "source-layer": "plui-bordeaux",
+    minzoom: 16,
+    layout: {
+      "text-field": ["get", "etiquette"], // ✅ Attribut confirmé
+      "text-size": ["interpolate", ["linear"], ["zoom"], 16, 11, 18, 16],
+      "text-anchor": "center",
+      "text-allow-overlap": false,
+      visibility: "none"
+    },
+    paint: {
+      "text-color": "#1a1a1a",
+      "text-halo-color": "#ffffff",
+      "text-halo-width": 1.5,
+      "text-halo-blur": 1
+    }
+  });
 
   // ============================================================
-  // 🧭 Contours des zonages PLUI (limites entre zones)
+  // Mise à jour dynamique des couleurs
   // ============================================================
-  if (!map.getLayer("plui-outline")) {
-    map.addLayer(
-      {
-        id: "plui-outline",
-        type: "line",
-        source: "plui",
-        "source-layer": "plui",
-        minzoom: 11,
-        paint: {
-          "line-color": "#2D3748", // gris foncé, lisible sur IGN
-          "line-width": [
-            "interpolate",
-            ["linear"],
-            ["zoom"],
-            11, 0.4,
-            14, 0.8,
-            17, 1.5
-          ],
-          "line-opacity": 0.8
+  function updateColors() {
+    try {
+      const features = map.querySourceFeatures("plui", {
+        sourceLayer: "plui-bordeaux"
+      });
+
+      let hasNew = false;
+      for (const f of features) {
+        const etiquette = f.properties?.etiquette;
+        if (etiquette && !colorMap.has(etiquette)) {
+          getColor(etiquette);
+          hasNew = true;
         }
-      },
-      "plui-labels" // sous les labels, au-dessus du fill
-    );
-  }
-
-  // ============================================================
-  // 🏷️ Labels de zonage
-  // ============================================================
-  if (!map.getLayer("plui-labels")) {
-    map.addLayer({
-      id: "plui-labels",
-      type: "symbol",
-      source: "plui",
-      "source-layer": "plui",
-      minzoom: 15,
-      layout: {
-        "text-field": ["get", "libelle"],
-        "text-font": ["Noto Sans Regular", "Noto Sans Italic"],
-        "text-size": [
-          "interpolate",
-          ["linear"],
-          ["zoom"],
-          15, 12,
-          18, 18
-        ],
-        "text-anchor": "center",
-        "text-allow-overlap": false,
-        "text-ignore-placement": false
-      },
-      paint: {
-        "text-color": "#1a1a1a",
-        "text-halo-color": "#ffffff",
-        "text-halo-width": 1.5,
-        "text-halo-blur": 1
       }
-    });
-  }
 
-  // ============================================================
-  // 🔄 Mise à jour dynamique des couleurs au fil du chargement
-  // ============================================================
-  function updatePluiColors() {
-    const features = map.querySourceFeatures("plui", {
-      sourceLayer: "plui"
-    });
-
-    let hasNew = false;
-
-    for (const f of features) {
-      const libelle = f.properties?.libelle;
-      if (!libelle) continue;
-
-      if (!libelleColorMap.has(libelle)) {
-        getColorForLibelle(libelle);
-        hasNew = true;
+      if (hasNew) {
+        map.setPaintProperty("plui-fill", "fill-color", buildMatchExpression());
       }
-    }
-
-    if (hasNew) {
-      map.setPaintProperty(
-        "plui-fill",
-        "fill-color",
-        buildMatchExpression()
-      );
+    } catch (err) {
+      console.error("Erreur updateColors PLUI:", err);
     }
   }
 
-  // première passe
-  map.once("idle", updatePluiColors);
+  // Première passe
+  map.once("idle", updateColors);
 
-  // puis à chaque nouvelle tuile chargée
+  // Mise à jour au chargement des tuiles
   map.on("sourcedata", (e) => {
     if (e.sourceId === "plui" && e.isSourceLoaded) {
-      updatePluiColors();
+      updateColors();
     }
   });
 }

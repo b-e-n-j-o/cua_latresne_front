@@ -33,8 +33,8 @@ export default function ParcelleSearchForm({
   const [mode, setMode] = useState<Mode>("parcelle");
   const [loading, setLoading] = useState(false);
 
-  // Parcelle & UF : commune (par défaut "Latresne")
-  const [commune, setCommune] = useState("Latresne");
+  // Parcelle & UF : commune (pas de valeur par défaut)
+  const [commune, setCommune] = useState("");
   const [section, setSection] = useState("");
   const [numero, setNumero] = useState("");
 
@@ -95,8 +95,50 @@ export default function ParcelleSearchForm({
 
     setLoading(true);
     try {
-      // Utiliser "Latresne" par défaut si le champ est vide
-      const communeValue = commune.trim() || "Latresne";
+      // Récupérer le code INSEE depuis les parcelles sélectionnées par clic
+      // (elles ont le code INSEE dans leur propriété insee)
+      const inseeCodes = selectedUfParcelles
+        .map(p => p.insee)
+        .filter(insee => insee && insee.trim() !== "");
+      
+      // Vérifier que toutes les parcelles sélectionnées par clic ont le même code INSEE
+      if (selectedUfParcelles.length > 0) {
+        if (inseeCodes.length === 0) {
+          alert("Impossible de créer l'unité foncière : les parcelles sélectionnées n'ont pas de code INSEE. Veuillez d'abord sélectionner une commune.");
+          setLoading(false);
+          return;
+        }
+        
+        const uniqueInsee = [...new Set(inseeCodes)];
+        if (uniqueInsee.length > 1) {
+          alert("Impossible de créer l'unité foncière : les parcelles sélectionnées appartiennent à des communes différentes. Une unité foncière doit être dans la même commune.");
+          setLoading(false);
+          return;
+        }
+      }
+      
+      // Utiliser le code INSEE des parcelles sélectionnées par clic (ou celui de la première)
+      const inseeFromClic = inseeCodes[0] || "";
+      
+      if (!inseeFromClic && selectedUfParcelles.length > 0) {
+        console.error("Code INSEE manquant pour les parcelles sélectionnées:", selectedUfParcelles);
+        alert("Impossible de créer l'unité foncière : code INSEE manquant. Veuillez d'abord sélectionner une commune.");
+        setLoading(false);
+        return;
+      }
+      
+      // Si on a des parcelles sélectionnées par clic mais pas de code INSEE, c'est un problème
+      if (selectedUfParcelles.length > 0 && !inseeFromClic) {
+        console.error("Erreur : parcelles sélectionnées sans code INSEE", selectedUfParcelles);
+        alert("Erreur : les parcelles sélectionnées n'ont pas de code INSEE. Veuillez réessayer en sélectionnant d'abord une commune.");
+        setLoading(false);
+        return;
+      }
+      
+      // Utiliser la commune des parcelles sélectionnées par clic si disponible, sinon celle saisie manuellement
+      const communeValue = selectedUfParcelles.length > 0 
+        ? selectedUfParcelles[0].commune 
+        : commune.trim();
 
       // Dédupliquer les parcelles
       const parcellesManuelles = ufParcelles
@@ -116,6 +158,44 @@ export default function ParcelleSearchForm({
         new Map(parcellesPayload.map(p => [`${p.section}-${p.numero}`, p])).values()
       );
 
+      // Si on a le code INSEE, on n'a pas besoin de la commune (mais on l'envoie quand même pour compatibilité)
+      // Si on n'a pas le code INSEE mais qu'on a la commune, on l'utilise
+      const requestBody: {
+        commune?: string;
+        code_insee?: string;
+        parcelles: Array<{ section: string; numero: string }>;
+      } = {
+        parcelles: uniqueParcelles
+      };
+      
+      // Ajouter le code INSEE si disponible (prioritaire)
+      if (inseeFromClic) {
+        requestBody.code_insee = inseeFromClic;
+      }
+      
+      // Ajouter la commune seulement si on n'a pas de code INSEE, ou comme fallback
+      if (communeValue) {
+        requestBody.commune = communeValue;
+      } else if (!inseeFromClic) {
+        // Si ni commune ni code INSEE, c'est une erreur
+        alert("Impossible de créer l'unité foncière : veuillez sélectionner une commune ou des parcelles sur la carte.");
+        setLoading(false);
+        return;
+      }
+      
+      console.log("📤 Création UF - Requête envoyée:", {
+        commune: communeValue,
+        code_insee: inseeFromClic || "NON DISPONIBLE",
+        parcelles: uniqueParcelles.map(p => `${p.section} ${p.numero}`),
+        selectedUfParcelles: selectedUfParcelles.map(p => ({
+          section: p.section,
+          numero: p.numero,
+          commune: p.commune,
+          insee: p.insee || "MANQUANT"
+        })),
+        requestBody: requestBody
+      });
+
       const res = await fetch(
         `${import.meta.env.VITE_API_BASE}/parcelle/uf-geometrie`,
         {
@@ -123,10 +203,7 @@ export default function ParcelleSearchForm({
           headers: {
             "Content-Type": "application/json"
           },
-          body: JSON.stringify({
-            commune: communeValue,
-            parcelles: uniqueParcelles
-          })
+          body: JSON.stringify(requestBody)
         }
       );
 
@@ -143,18 +220,34 @@ export default function ParcelleSearchForm({
         features: [feature]
       };
 
-      // Notifier le parent (UF confirmée)
+      // Utiliser le code INSEE de la réponse, ou celui des parcelles sélectionnées par clic
+      const finalInsee = feature.properties.insee || inseeFromClic || "";
+      const finalCommune = feature.properties.commune || communeValue;
+      
+      if (!finalInsee) {
+        alert("Impossible de créer l'unité foncière : code INSEE manquant dans la réponse du serveur.");
+        setLoading(false);
+        return;
+      }
+
+      console.log("UF créée avec:", {
+        insee: finalInsee,
+        commune: finalCommune,
+        parcelles: uniqueParcelles.length
+      });
+
+      // Notifier le parent (UF confirmée) - passer les parcelles avec leur INSEE
       if (onConfirmUF) {
         onConfirmUF(
           uniqueParcelles.map(p => ({
             section: p.section,
             numero: p.numero,
-            commune: communeValue,
-            insee: feature.properties.insee
+            commune: finalCommune,
+            insee: finalInsee // Utiliser le même INSEE pour toutes les parcelles
           })),
           feature.geometry,
-          feature.properties.commune,
-          feature.properties.insee
+          finalCommune,
+          finalInsee
         );
       }
 
@@ -176,8 +269,13 @@ export default function ParcelleSearchForm({
       let geojson: any;
 
       if (mode === "parcelle") {
-        // Utiliser "Latresne" par défaut si le champ est vide
-        const communeValue = commune.trim() || "Latresne";
+        // Utiliser la commune saisie (pas de valeur par défaut)
+        const communeValue = commune.trim();
+        if (!communeValue) {
+          alert("Veuillez saisir une commune");
+          setLoading(false);
+          return;
+        }
         url =
           `${import.meta.env.VITE_API_BASE}/parcelle/et-voisins` +
           `?commune=${encodeURIComponent(communeValue)}` +
@@ -297,7 +395,7 @@ export default function ParcelleSearchForm({
         <div className="space-y-2">
           <input
             className="w-full border px-2 py-1 rounded"
-            placeholder="Commune (par défaut: Latresne)"
+            placeholder="Commune (optionnel si sélection par clic)"
             value={commune}
             onChange={(e) => setCommune(e.target.value)}
           />

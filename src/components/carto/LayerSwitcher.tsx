@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import maplibregl from "maplibre-gl";
 
 import registerPLUILayer from "../../carto/layers/plui";
-import registerPluiBordeauxLayer from "../../carto/layers/pluiBordeaux";
 import registerPLUIPrescriptionsSurfLayer from "../../carto/layers/presc_surf_bdx_metropole";
 import registerPLUIPrescriptionsLinLayer from "../../carto/layers/presc_lin_bdx_metropole";
 import registerPLUIPrescriptionsPctLayer from "../../carto/layers/presc_pct_bdx_metropole";
@@ -23,6 +22,7 @@ type LayerConfig = {
   mapLayers: string[];
   register: (map: maplibregl.Map, apiBase: string) => void;
   defaultVisible?: boolean;
+  category: "PLUI" | "Servitudes";
 };
 
 type Props = {
@@ -46,97 +46,103 @@ function setLayerGroupVisibility(
 const LAYERS: LayerConfig[] = [
   {
     id: "plui",
-    label: "Zonage PLU / PLUi",
+    label: "Zonage",
     mapLayers: ["plui-fill", "plui-outline", "plui-labels"],
     register: registerPLUILayer,
-    defaultVisible: false
-  },
-  {
-    id: "plui-bordeaux",
-    label: "PLUI Bordeaux Métropole",
-    mapLayers: ["plui-bordeaux-fill", "plui-bordeaux-outline", "plui-bordeaux-labels"],
-    register: registerPluiBordeauxLayer,
-    defaultVisible: false
+    defaultVisible: false,
+    category: "PLUI"
   },
   {
     id: "plui-presc-surf",
-    label: "PLUi – Prescriptions surfaciques",
+    label: "Prescriptions surfaciques",
     mapLayers: ["plui-presc-surf-fill", "plui-presc-surf-outline", "plui-presc-surf-labels"],
     register: registerPLUIPrescriptionsSurfLayer,
-    defaultVisible: false
+    defaultVisible: false,
+    category: "PLUI"
   },
   {
     id: "plui-info-surf",
-    label: "PLUi – Informations surfaciques",
+    label: "Informations surfaciques",
     mapLayers: ["plui-info-surf-fill", "plui-info-surf-outline", "plui-info-surf-labels"],
     register: registerPLUIInfoSurfLayer,
-    defaultVisible: false
+    defaultVisible: false,
+    category: "PLUI"
   },
   {
     id: "plui-prescriptions-lin",
-    label: "PLUi – Prescriptions linéaires",
+    label: "Prescriptions linéaires",
     mapLayers: ["plui-presc-lin"],
     register: registerPLUIPrescriptionsLinLayer,
-    defaultVisible: false
+    defaultVisible: false,
+    category: "PLUI"
   },
   {
     id: "plui-prescriptions-pct",
-    label: "PLUi – Prescriptions ponctuelles",
+    label: "Prescriptions ponctuelles",
     mapLayers: ["plui-presc-pct"],
     register: registerPLUIPrescriptionsPctLayer,
-    defaultVisible: false
+    defaultVisible: false,
+    category: "PLUI"
   },
   {
     id: "plui-info-pct",
-    label: "PLUi – Informations ponctuelles",
+    label: "Informations ponctuelles",
     mapLayers: ["plui-info-pct"],
     register: registerPLUIInfoPctLayer,
-    defaultVisible: false
+    defaultVisible: false,
+    category: "PLUI"
   },
   {
     id: "plui-habillage-lin",
-    label: "PLUi – Habillage linéaire",
+    label: "Habillage linéaire",
     mapLayers: ["plui-habillage-lin"],
     register: registerPLUIHabillageLinLayer,
-    defaultVisible: false
+    defaultVisible: false,
+    category: "PLUI"
   },
   {
     id: "plui-habillage-pct",
-    label: "PLUi – Habillage ponctuel",
+    label: "Habillage ponctuel",
     mapLayers: ["plui-habillage-pct"],
     register: registerPLUIHabillagePctLayer,
-    defaultVisible: false
+    defaultVisible: false,
+    category: "PLUI"
   },
   {
     id: "i4",
     label: "Servitudes I4",
     mapLayers: ["i4-fill"],
     register: registerI4Layer,
-    defaultVisible: false
+    defaultVisible: false,
+    category: "Servitudes"
   },
   {
     id: "ac1",
     label: "Servitudes AC1",
     mapLayers: ["ac1-fill"],
-    register: registerAC1Layer
+    register: registerAC1Layer,
+    category: "Servitudes"
   },
   {
     id: "ac2",
     label: "Servitudes AC2",
     mapLayers: ["ac2-fill"],
-    register: registerAC2Layer
+    register: registerAC2Layer,
+    category: "Servitudes"
   },
   {
     id: "ac4",
     label: "Servitudes AC4",
     mapLayers: ["ac4-fill"],
-    register: registerAC4Layer
+    register: registerAC4Layer,
+    category: "Servitudes"
   },
   {
     id: "i1",
     label: "Servitudes I1",
     mapLayers: ["i1-lines"],
-    register: registerI1Layer
+    register: registerI1Layer,
+    category: "Servitudes"
   }
 ];
 
@@ -147,6 +153,13 @@ export default function LayerSwitcher({ map }: Props) {
   const [loaded, setLoaded] = useState<Record<string, boolean>>({});
   const [zoom, setZoom] = useState<number>(() => map.getZoom());
   const [collapsed, setCollapsed] = useState(false);
+  const [categoryCollapsed, setCategoryCollapsed] = useState<{
+    PLUI: boolean;
+    Servitudes: boolean;
+  }>({
+    PLUI: false,
+    Servitudes: false,
+  });
 
   // Initialisation
   useEffect(() => {
@@ -227,20 +240,80 @@ export default function LayerSwitcher({ map }: Props) {
       )}
 
       {!collapsed && (
-        <div className="space-y-2">
-          {LAYERS.map(layer => (
-            <label
-              key={layer.id}
-              className="flex items-center gap-2 cursor-pointer"
+        <div className="space-y-3">
+          {/* Groupe PLUI */}
+          <div>
+            <button
+              type="button"
+              onClick={() =>
+                setCategoryCollapsed((prev) => ({
+                  ...prev,
+                  PLUI: !prev.PLUI,
+                }))
+              }
+              className="w-full flex items-center justify-between text-xs font-semibold text-gray-600 mb-1 uppercase"
             >
-              <input
-                type="checkbox"
-                checked={!!visibility[layer.id]}
-                onChange={() => toggleLayer(layer.id)}
-              />
-              {layer.label}
-            </label>
-          ))}
+              <span>PLUI</span>
+              <span className="text-gray-400">
+                {categoryCollapsed.PLUI ? "▶" : "▼"}
+              </span>
+            </button>
+            {!categoryCollapsed.PLUI && (
+              <div className="space-y-1">
+                {LAYERS.filter((l) => l.category === "PLUI").map((layer) => (
+                  <label
+                    key={layer.id}
+                    className="flex items-center gap-2 cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={!!visibility[layer.id]}
+                      onChange={() => toggleLayer(layer.id)}
+                    />
+                    {layer.label}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Groupe Servitudes */}
+          <div>
+            <button
+              type="button"
+              onClick={() =>
+                setCategoryCollapsed((prev) => ({
+                  ...prev,
+                  Servitudes: !prev.Servitudes,
+                }))
+              }
+              className="w-full flex items-center justify-between text-xs font-semibold text-gray-600 mb-1 uppercase"
+            >
+              <span>Servitudes</span>
+              <span className="text-gray-400">
+                {categoryCollapsed.Servitudes ? "▶" : "▼"}
+              </span>
+            </button>
+            {!categoryCollapsed.Servitudes && (
+              <div className="space-y-1">
+                {LAYERS.filter((l) => l.category === "Servitudes").map(
+                  (layer) => (
+                    <label
+                      key={layer.id}
+                      className="flex items-center gap-2 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={!!visibility[layer.id]}
+                        onChange={() => toggleLayer(layer.id)}
+                      />
+                      {layer.label}
+                    </label>
+                  )
+                )}
+              </div>
+            )}
+            </div>
         </div>
       )}
     </div>
