@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { Editor } from "@tinymce/tinymce-react";
 import { FileDown, Map, Save, Loader2, FileText, MapPin } from "lucide-react";
-import Map2DViewer from "./Map2dViewer";
+import Map2DViewer from "../Map2dViewer";
 
 function encodeToken(obj: any): string {
   const json = JSON.stringify(obj);

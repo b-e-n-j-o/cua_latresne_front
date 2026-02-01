@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import * as turf from "@turf/turf";
-import LayerSwitcher from "../components/carto/LayerSwitcher";
-import ParcelleSearchForm from "../components/carto/ParcelleSearchform";
-import ParcelleCard from "../components/carto/ParcelleCard";
-import UniteFonciereCard from "../components/carto/UniteFonciereCard";
-import { PLUConsultation } from "../components/carto/PLUConsultation";
-import type { ParcelleInfo, ZonageInfo } from "../types/parcelle";
+import LayerSwitcher from "../components/tools/carto/LayerSwitcher";
+import ParcelleSearchForm from "../components/tools/carto/ParcelleSearchform";
+import ParcelleCard from "../components/tools/carto/ParcelleCard";
+import UniteFonciereCard from "../components/tools/carto/UniteFonciereCard";
+import { PLUConsultation } from "../components/tools/carto/PLUConsultation";
+import type { ParcelleInfo, ZonageInfo, ParcelleContext } from "../types/parcelle";
 
 // BBOX précise pour Bordeaux Métropole (minLon, minLat, maxLon, maxLat)
 const BORDEAUX_METROPOLE_BOUNDS: [number, number, number, number] = [
@@ -14,7 +14,40 @@ const BORDEAUX_METROPOLE_BOUNDS: [number, number, number, number] = [
   -0.30, 45.03
 ];
 
-export default function MapPage() {
+type MapPageProps = {
+  embedded?: boolean;
+  onStateChange?: (state: {
+    selectedParcelle: ParcelleInfo | null;
+    parcelleContext: ParcelleContext | null;
+    currentInsee: string | null;
+    currentCommune: string | null;
+    currentZones: string[];
+    currentZoom: number;
+    ufBuilderMode: boolean;
+    selectedUfParcelles: Array<{
+      section: string;
+      numero: string;
+      commune: string;
+      insee: string;
+      geometry?: GeoJSON.Geometry;
+    }>;
+    mapRef: React.RefObject<maplibregl.Map | null>;
+    showParcelleResultRef: React.MutableRefObject<((geojson: any, addressPoint?: [number, number], targetZoom?: number) => void) | null>;
+    getZonageForUFRef: React.MutableRefObject<((insee: string, parcelles: Array<{ section: string; numero: string }>) => Promise<ZonageInfo[]>) | null>;
+    setSelectedParcelle: (parcelle: ParcelleInfo | null) => void;
+    setParcelleContext: (context: ParcelleContext | null) => void;
+    setUfBuilderMode: (active: boolean) => void;
+    setSelectedUfParcelles: React.Dispatch<React.SetStateAction<Array<{
+      section: string;
+      numero: string;
+      commune: string;
+      insee: string;
+      geometry?: GeoJSON.Geometry;
+    }>>>;
+  }) => void;
+};
+
+export default function MapPage({ embedded = false, onStateChange }: MapPageProps = {}) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -25,6 +58,7 @@ export default function MapPage() {
   // Tooltip et infos parcelle
   const [tooltip, setTooltip] = useState<{ x: number; y: number; content: string } | null>(null);
   const [selectedParcelle, setSelectedParcelle] = useState<ParcelleInfo | null>(null);
+  const [parcelleContext, setParcelleContext] = useState<ParcelleContext | null>(null);
   
   const [currentInsee, setCurrentInsee] = useState<string | null>(null);
   const [currentCommune, setCurrentCommune] = useState<string | null>(null);
@@ -422,6 +456,7 @@ export default function MapPage() {
             props.numero
           );
 
+          setParcelleContext(null); // Reset contexte avant nouvelle sélection
           setSelectedParcelle({
             section: props.section,
             numero: props.numero,
@@ -429,6 +464,16 @@ export default function MapPage() {
             insee: props.code_insee,
             zonage: zonageData?.etiquette,
             typezone: zonageData?.typezone,
+            zonages: zonageData
+              ? [{
+                  section: props.section,
+                  numero: props.numero,
+                  typezone: zonageData.typezone,
+                  etiquette: zonageData.etiquette,
+                  libelle: zonageData.libelle,
+                  libelong: zonageData.libelong
+                }]
+              : undefined,
             surface: contenance
           });
         });
@@ -760,6 +805,7 @@ export default function MapPage() {
           );
 
           // Afficher les infos de la parcelle
+          setParcelleContext(null); // Reset contexte avant nouvelle sélection
           setSelectedParcelle({
             section: props.section,
             numero: props.numero,
@@ -767,6 +813,16 @@ export default function MapPage() {
             insee,
             zonage: zonageData?.etiquette,
             typezone: zonageData?.typezone,
+            zonages: zonageData
+              ? [{
+                  section: props.section,
+                  numero: props.numero,
+                  typezone: zonageData.typezone,
+                  etiquette: zonageData.etiquette,
+                  libelle: zonageData.libelle,
+                  libelong: zonageData.libelong
+                }]
+              : undefined,
             surface: props.contenance ? Number(props.contenance) : undefined
           });
         });
@@ -1002,6 +1058,7 @@ export default function MapPage() {
               firstFeature.properties?.numero
             );
             
+            setParcelleContext(null); // Reset contexte avant nouvelle sélection
             setSelectedParcelle({
               section: firstFeature.properties?.section,
               numero: firstFeature.properties?.numero,
@@ -1009,6 +1066,16 @@ export default function MapPage() {
               insee: firstFeature.properties?.code_insee,
               zonage: zonageData?.etiquette,
               typezone: zonageData?.typezone,
+              zonages: zonageData
+                ? [{
+                    section: firstFeature.properties?.section,
+                    numero: firstFeature.properties?.numero,
+                    typezone: zonageData.typezone,
+                    etiquette: zonageData.etiquette,
+                    libelle: zonageData.libelle,
+                    libelong: zonageData.libelong
+                  }]
+                : undefined,
               surface: firstFeature.properties?.contenance ? Number(firstFeature.properties.contenance) : undefined
             });
           }
@@ -1021,7 +1088,12 @@ export default function MapPage() {
         insee: string,
         section: string,
         numero: string
-      ): Promise<{ typezone: string; etiquette: string } | null> {
+      ): Promise<{
+        typezone: string;
+        etiquette: string;
+        libelle?: string;
+        libelong?: string;
+      } | null> {
         try {
           const res = await fetch(
             `${apiBase}/zonage-plui/${insee}/${section}/${numero}`
@@ -1040,7 +1112,9 @@ export default function MapPage() {
           
           return {
             typezone: data.typezone,
-            etiquette: data.etiquette
+            etiquette: data.etiquette,
+            libelle: data.libelle,
+            libelong: data.libelong
           };
         } catch (err) {
           console.error("Erreur récupération zonage:", err);
@@ -1390,6 +1464,40 @@ export default function MapPage() {
     }
   }, [ufBuilderMode]);
 
+  // Exposer l'état au parent si on est en mode embedded
+  useEffect(() => {
+    if (embedded && onStateChange) {
+      onStateChange({
+        selectedParcelle,
+        parcelleContext,
+        currentInsee,
+        currentCommune,
+        currentZones,
+        currentZoom,
+        ufBuilderMode,
+        selectedUfParcelles,
+        mapRef,
+        showParcelleResultRef,
+        getZonageForUFRef,
+        setSelectedParcelle,
+        setParcelleContext,
+        setUfBuilderMode,
+        setSelectedUfParcelles
+      });
+    }
+  }, [
+    embedded,
+    onStateChange,
+    selectedParcelle,
+    parcelleContext,
+    currentInsee,
+    currentCommune,
+    currentZones,
+    currentZoom,
+    ufBuilderMode,
+    selectedUfParcelles
+  ]);
+
   const shouldFadeOut = isReady && minDelayDone;
 
   return (
@@ -1411,12 +1519,13 @@ export default function MapPage() {
 
       <div ref={containerRef} className="w-full h-full" style={{ width: "100%", height: "100vh" }} />
 
-      {mapRef.current && (
+      {!embedded && mapRef.current && (
         <ParcelleSearchForm
           onSearch={(geojson, addressPoint) => {
             if (!mapRef.current || !showParcelleResultRef.current) return;
             showParcelleResultRef.current(geojson, addressPoint);
             setSelectedParcelle(null); // Réinitialiser la sélection
+            setParcelleContext(null); // Reset contexte
           }}
           ufBuilderMode={ufBuilderMode}
           selectedUfParcelles={selectedUfParcelles}
@@ -1425,6 +1534,7 @@ export default function MapPage() {
             if (!active) {
               setSelectedUfParcelles([]);
             }
+            setParcelleContext(null); // Reset contexte en mode UF builder
           }}
           onUfParcelleRemove={(section, numero) => {
             setSelectedUfParcelles(prev =>
@@ -1469,6 +1579,7 @@ export default function MapPage() {
             
             const zonages = await getZonageForUFRef.current(finalInsee, parcelles);
             
+            setParcelleContext(null); // Reset contexte pour UF
             setSelectedParcelle({
               section: parcelles.map(p => p.section).join("+"),
               numero: parcelles.map(p => p.numero).join("+"),
@@ -1486,7 +1597,7 @@ export default function MapPage() {
       {mapRef.current && <LayerSwitcher map={mapRef.current} />}
       
       {/* Message informatif pour le mode UF builder */}
-      {ufBuilderMode && currentZoom >= PARCELLE_CLICK_ZOOM && (
+      {!embedded && ufBuilderMode && currentZoom >= PARCELLE_CLICK_ZOOM && (
         <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-40 bg-amber-600 text-white px-4 py-2 rounded-lg shadow-lg pointer-events-none">
           <span className="text-sm font-medium">Mode UF actif - Cliquez sur les parcelles pour les ajouter ({selectedUfParcelles.length}/5)</span>
         </div>
@@ -1507,30 +1618,48 @@ export default function MapPage() {
         </div>
       )}
 
-      {/* Panneau latéral avec infos parcelle ou unité foncière */}
-      {selectedParcelle && (
+      {/* Panneau latéral avec infos parcelle ou unité foncière - masqué en mode embedded */}
+      {!embedded && selectedParcelle && (
         selectedParcelle.isUF && selectedParcelle.ufParcelles ? (
           <UniteFonciereCard
             ufParcelles={selectedParcelle.ufParcelles}
             commune={selectedParcelle.commune}
             insee={selectedParcelle.insee}
             unionGeometry={selectedParcelle.ufUnionGeometry}
-            onClose={() => setSelectedParcelle(null)}
+            zonages={selectedParcelle.zonages}
+            onClose={() => {
+              setSelectedParcelle(null);
+              setParcelleContext(null);
+            }}
           />
         ) : (
           <ParcelleCard
             parcelle={selectedParcelle}
-            onClose={() => setSelectedParcelle(null)}
+            onClose={() => {
+              setSelectedParcelle(null);
+              setParcelleContext(null);
+            }}
+            onContextUpdate={(context) => setParcelleContext(context)}
           />
         )
       )}
 
-      <PLUConsultation
-        inseeCode={currentInsee}
-        communeName={currentCommune}
-        zones={currentZones}
-        visible={currentZoom >= 14}
-      />
+      {!embedded && (
+        <PLUConsultation
+          inseeCode={selectedParcelle?.insee || currentInsee}
+          communeName={selectedParcelle?.commune || currentCommune}
+          zones={
+            selectedParcelle && 
+            selectedParcelle.zonages && 
+            selectedParcelle.zonages.length > 0 && 
+            selectedParcelle.zonages[0].libelle
+              ? [selectedParcelle.zonages[0].libelle]
+              : currentZones
+          }
+          visible={currentZoom >= 14}
+          parcelleContext={parcelleContext?.text || null}
+        />
+      )}
     </div>
   );
 }

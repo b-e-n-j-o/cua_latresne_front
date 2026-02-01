@@ -5,6 +5,7 @@ import DPEViewer from "./DPEViewer";
 import { CUAGenerator } from "./CUAGenerator";
 import ParcelleIdentity from "./ParcelleIdentity";
 import ParcellePatrimoine from "./latresne/ParcellePatrimoineCard";
+import type { ZonageInfo } from "../../../types/parcelle";
 
 type UFParcelle = {
   section: string;
@@ -18,7 +19,9 @@ type Props = {
   commune: string;
   insee: string;
   unionGeometry?: GeoJSON.Geometry;
+  zonages?: ZonageInfo[]; // Zonages PLUi pour chaque parcelle de l'UF
   onClose: () => void;
+  embedded?: boolean; // Si true, pas de positionnement absolu (pour sidebar)
 };
 
 type SelectionMode = "uf" | "parcelle";
@@ -28,7 +31,9 @@ export default function UniteFonciereCard({
   ufParcelles,
   commune,
   insee,
+  embedded = false,
   unionGeometry,
+  zonages,
   onClose
 }: Props) {
   const [selectionMode, setSelectionMode] = useState<SelectionMode>("uf");
@@ -154,7 +159,7 @@ export default function UniteFonciereCard({
 
   return (
     <>
-      <div className="absolute top-80 left-4 z-40 bg-white shadow-lg rounded-md p-4 w-80 max-h-[70vh] overflow-y-auto">
+      <div className={`${embedded ? '' : 'absolute top-80 left-4 z-40'} bg-white shadow-lg rounded-md p-4 ${embedded ? 'w-full' : 'w-80'} max-h-[70vh] overflow-y-auto`}>
         <div className="flex justify-between items-start mb-3">
           <h3 className="font-semibold text-sm">Unité Foncière</h3>
           <button
@@ -244,6 +249,40 @@ export default function UniteFonciereCard({
             }
           </div>
         </div>
+
+        {/* Affichage des zonages PLUi */}
+        {zonages && zonages.length > 0 && (
+          <div className="mb-3 bg-blue-50 border border-blue-200 rounded p-2">
+            <div className="text-xs font-semibold text-blue-800 mb-1">
+              Zonages PLUi ({zonages.length})
+            </div>
+            <div className="space-y-1 max-h-32 overflow-y-auto">
+              {zonages.map((z, idx) => (
+                <div key={idx} className="text-xs bg-white rounded p-1.5 border border-blue-100">
+                  <div className="font-medium text-blue-900">
+                    {z.section} {z.numero}
+                  </div>
+                  {z.etiquette ? (
+                    <>
+                      <div className="text-blue-700 font-medium">{z.etiquette}</div>
+                      {z.libelle && (
+                        <div className="text-blue-600 mt-0.5">{z.libelle}</div>
+                      )}
+                      {z.libelong && (
+                        <div className="text-blue-500 text-xs mt-0.5 italic">{z.libelong}</div>
+                      )}
+                      {z.typezone && (
+                        <div className="text-gray-600 text-xs mt-0.5">Type: {z.typezone}</div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-gray-500 italic">Hors zonage</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Actions */}
         <div className="space-y-2">

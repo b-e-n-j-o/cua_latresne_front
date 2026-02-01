@@ -12,6 +12,7 @@ type Props = {
   onUfBuilderToggle?: (active: boolean) => void;
   onUfParcelleRemove?: (section: string, numero: string) => void;
   onConfirmUF?: (parcelles: Array<{section: string; numero: string; commune: string; insee: string}>, unionGeometry: GeoJSON.Geometry, commune: string, insee: string) => void;
+  embedded?: boolean; // Si true, pas de positionnement absolu (pour sidebar)
 };
 
 type Mode = "parcelle" | "adresse" | "uf";
@@ -28,7 +29,8 @@ export default function ParcelleSearchForm({
   selectedUfParcelles = [],
   onUfBuilderToggle,
   onUfParcelleRemove,
-  onConfirmUF
+  onConfirmUF,
+  embedded = false
 }: Props) {
   const [mode, setMode] = useState<Mode>("parcelle");
   const [loading, setLoading] = useState(false);
@@ -323,7 +325,7 @@ export default function ParcelleSearchForm({
   }
 
   return (
-    <div className="absolute top-4 left-4 z-40 bg-white shadow-md rounded-md p-3 text-sm w-80 space-y-3">
+    <div className={`${embedded ? '' : 'absolute top-4 left-4 z-40'} bg-white shadow-md rounded-md p-3 text-sm ${embedded ? 'w-full' : 'w-80'} space-y-3`}>
       <div className="font-semibold">Rechercher une parcelle</div>
 
       {/* Onglets */}

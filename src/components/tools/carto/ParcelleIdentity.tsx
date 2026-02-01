@@ -16,9 +16,10 @@ type IntersectionResult = {
 
 type Props = {
   parcelle: ParcelleInfo;
+  onResult?: (result: any) => void;
 };
 
-export default function ParcelleIdentity({ parcelle }: Props) {
+export default function ParcelleIdentity({ parcelle, onResult }: Props) {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<IntersectionResult[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +41,10 @@ export default function ParcelleIdentity({ parcelle }: Props) {
       const data = await response.json();
       if (data.success) {
         setResults(data.intersections);
+        // Passer le résultat complet au parent pour construction du contexte
+        if (onResult) {
+          onResult(data);
+        }
       } else {
         setError(data.error || "Erreur lors du calcul");
       }

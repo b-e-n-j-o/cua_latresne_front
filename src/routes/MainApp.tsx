@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import supabase from "../supabaseClient";
 import LogoutButton from "../auth/LogoutButton";
-import HistorySidebar from "../components/HistorySidebar";
-import CuaEditorWithMap from "../components/CuaEditorWithMap";
-import NewDossierPanel from "../components/NewDossierPannel";
-import RightAISidebar from "../components/RightAISidebar";
+import HistorySidebar from "../components/cua_app/HistorySidebar";
+import CuaEditorWithMap from "../components/cua_app/CuaEditorWithMap";
+import NewDossierPanel from "../components/cua_app/NewDossierPannel";
+import RightAISidebar from "../components/cua_app/RightAISidebar";
 import { useMeta } from "../hooks/useMeta";
 
 const ENV_API_BASE = import.meta.env.VITE_API_BASE || "";

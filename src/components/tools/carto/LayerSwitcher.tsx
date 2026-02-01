@@ -1,19 +1,19 @@
 import { useEffect, useState } from "react";
 import maplibregl from "maplibre-gl";
 
-import registerPLUILayer from "../../carto/layers/plui";
-import registerPLUIPrescriptionsSurfLayer from "../../carto/layers/presc_surf_bdx_metropole";
-import registerPLUIPrescriptionsLinLayer from "../../carto/layers/presc_lin_bdx_metropole";
-import registerPLUIPrescriptionsPctLayer from "../../carto/layers/presc_pct_bdx_metropole";
-import registerPLUIInfoSurfLayer from "../../carto/layers/infos_surf_bdx_metropole";
-import registerPLUIInfoPctLayer from "../../carto/layers/info_pct_bdx_metropole";
-import registerPLUIHabillageLinLayer from "../../carto/layers/habillage_lin_bdx_metropole";
-import registerPLUIHabillagePctLayer from "../../carto/layers/habillage_pct_bdx_metropole";
-import registerI4Layer from "../../carto/layers/i4";
-import registerAC1Layer from "../../carto/layers/ac1";
-import registerAC2Layer from "../../carto/layers/ac2";
-import registerAC4Layer from "../../carto/layers/ac4";
-import registerI1Layer from "../../carto/layers/i1";
+import registerPLUILayer from "../../../carto/layers/plui";
+import registerPLUIPrescriptionsSurfLayer from "../../../carto/layers/presc_surf_bdx_metropole";
+import registerPLUIPrescriptionsLinLayer from "../../../carto/layers/presc_lin_bdx_metropole";
+import registerPLUIPrescriptionsPctLayer from "../../../carto/layers/presc_pct_bdx_metropole";
+import registerPLUIInfoSurfLayer from "../../../carto/layers/infos_surf_bdx_metropole";
+import registerPLUIInfoPctLayer from "../../../carto/layers/info_pct_bdx_metropole";
+import registerPLUIHabillageLinLayer from "../../../carto/layers/habillage_lin_bdx_metropole";
+import registerPLUIHabillagePctLayer from "../../../carto/layers/habillage_pct_bdx_metropole";
+import registerI4Layer from "../../../carto/layers/i4";
+import registerAC1Layer from "../../../carto/layers/ac1";
+import registerAC2Layer from "../../../carto/layers/ac2";
+import registerAC4Layer from "../../../carto/layers/ac4";
+import registerI1Layer from "../../../carto/layers/i1";
 
 
 type LayerConfig = {

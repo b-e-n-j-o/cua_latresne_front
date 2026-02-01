@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, ArrowUp } from "lucide-react";
 import SiteHeader from "../components/layout/SIteHeader";
-import MarkdownContent from "../components/MarkdownContent";
+import MarkdownContent from "../components/cua_app/MarkdownContent";
 import CodeSelector, { type LegalCode } from "../components/rag_components/CodeSelector";
 import PLUSelector, { type Commune } from "../components/rag_components/PLUSelector";
 import ArticleCards from "../components/rag_components/ArticleCards";

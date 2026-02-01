@@ -5,23 +5,17 @@ import DPEViewer from "./DPEViewer";
 import { CUAGenerator } from "./CUAGenerator";
 import ParcelleIdentity from "./ParcelleIdentity";
 import ParcellePatrimoine from "./latresne/ParcellePatrimoineCard";
-
-type ParcelleInfo = {
-  section: string;
-  numero: string;
-  commune: string;
-  insee: string;
-  patrimoine?: any;
-  isUF?: boolean;
-  ufParcelles?: Array<{section: string; numero: string; commune: string; insee: string}>;
-};
+import type { ParcelleInfo, ParcelleContext } from "../../../types/parcelle";
+import { buildParcelleContextText } from "../../../utils/buildParcelleContext";
 
 type Props = {
   parcelle: ParcelleInfo;
   onClose: () => void;
+  onContextUpdate?: (context: ParcelleContext | null) => void;
+  embedded?: boolean; // Si true, pas de positionnement absolu (pour sidebar)
 };
 
-export default function ParcelleCard({ parcelle, onClose }: Props) {
+export default function ParcelleCard({ parcelle, onClose, onContextUpdate, embedded = false }: Props) {
   const [show3D, setShow3D] = useState(false);
   const [showDPE, setShowDPE] = useState(false);
   const [showCUA, setShowCUA] = useState(false);
@@ -127,7 +121,7 @@ export default function ParcelleCard({ parcelle, onClose }: Props) {
 
   return (
     <>
-      <div className="absolute top-80 left-4 z-40 bg-white shadow-lg rounded-md p-4 w-64">
+      <div className={`${embedded ? '' : 'absolute top-80 left-4 z-40'} bg-white shadow-lg rounded-md p-4 ${embedded ? 'w-full' : 'w-64'}`}>
         <div className="flex justify-between items-start mb-2">
           <h3 className="font-semibold text-sm">Parcelle</h3>
           <button
@@ -163,7 +157,75 @@ export default function ParcelleCard({ parcelle, onClose }: Props) {
               <div>
                 <span className="font-medium">Numéro :</span> {parcelle.numero}
               </div>
+              {parcelle.surface && (
+                <div>
+                  <span className="font-medium">Surface :</span> {parcelle.surface.toLocaleString('fr-FR')} m²
+                </div>
+              )}
             </>
+          )}
+
+          {/* Affichage des zonages */}
+          {parcelle.isUF && parcelle.zonages && parcelle.zonages.length > 0 ? (
+            <div className="mt-2 bg-blue-50 border border-blue-200 rounded p-2">
+              <div className="text-xs font-semibold text-blue-800 mb-1">
+                Zonages ({parcelle.zonages.length})
+              </div>
+              <div className="space-y-1 max-h-32 overflow-y-auto">
+                {parcelle.zonages.map((z, idx) => (
+                  <div key={idx} className="text-xs bg-white rounded p-1.5 border border-blue-100">
+                    <div className="font-medium text-blue-900">
+                      {z.section} {z.numero}
+                    </div>
+                    {z.etiquette ? (
+                      <>
+                        <div className="text-blue-700 font-medium">{z.etiquette}</div>
+                        {z.libelle && (
+                          <div className="text-blue-600 mt-0.5">{z.libelle}</div>
+                        )}
+                        {z.libelong && (
+                          <div className="text-blue-500 text-xs mt-0.5 italic">{z.libelong}</div>
+                        )}
+                        {z.typezone && (
+                          <div className="text-gray-600 text-xs mt-0.5">Type: {z.typezone}</div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="text-gray-500 italic">Hors zonage</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : parcelle.zonages && parcelle.zonages.length > 0 ? (
+            <div className="mt-2 bg-blue-50 border border-blue-200 rounded p-2">
+              <div className="text-xs font-semibold text-blue-800 mb-1">Zonage PLUi</div>
+              {parcelle.zonages[0].etiquette && (
+                <div className="text-sm text-blue-900 font-medium">
+                  {parcelle.zonages[0].etiquette}
+                </div>
+              )}
+              {parcelle.zonages[0].libelle && (
+                <div className="text-xs text-blue-700 mt-1">
+                  {parcelle.zonages[0].libelle}
+                </div>
+              )}
+              {parcelle.zonages[0].libelong && (
+                <div className="text-xs text-blue-600 mt-1 italic">
+                  {parcelle.zonages[0].libelong}
+                </div>
+              )}
+              {parcelle.zonages[0].typezone && (
+                <div className="text-xs text-gray-600 mt-1">
+                  Type: {parcelle.zonages[0].typezone}
+                </div>
+              )}
+            </div>
+          ) : parcelle.zonage && (
+            <div className="mt-2 bg-blue-50 border border-blue-200 rounded p-2">
+              <div className="text-xs font-semibold text-blue-800">Zonage</div>
+              <div className="text-sm text-blue-900">{parcelle.zonage}</div>
+            </div>
           )}
         </div>
 
@@ -269,7 +331,25 @@ export default function ParcelleCard({ parcelle, onClose }: Props) {
               ×
             </button>
           </div>
-          <ParcelleIdentity parcelle={parcelle} />
+          <ParcelleIdentity 
+            parcelle={parcelle}
+            onResult={(result) => {
+              if (result && onContextUpdate) {
+                const contextKey = `${parcelle.insee}-${parcelle.section}-${parcelle.numero}`;
+                const contextText = buildParcelleContextText(parcelle, result);
+                // Extraire les zonages depuis les intersections (recherche de "zonage" dans display_name)
+                const zonages = result.intersections
+                  ?.filter((i: any) => i.display_name.toLowerCase().includes("zonage"))
+                  ?.flatMap((i: any) => i.elements || [i.display_name]) || [];
+                
+                onContextUpdate({
+                  key: contextKey,
+                  text: contextText,
+                  zonages
+                });
+              }
+            }}
+          />
         </div>
       )}
 

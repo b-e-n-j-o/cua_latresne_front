@@ -27,3 +27,8 @@ export type ParcelleInfo = {
   surface?: number; // Surface en m² (contenance)
 };
 
+export type ParcelleContext = {
+  key: string;              // ex: "33063-OY-145"
+  text: string;             // résumé textuel structuré
+  zonages: string[];        // ["UP1", "US2"]
+};

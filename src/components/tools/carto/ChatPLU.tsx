@@ -17,9 +17,10 @@ interface ChatPLUProps {
   inseeCode: string;
   zone: string;  // "UP27"
   commune: string;
+  parcelleContext: string; // Contexte parcellaire
 }
 
-export function ChatPLU({ inseeCode, zone, commune }: ChatPLUProps) {
+export function ChatPLU({ inseeCode, zone, commune, parcelleContext }: ChatPLUProps) {
   const [messages, setMessages] = useState<Array<{role: string, content: string}>>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -49,6 +50,7 @@ export function ChatPLU({ inseeCode, zone, commune }: ChatPLUProps) {
           insee: inseeCode,
           zone: zone,
           question: currentInput,
+          parcelle_context: parcelleContext,
           conversation_history: messages  // Contexte multi-turn
         })
       });
@@ -70,6 +72,14 @@ export function ChatPLU({ inseeCode, zone, commune }: ChatPLUProps) {
       setLoading(false);
     }
   };
+
+  if (!parcelleContext) {
+    return (
+      <Alert severity="warning">
+        Veuillez sélectionner une parcelle et générer sa carte d'identité pour analyser le règlement.
+      </Alert>
+    );
+  }
 
   return (
     <Paper 

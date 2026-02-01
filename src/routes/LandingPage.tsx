@@ -2,7 +2,7 @@ import { motion, useScroll, useTransform } from "framer-motion";
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import UrbanHeroAnimation from "../components/UrbanHeroAnimation";
-import AudienceSmartForm from "../components/AudienceSmartForm";
+import AudienceSmartForm from "../components/cua_app/AudienceSmartForm";
 import UniversalPreview from "../components/UniversalPreview";
 import SiteHeader from "../components/layout/SIteHeader";
 import SiteFooter from "../components/layout/SiteFooter";

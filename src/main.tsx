@@ -11,6 +11,7 @@ import AuthGate from "./auth/AuthGate";
 import LoginForm from "./auth/LoginForm"; 
 import ResetPasswordPage from "./auth/ResetPasswordPage";
 import UpdatePasswordPage from "./auth/UpdatePasswordPage";
+
 // -------------------------------------------------------------
 
 // ➡️ COMPOSANTS DE L'APPLICATION (Imports existants)
@@ -29,7 +30,9 @@ import TeamPage from "./pages/TeamPage";
 import ChatUrba from "./routes/ChatUrba";
 import MapPage from "./pages/BordeauxMetropoleMap";
 import LatresneMap from "./pages/LatresneMap";
+import CartoWorkspacePage from "./pages/CartoWorkspacePage";
 import PortailApp from "./portail/PortailApp";
+import LatresneCuaPage from "./pages/cua/LatresnePage";
 
 
 
@@ -57,6 +60,7 @@ const PUBLIC_EXACT_ROUTES = [
   "/notre-equipe",
   "/chat-urba",
   "/latresne",
+  "/carto",
 ];
 const PUBLIC_PREFIX_ROUTES = ["/m/", "/maps", "/cua"];
 
@@ -91,6 +95,7 @@ function RouterWithAuthGate() {
         <Route path="/test" element={<TestPage />} />
         <Route path="/chat-urba" element={<ChatUrba />} />
         <Route path="/latresne" element={<LatresneMap />} />
+        <Route path="/carto" element={<CartoWorkspacePage />} />
         <Route path="/m/:slug" element={<RedirectSlugPage />} />
         <Route path="*" element={<div>Page introuvable</div>} />
       </Routes>
@@ -111,6 +116,8 @@ function RouterWithAuthGate() {
         
         {/* Redirige la racine vers /app (pour les utilisateurs connectés) */}
         <Route path="/" element={<Navigate to="/app" replace />} />
+
+        <Route path="/latresne/cua" element={<LatresneCuaPage />} />
 
         <Route path="*" element={<div>Page introuvable</div>} />
       </Routes>

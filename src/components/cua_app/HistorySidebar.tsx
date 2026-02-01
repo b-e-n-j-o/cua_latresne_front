@@ -1,3 +1,4 @@
+import { useState, useMemo } from "react";
 import { Menu, X, FileText, Clock } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -25,6 +26,11 @@ interface PipelineRow {
       ville?: string;
     };
   };
+  // ➕ Nouvelles parcelles historisées (colonne JSONB en base)
+  parcelles?: {
+    section?: string;
+    numero?: string;
+  }[];
 }
 
 interface HistorySidebarProps {
@@ -44,6 +50,51 @@ export default function HistorySidebar({
   onSelect,
   onCreateNew,
 }: HistorySidebarProps) {
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const { matched, others } = useMemo(() => {
+    if (!searchTerm.trim()) {
+      return { matched: rows, others: [] as PipelineRow[] };
+    }
+
+    const term = searchTerm.toLowerCase();
+
+    const matches: PipelineRow[] = [];
+    const rest: PipelineRow[] = [];
+
+    for (const row of rows) {
+      const numeroCu = row.cerfa_data?.numero_cu || "";
+      const demandeur = row.cerfa_data?.demandeur || "";
+      const adresse = row.cerfa_data?.adresse_terrain
+        ? [
+            row.cerfa_data.adresse_terrain.numero,
+            row.cerfa_data.adresse_terrain.voie,
+            row.cerfa_data.adresse_terrain.code_postal,
+            row.cerfa_data.adresse_terrain.ville,
+          ]
+            .filter(Boolean)
+            .join(" ")
+        : "";
+      const parcelles = row.parcelles
+        ? row.parcelles
+            .map(
+              (p) => `${(p.section || "").toUpperCase()} ${p.numero || ""}`.trim()
+            )
+            .join(", ")
+        : "";
+
+      const haystack = `${numeroCu} ${demandeur} ${adresse} ${parcelles}`.toLowerCase();
+
+      if (haystack.includes(term)) {
+        matches.push(row);
+      } else {
+        rest.push(row);
+      }
+    }
+
+    return { matched: matches, others: rest };
+  }, [rows, searchTerm]);
+
   return (
     <>
       <button
@@ -86,6 +137,15 @@ export default function HistorySidebar({
                 <p className="text-xs text-[#0b131f]/60 mt-1">
                   {rows.length} dossier{rows.length > 1 ? "s" : ""}
                 </p>
+                <div className="mt-2">
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Rechercher (CU, demandeur, adresse, parcelles)…"
+                    className="w-full px-2 py-1 text-xs border border-[#d5e1e3] rounded-md focus:outline-none focus:ring-1 focus:ring-[#0b131f]/40"
+                  />
+                </div>
               </div>
 
               <div className="flex-1 overflow-y-auto">
@@ -103,11 +163,11 @@ export default function HistorySidebar({
                   </div>
                 ) : (
                   <div className="p-2">
-                    {rows.map((row) => {
+                    {[...matched, ...others].map((row) => {
                       const isSelected = selectedSlug === row.slug;
                       
-                      // Formatage de la date de dépôt
-                      const formatDateDepot = (dateStr?: string) => {
+                      // Formatage de la date (date de run du pipeline)
+                      const formatDate = (dateStr?: string) => {
                         if (!dateStr) return "—";
                         try {
                           const d = new Date(dateStr);
@@ -146,7 +206,7 @@ export default function HistorySidebar({
                                 {row.cerfa_data?.numero_cu || "Certificat d'urbanisme"}
                               </div>
                               <div className="text-xs text-[#0b131f]/40 mt-0.5">
-                                Déposé le : {formatDateDepot(row.cerfa_data?.date_depot)}
+                                Généré le : {formatDate(row.created_at)}
                               </div>
                               <div className="text-xs text-[#0b131f]/40 mt-0.5 truncate">
                                 Demandeur : {row.cerfa_data?.demandeur || "—"}
@@ -161,6 +221,14 @@ export default function HistorySidebar({
                                     ].filter(Boolean).join(" ").trim() || "Adresse : —"
                                   : "Adresse : —"}
                               </div>
+                              {row.parcelles && row.parcelles.length > 0 && (
+                                <div className="text-xs text-[#0b131f]/40 truncate mt-0.5">
+                                  Parcelles :{" "}
+                                  {row.parcelles
+                                    .map((p) => `${(p.section || "").toUpperCase()} ${p.numero || ""}`.trim())
+                                    .join(", ")}
+                                </div>
+                              )}
                             </div>
                             <span
                               className={`text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${
