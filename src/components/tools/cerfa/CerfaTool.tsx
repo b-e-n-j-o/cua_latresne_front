@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { DropZone } from "./DropZone";
 import { ValidationView } from "./ValidationView";
+import { ManualCuaForm } from "./ManualCuaForm";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
 
@@ -72,11 +73,14 @@ export default function CerfaTool({ onParcellesDetected }: Props) {
 
       {/* Contenu */}
       {step === "idle" && (
-        <DropZone
-          file={file}
-          onFileSelected={setFile}
-          onAnalyse={handleAnalyse}
-        />
+        <>
+          <DropZone
+            file={file}
+            onFileSelected={setFile}
+            onAnalyse={handleAnalyse}
+          />
+          <ManualCuaForm onParcellesDetected={onParcellesDetected} />
+        </>
       )}
 
       {step === "analysing" && (

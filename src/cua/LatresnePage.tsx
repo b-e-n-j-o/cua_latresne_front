@@ -44,6 +44,7 @@ export default function LatresnePage() {
   }>>([]);
   
   const showParcelleResultRef = useRef<((geojson: any, addressPoint?: [number, number], targetZoom?: number) => void) | null>(null);
+  const showCerfaParcellesRef = useRef<((parcelles: Array<{ section: string; numero: string }>, commune: string, insee: string) => Promise<void>) | null>(null);
   const getZonageForUFRef = useRef<((insee: string, parcelles: Array<{ section: string; numero: string }>) => Promise<ZonageInfo[]>) | null>(null);
   
   useEffect(() => {
@@ -447,6 +448,49 @@ export default function LatresnePage() {
 
       showParcelleResultRef.current = showParcelleResult;
 
+      // Afficher les parcelles CERFA / manuelles sur la carte (fetch géométries puis affichage)
+      async function showCerfaParcelles(
+        parcelles: Array<{ section: string; numero: string }>,
+        commune: string,
+        _insee: string
+      ) {
+        if (!parcelles?.length || !commune?.trim()) return;
+        const features: GeoJSON.Feature[] = [];
+        for (const p of parcelles) {
+          const section = (p.section || "").trim().toUpperCase();
+          const numero = (p.numero || "").trim();
+          if (!section || !numero) continue;
+          try {
+            const url = `${API_BASE}/parcelle/et-voisins?commune=${encodeURIComponent(commune)}&section=${section}&numero=${numero}`;
+            const res = await fetch(url);
+            if (!res.ok) continue;
+            const data = await res.json();
+            const list = data?.features ?? [];
+            const feature = list.find(
+              (f: any) =>
+                f.properties?.section === section && f.properties?.numero === numero
+            ) ?? list[0];
+            if (feature?.geometry) {
+              features.push({
+                ...feature,
+                properties: {
+                  ...(feature.properties || {}),
+                  section,
+                  numero,
+                  commune,
+                },
+              });
+            }
+          } catch {
+            // ignorer les erreurs par parcelle
+          }
+        }
+        if (features.length === 0) return;
+        const geojson = { type: "FeatureCollection" as const, features };
+        showParcelleResult(geojson);
+      }
+      showCerfaParcellesRef.current = showCerfaParcelles;
+
       // Fonction zonage
       async function getZonageAtPoint(insee: string, section: string, numero: string) {
         try {
@@ -626,7 +670,15 @@ export default function LatresnePage() {
       id: "cerfa",
       title: "Certificat d'urbanisme (CERFA)",
       defaultOpen: true,
-      content: <CerfaTool />,
+      content: (
+        <CerfaTool
+          onParcellesDetected={async (parcelles, commune, insee) => {
+            if (showCerfaParcellesRef.current) {
+              await showCerfaParcellesRef.current(parcelles, commune, insee);
+            }
+          }}
+        />
+      ),
     },
   ];
 
