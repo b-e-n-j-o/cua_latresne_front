@@ -8,7 +8,14 @@ type Parcelle = {
   surface_m2?: number;
 };
 
+type UFParcelle = {
+  section: string;
+  numero: string;
+};
+
 type Props = {
+  ufParcelles?: UFParcelle[];
+  unionGeometry?: GeoJSON.Geometry;
   onParcellesDetected?: (
     parcelles: Array<{
       section: string;
@@ -20,7 +27,7 @@ type Props = {
   ) => void;
 };
 
-export function ManualCuaForm({ onParcellesDetected }: Props) {
+export function ManualCuaForm({ ufParcelles, unionGeometry, onParcellesDetected }: Props) {
   // État local pour les données modifiables (initialisées vides)
   const [infoGenerales, setInfoGenerales] = useState<any>({
     numero_cu: "",
@@ -56,9 +63,14 @@ export function ManualCuaForm({ onParcellesDetected }: Props) {
     code_postal: "33610",
   });
 
-  const [parcelles, setParcelles] = useState<Parcelle[]>([
-    { section: "", numero: "", surface_m2: 0 },
-  ]);
+  const [parcelles, setParcelles] = useState<Parcelle[]>(
+    ufParcelles?.map((p) => ({
+      section: p.section,
+      numero: p.numero,
+    })) || [{ section: "", numero: "" }]
+  );
+
+  const isUFMode = !!ufParcelles;
 
   // Recalculer la superficie totale quand les parcelles changent
   const superficieTotale = parcelles.reduce(
@@ -257,6 +269,7 @@ export function ManualCuaForm({ onParcellesDetected }: Props) {
         code_insee: insee,
         commune_nom: commune,
         cerfa_data: cerfaDataForBuilder,
+        union_geometry: unionGeometry,
         user_id: userId || undefined,
         user_email: userEmail || undefined,
       };
@@ -604,21 +617,23 @@ export function ManualCuaForm({ onParcellesDetected }: Props) {
             <div className="text-xs font-semibold text-amber-800">
               Parcelles ({parcelles.length})
             </div>
-            <button
-              type="button"
-              onClick={addParcelle}
-              className="text-xs px-2 py-0.5 bg-amber-600 text-white rounded hover:bg-amber-700 transition-colors"
-            >
-              + Ajouter
-            </button>
+            {!isUFMode && (
+              <button
+                type="button"
+                onClick={addParcelle}
+                className="text-xs px-2 py-0.5 bg-amber-600 text-white rounded hover:bg-amber-700 transition-colors"
+              >
+                + Ajouter
+              </button>
+            )}
           </div>
           <div className="space-y-2 max-h-48 overflow-y-auto">
             {parcelles.map((p, i) => (
               <div
                 key={i}
-                className="bg-white rounded p-2 border border-amber-100 text-xs"
+                className="bg-white rounded p-2 border border-amber-100 text-xs space-y-1"
               >
-                <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center gap-2">
                   <input
                     type="text"
                     value={p.section}
@@ -633,23 +648,16 @@ export function ManualCuaForm({ onParcellesDetected }: Props) {
                     placeholder="Numéro"
                     className="flex-1 border border-amber-300 rounded px-1.5 py-0.5 text-xs font-mono"
                   />
-                  <input
-                    type="number"
-                    value={p.surface_m2 || ""}
-                    onChange={(e) =>
-                      updateParcelle(i, "surface_m2", e.target.value)
-                    }
-                    placeholder="m²"
-                    className="w-20 border border-amber-300 rounded px-1.5 py-0.5 text-xs"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeParcelle(i)}
-                    className="px-2 py-0.5 text-xs border border-red-300 text-red-600 rounded hover:bg-red-50 transition-colors"
-                    title="Supprimer"
-                  >
-                    ×
-                  </button>
+                  {!isUFMode && (
+                    <button
+                      type="button"
+                      onClick={() => removeParcelle(i)}
+                      className="px-2 py-0.5 text-xs border border-red-300 text-red-600 rounded hover:bg-red-50 transition-colors"
+                      title="Supprimer"
+                    >
+                      ×
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

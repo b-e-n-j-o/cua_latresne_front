@@ -61,7 +61,7 @@ type SideBarLeftProps = {
 
 export function SideBarLeft({ sections = [] }: SideBarLeftProps) {
   return (
-    <aside className="w-80 h-full border-r border-gray-200 bg-gray-50 flex flex-col overflow-hidden">
+    <aside className="w-96 h-full border-r border-gray-200 bg-gray-50 flex flex-col overflow-hidden">
       {/* Contenu scrollable */}
       <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
         {sections.length === 0 ? (

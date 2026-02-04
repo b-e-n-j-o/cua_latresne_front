@@ -12,6 +12,8 @@ type Props = {
   onUfBuilderToggle?: (active: boolean) => void;
   onUfParcelleRemove?: (section: string, numero: string) => void;
   onConfirmUF?: (parcelles: Array<{section: string; numero: string; commune: string; insee: string}>, unionGeometry: GeoJSON.Geometry, commune: string, insee: string) => void;
+  // Ajouter manuellement une parcelle à l'UF courante (avec highlight carte)
+  onAddManualUfParcelleToMap?: (section: string, numero: string) => void;
   embedded?: boolean; // Si true, pas de positionnement absolu (pour sidebar)
 };
 
@@ -30,9 +32,11 @@ export default function ParcelleSearchForm({
   onUfBuilderToggle,
   onUfParcelleRemove,
   onConfirmUF,
+  onAddManualUfParcelleToMap,
   embedded = false
 }: Props) {
-  const [mode, setMode] = useState<Mode>("parcelle");
+  // Onglet par défaut : unité foncière
+  const [mode, setMode] = useState<Mode>("uf");
   const [loading, setLoading] = useState(false);
 
   // Parcelle & UF : commune (pas de valeur par défaut)
@@ -75,6 +79,10 @@ export default function ParcelleSearchForm({
   }
 
   function removeUfParcelle(index: number) {
+    const parcelle = ufParcelles[index];
+    if (parcelle && parcelle.section && parcelle.numero && onUfParcelleRemove) {
+      onUfParcelleRemove(parcelle.section, parcelle.numero);
+    }
     setUfParcelles((prev) => prev.filter((_, i) => i !== index));
   }
 
@@ -253,8 +261,6 @@ export default function ParcelleSearchForm({
         );
       }
 
-      // Affichage carte (ne pas réinitialiser selectedParcelle car onConfirmUF l'a déjà géré)
-      onSearch(geojson, undefined, true);
     } catch (err: any) {
       console.error("Erreur lors de la confirmation de l'UF:", err);
       alert(`Erreur : ${err.message || "Impossible de créer l'unité foncière"}`);
@@ -420,7 +426,7 @@ export default function ParcelleSearchForm({
           {allUfParcelles.length > 0 && (
             <div className="space-y-1 max-h-40 overflow-y-auto pr-1 bg-gray-50 p-2 rounded">
               <div className="text-xs font-medium mb-1 text-gray-700">
-                Parcelles ({allUfParcelles.length}/5)
+            Parcelles ({allUfParcelles.length}/20)
               </div>
               {allUfParcelles.map((p, idx) => (
                 <div 
@@ -464,6 +470,19 @@ export default function ParcelleSearchForm({
                   value={p.numero}
                   onChange={(e) => updateUfParcelle(idx, "numero", e.target.value)}
                 />
+                <button
+                  type="button"
+                  className="px-2 py-1 text-xs border rounded hover:bg-gray-100"
+                  onClick={() => {
+                    const s = p.section.trim().toUpperCase();
+                    const n = p.numero.trim();
+                    if (!s || !n) return;
+                    onAddManualUfParcelleToMap?.(s, n);
+                  }}
+                  title="Ajouter à l'unité foncière (carte)"
+                >
+                  +
+                </button>
                 {ufParcelles.length > 1 && (
                   <button
                     type="button"

@@ -179,42 +179,64 @@ export default function LatresnePage() {
         paint: { "line-color": "#EA580C", "line-width": 3, "line-opacity": 0.9 }
       });
 
-      // Hover sur cadastre
-      map.on("mousemove", "latresne_parcelles-fill", (e) => {
-        if (!e.features?.length) return;
-        const props = e.features[0].properties as any;
-        const feature = e.features[0];
-        
-        map.getCanvas().style.cursor = "pointer";
-        
-        const hoverSource = map.getSource("parcelle-hover") as maplibregl.GeoJSONSource;
-        if (hoverSource) {
-          hoverSource.setData({
-            type: "FeatureCollection",
-            features: [{
-              type: "Feature",
-              geometry: feature.geometry as GeoJSON.Geometry,
-              properties: {}
-            }]
-          });
+      // Fusionner les fragments d'une même parcelle (une parcelle peut être découpée par les tuiles MVT)
+      function mergeParcelleFragments(
+        features: GeoJSON.Feature[],
+        section: string,
+        numero: string
+      ): GeoJSON.Geometry | null {
+        const same = features.filter(
+          (f) => (f.properties as any)?.section === section && (f.properties as any)?.numero === numero
+        );
+        if (same.length === 0) return null;
+        if (same.length === 1) return same[0].geometry;
+        let merged = turf.feature(same[0].geometry as GeoJSON.Polygon);
+        for (let i = 1; i < same.length; i++) {
+          const next = turf.feature(same[i].geometry as GeoJSON.Polygon);
+          const u = turf.union(merged as turf.helpers.Feature<turf.helpers.Polygon>, next as turf.helpers.Feature<turf.helpers.Polygon>);
+          if (!u) break;
+          merged = u;
         }
-        
-        setTooltip({
-          x: e.point.x,
-          y: e.point.y,
-          content: `Section ${props.section} – Parcelle ${props.numero}`
-        });
-      });
+        return merged?.geometry ?? null;
+      }
 
-      map.on("mouseleave", "latresne_parcelles-fill", () => {
-        map.getCanvas().style.cursor = "";
-        setTooltip(null);
-        
-        const hoverSource = map.getSource("parcelle-hover") as maplibregl.GeoJSONSource;
-        if (hoverSource) {
-          hoverSource.setData({ type: "FeatureCollection", features: [] });
-        }
-      });
+      // Hover générique (cadastre MBTiles + résultats recherche) — fusion des fragments pour parcelle à cheval sur plusieurs tuiles
+      function setupHoverForLayer(layerId: string) {
+        map.on("mousemove", layerId, (e) => {
+          if (!e.features?.length) return;
+          const props = e.features[0].properties as any;
+          const section = props?.section ?? "";
+          const numero = props?.numero ?? "";
+          const merged = mergeParcelleFragments(e.features, section, numero);
+          if (!merged) return;
+
+          map.getCanvas().style.cursor = "pointer";
+
+          const hoverSource = map.getSource("parcelle-hover") as maplibregl.GeoJSONSource;
+          if (hoverSource) {
+            hoverSource.setData({
+              type: "FeatureCollection",
+              features: [{ type: "Feature", geometry: merged, properties: {} }]
+            });
+          }
+
+          setTooltip({
+            x: e.point.x,
+            y: e.point.y,
+            content: `Section ${section} – Parcelle ${numero}`
+          });
+        });
+
+        map.on("mouseleave", layerId, () => {
+          map.getCanvas().style.cursor = "";
+          setTooltip(null);
+          const hoverSource = map.getSource("parcelle-hover") as maplibregl.GeoJSONSource;
+          if (hoverSource) hoverSource.setData({ type: "FeatureCollection", features: [] });
+        });
+      }
+
+      setupHoverForLayer("latresne_parcelles-fill");
+      setupHoverForLayer("parcelle-search-fill");
 
       // Click sur cadastre
       map.on("click", "latresne_parcelles-fill", async (e) => {
@@ -278,43 +300,7 @@ export default function LatresnePage() {
         });
       });
 
-      // Hover/click sur résultats recherche
-      map.on("mousemove", "parcelle-search-fill", (e) => {
-        if (!e.features?.length) return;
-        const feature = e.features[0];
-        const props = feature.properties as any;
-        
-        map.getCanvas().style.cursor = "pointer";
-        
-        const hoverSource = map.getSource("parcelle-hover") as maplibregl.GeoJSONSource;
-        if (hoverSource) {
-          hoverSource.setData({
-            type: "FeatureCollection",
-            features: [{
-              type: "Feature",
-              geometry: feature.geometry as GeoJSON.Geometry,
-              properties: {}
-            }]
-          });
-        }
-        
-        setTooltip({
-          x: e.point.x,
-          y: e.point.y,
-          content: `Section ${props.section} – Parcelle ${props.numero}`
-        });
-      });
-
-      map.on("mouseleave", "parcelle-search-fill", () => {
-        map.getCanvas().style.cursor = "";
-        setTooltip(null);
-        
-        const hoverSource = map.getSource("parcelle-hover") as maplibregl.GeoJSONSource;
-        if (hoverSource) {
-          hoverSource.setData({ type: "FeatureCollection", features: [] });
-        }
-      });
-
+      // Click sur résultats recherche
       map.on("click", "parcelle-search-fill", async (e) => {
         const feature = e.features?.[0];
         if (!feature) return;

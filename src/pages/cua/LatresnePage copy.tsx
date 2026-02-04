@@ -3,11 +3,10 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import * as turf from "@turf/turf";
 import { SideBarLeft, type SideBarSection } from "../../components/layout/SideBarLeft";
-import ParcelleSearchForm from "../../components/tools/carto/ParcelleSearchForm";
+import ParcelleSearchForm from "../../components/tools/carto/ParcelleSearchform";
 import HistoryPipelineCard, { type HistoryPipeline } from "../../components/tools/carto/HistoryPipelineCard";
 import SuiviInstructionCard from "../../components/tools/carto/SuiviInstructionCard";
 import CerfaTool from "../../components/tools/cerfa/CerfaTool";
-import UniteFonciereCard from "../../components/tools/carto/UniteFonciereCard";
 import type { ParcelleInfo, ZonageInfo } from "../../types/parcelle";
 import supabase from "../../supabaseClient";
 
@@ -17,6 +16,7 @@ const LATRESNE_BOUNDS: [number, number, number, number] = [
 
 const API_BASE = import.meta.env.VITE_API_BASE;
 
+/** Couleur du ping selon validité 18 mois : vert >3 mois restants, jaune derniers 3 mois, rouge expiré */
 function getPingColor(createdAt: string | undefined): "green" | "yellow" | "red" {
   if (!createdAt) return "green";
   try {
@@ -31,7 +31,6 @@ function getPingColor(createdAt: string | undefined): "green" | "yellow" | "red"
     return "green";
   }
 }
-
 const PARCELLE_CLICK_ZOOM = 13;
 const CARD_EST_HEIGHT = 380;
 const CARD_WIDTH = 320;
@@ -56,7 +55,6 @@ type UFState = {
     numero: string;
     insee: string;
     commune: string;
-    surface_m2?: number;
   }>;
   geometry: GeoJSON.Geometry;
   insee: string;
@@ -66,7 +64,6 @@ type UFState = {
 export default function LatresnePage() {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const cadastreDataRef = useRef<GeoJSON.FeatureCollection | null>(null);
   
   const [tooltip, setTooltip] = useState<{ x: number; y: number; content: string } | null>(null);
   const [selectedParcelle, setSelectedParcelle] = useState<ParcelleInfo | null>(null);
@@ -81,8 +78,7 @@ export default function LatresnePage() {
   const [isLoadingCadastre, setIsLoadingCadastre] = useState(true);
   const [ufState, setUfState] = useState<UFState | null>(null);
   
-  // Mode UF actif par défaut pour permettre la sélection au clic dès l'arrivée sur la page
-  const [ufBuilderMode, setUfBuilderMode] = useState(true);
+  const [ufBuilderMode, setUfBuilderMode] = useState(false);
   const [selectedUfParcelles, setSelectedUfParcelles] = useState<Array<{
     section: string;
     numero: string;
@@ -101,10 +97,11 @@ export default function LatresnePage() {
     geometry: GeoJSON.Geometry;
   }>>([]);
   
-  const showParcelleResultRef = useRef<((geojson: any, addressPoint?: [number, number], targetZoom?: number) => void) | null>(null);
+      const showParcelleResultRef = useRef<((geojson: any, addressPoint?: [number, number], targetZoom?: number) => void) | null>(null);
   const getZonageForUFRef = useRef<((insee: string, parcelles: Array<{ section: string; numero: string }>) => Promise<ZonageInfo[]>) | null>(null);
   const showCerfaParcellesRef = useRef<((parcelles: Array<{ section: string; numero: string }>, commune: string, insee: string) => Promise<void>) | null>(null);
 
+  // Récupérer l'utilisateur connecté pour charger l'historique des pipelines
   useEffect(() => {
     (async () => {
       try {
@@ -139,8 +136,6 @@ export default function LatresnePage() {
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
-    let hoveredFeatureId: number | null = null;
-
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: "https://data.geopf.fr/annexes/ressources/vectorTiles/styles/PLAN.IGN/standard.json",
@@ -151,55 +146,29 @@ export default function LatresnePage() {
     mapRef.current = map;
 
     map.on("load", async () => {
+      // Fixer le zoom initial à 14
       map.setZoom(14);
       setCurrentZoom(14);
 
+      // Ajuster opacité du fond
       try {
         map.setPaintProperty("water", "fill-opacity", 0.45);
         map.setPaintProperty("landcover", "fill-opacity", 0.35);
         map.setPaintProperty("building", "fill-opacity", 0.25);
       } catch {}
 
-      // Charger le cadastre depuis le GeoJSON local
+      // Cadastre : GeoJSON depuis l'API (avec indicateur de chargement)
       setIsLoadingCadastre(true);
       let parcellesData: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
       try {
-        const response = await fetch('/data/parcelles.geojson');
-        if (response.ok) {
-          parcellesData = await response.json();
-          cadastreDataRef.current = parcellesData;
-        }
-      } catch (err) {
-        console.error("Erreur chargement cadastre:", err);
+        const base = (typeof API_BASE === "string" ? API_BASE : "").replace(/\/$/, "");
+        const response = await fetch(`${base}/latresne/parcelles/geojson`);
+        if (response.ok) parcellesData = await response.json();
+      } catch {
+        // ignorer : carte s'affiche sans parcelles
       }
-
       if (!map.getSource("latresne_parcelles")) {
-        map.addSource("latresne_parcelles", { 
-          type: "geojson", 
-          data: parcellesData,
-          generateId: true
-        });
-
-        map.addLayer({
-          id: "latresne_parcelles-fill",
-          type: "fill",
-          source: "latresne_parcelles",
-          paint: {
-            "fill-color": "#e0e0e0",
-            "fill-opacity": 0.6
-          }
-        });
-
-        map.addLayer({
-          id: "latresne_parcelles-fill-hover",
-          type: "fill",
-          source: "latresne_parcelles",
-          paint: {
-            "fill-color": "#F97316",
-            "fill-opacity": ['case', ['boolean', ['feature-state', 'hover'], false], 0.35, 0]
-          }
-        });
-
+        map.addSource("latresne_parcelles", { type: "geojson", data: parcellesData });
         map.addLayer({
           id: "latresne_parcelles-outline",
           type: "line",
@@ -210,10 +179,44 @@ export default function LatresnePage() {
             "line-opacity": 0.8
           }
         });
+        map.addLayer({
+          id: "latresne_parcelles-fill",
+          type: "fill",
+          source: "latresne_parcelles",
+          paint: {
+            "fill-color": "rgba(0, 0, 0, 0.01)"
+          }
+        });
       }
       setIsLoadingCadastre(false);
 
-      // Sources supplémentaires
+      // Source hover surbrillance
+      map.addSource("parcelle-hover", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] }
+      });
+
+      map.addLayer({
+        id: "parcelle-hover-fill",
+        type: "fill",
+        source: "parcelle-hover",
+        paint: {
+          "fill-color": "#F97316",
+          "fill-opacity": 0.35
+        }
+      });
+
+      map.addLayer({
+        id: "parcelle-hover-outline",
+        type: "line",
+        source: "parcelle-hover",
+        paint: {
+          "line-color": "#EA580C",
+          "line-width": 2
+        }
+      });
+
+      // Source résultats recherche
       map.addSource("parcelle-search", {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] }
@@ -265,6 +268,7 @@ export default function LatresnePage() {
         paint: { "line-color": "#E53E3E", "line-width": 3 }
       });
 
+      // Source UF builder
       map.addSource("uf-builder", {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] }
@@ -284,6 +288,7 @@ export default function LatresnePage() {
         paint: { "line-color": "#EA580C", "line-width": 3, "line-opacity": 0.9 }
       });
 
+      // Source UF active (une seule unité foncière métier à la fois)
       map.addSource("uf-active", {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] }
@@ -309,33 +314,7 @@ export default function LatresnePage() {
         }
       });
 
-      // Hover sur l'unité foncière active : afficher la liste des parcelles
-      map.on("mousemove", "uf-fill", (e) => {
-        if (!ufStateRef.current) return;
-        const parcelles = ufStateRef.current.parcelles || [];
-        if (parcelles.length === 0) return;
-
-        map.getCanvas().style.cursor = "pointer";
-
-        const labels = parcelles.map((p) => `${p.section} ${p.numero}`);
-        const content =
-          parcelles.length === 1
-            ? `UF : ${labels[0]}`
-            : `UF : ${labels.join(", ")}`;
-
-        setTooltip({
-          x: e.point.x,
-          y: e.point.y,
-          content,
-        });
-      });
-
-      map.on("mouseleave", "uf-fill", () => {
-        if (!ufStateRef.current) return;
-        map.getCanvas().style.cursor = "";
-        setTooltip(null);
-      });
-
+      // Source parcelles CERFA
       map.addSource("cerfa-parcelles", {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] }
@@ -355,6 +334,7 @@ export default function LatresnePage() {
         paint: { "line-color": "#EA580C", "line-width": 3, "line-opacity": 0.9 }
       });
 
+      // Source + layers pour les parcelles de l'UF du pipeline historique (highlight orange)
       map.addSource("history-pipeline-parcelles", {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] }
@@ -374,6 +354,7 @@ export default function LatresnePage() {
         paint: { "line-color": "#EA580C", "line-width": 3, "line-opacity": 0.9 }
       });
 
+      // Source + layers pour les pings d'historique (point coloré selon validité 18 mois)
       map.addSource("pipelines-history", {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] },
@@ -403,7 +384,7 @@ export default function LatresnePage() {
         },
       });
 
-      // Hover sur pings historiques
+      // Hover + click sur pings historiques
       map.on("mousemove", "pipelines-history-halo", (e) => {
         if (!e.features?.length) return;
         map.getCanvas().style.cursor = "pointer";
@@ -414,12 +395,12 @@ export default function LatresnePage() {
           content: props.numero_cu ? `CU ${props.numero_cu}` : "Projet précédent",
         });
       });
-
       map.on("mouseleave", "pipelines-history-halo", () => {
         map.getCanvas().style.cursor = "";
         setTooltip(null);
       });
 
+      // Click sur ping historique → afficher HistoryPipelineCard en popup sur la carte
       map.on("click", "pipelines-history-halo", (e) => {
         const feature = e.features?.[0];
         if (!feature) return;
@@ -440,28 +421,23 @@ export default function LatresnePage() {
         }
       });
 
-      // Hover sur cadastre avec feature-state
+      // Hover sur cadastre : feature directement depuis la source (pas de lookup dupliqué)
       map.on("mousemove", "latresne_parcelles-fill", (e) => {
         if (ufStateRef.current) return;
         if (!e.features?.length) return;
-        
         const feature = e.features[0];
         const props = feature.properties as any;
 
-        if (hoveredFeatureId !== null) {
-          map.setFeatureState(
-            { source: 'latresne_parcelles', id: hoveredFeatureId },
-            { hover: false }
-          );
+        map.getCanvas().style.cursor = "pointer";
+
+        const hoverSource = map.getSource("parcelle-hover") as maplibregl.GeoJSONSource;
+        if (hoverSource) {
+          hoverSource.setData({
+            type: "FeatureCollection",
+            features: [{ type: "Feature", geometry: feature.geometry as GeoJSON.Geometry, properties: props || {} }]
+          });
         }
 
-        hoveredFeatureId = feature.id as number;
-        map.setFeatureState(
-          { source: 'latresne_parcelles', id: hoveredFeatureId },
-          { hover: true }
-        );
-
-        map.getCanvas().style.cursor = "pointer";
         setTooltip({
           x: e.point.x,
           y: e.point.y,
@@ -471,17 +447,13 @@ export default function LatresnePage() {
 
       map.on("mouseleave", "latresne_parcelles-fill", () => {
         if (ufStateRef.current) return;
-        
-        if (hoveredFeatureId !== null) {
-          map.setFeatureState(
-            { source: 'latresne_parcelles', id: hoveredFeatureId },
-            { hover: false }
-          );
-        }
-        hoveredFeatureId = null;
-        
         map.getCanvas().style.cursor = "";
         setTooltip(null);
+        
+        const hoverSource = map.getSource("parcelle-hover") as maplibregl.GeoJSONSource;
+        if (hoverSource) {
+          hoverSource.setData({ type: "FeatureCollection", features: [] });
+        }
       });
 
       // Click sur cadastre
@@ -501,8 +473,8 @@ export default function LatresnePage() {
               prev.filter(p => !(p.section === props.section && p.numero === props.numero))
             );
           } else {
-            if (currentSelection.length >= 20) {
-              alert("Maximum 20 parcelles pour une unité foncière");
+            if (currentSelection.length >= 5) {
+              alert("Maximum 5 parcelles pour une unité foncière");
               return;
             }
             setSelectedUfParcelles(prev => [...prev, {
@@ -553,6 +525,19 @@ export default function LatresnePage() {
         const props = feature.properties as any;
         
         map.getCanvas().style.cursor = "pointer";
+        
+        const hoverSource = map.getSource("parcelle-hover") as maplibregl.GeoJSONSource;
+        if (hoverSource) {
+          hoverSource.setData({
+            type: "FeatureCollection",
+            features: [{
+              type: "Feature",
+              geometry: feature.geometry as GeoJSON.Geometry,
+              properties: {}
+            }]
+          });
+        }
+        
         setTooltip({
           x: e.point.x,
           y: e.point.y,
@@ -563,6 +548,11 @@ export default function LatresnePage() {
       map.on("mouseleave", "parcelle-search-fill", () => {
         map.getCanvas().style.cursor = "";
         setTooltip(null);
+        
+        const hoverSource = map.getSource("parcelle-hover") as maplibregl.GeoJSONSource;
+        if (hoverSource) {
+          hoverSource.setData({ type: "FeatureCollection", features: [] });
+        }
       });
 
       map.on("click", "parcelle-search-fill", async (e) => {
@@ -581,8 +571,8 @@ export default function LatresnePage() {
               prev.filter(p => !(p.section === props.section && p.numero === props.numero))
             );
           } else {
-            if (currentSelection.length >= 20) {
-              alert("Maximum 20 parcelles pour une unité foncière");
+            if (currentSelection.length >= 5) {
+              alert("Maximum 5 parcelles pour une unité foncière");
               return;
             }
             setSelectedUfParcelles(prev => [...prev, {
@@ -624,6 +614,7 @@ export default function LatresnePage() {
         });
       });
 
+      // Fonction d'affichage résultats
       function showParcelleResult(geojson: any, addressPoint?: [number, number], targetZoom?: number) {
         if (map.getSource("address-point")) {
           if (map.getLayer("address-ping")) map.removeLayer("address-ping");
@@ -697,6 +688,7 @@ export default function LatresnePage() {
 
       showParcelleResultRef.current = showParcelleResult;
 
+      // Fonction zonage
       async function getZonageAtPoint(insee: string, section: string, numero: string) {
         try {
           const res = await fetch(`${API_BASE}/zonage-plui/${insee}/${section}/${numero}`);
@@ -738,65 +730,121 @@ export default function LatresnePage() {
       
       getZonageForUFRef.current = getZonageForUF;
 
+      // Fonction pour afficher les parcelles CERFA sur la carte
       async function showCerfaParcelles(
         parcelles: Array<{ section: string; numero: string }>,
         commune: string,
         insee: string
       ) {
-        if (!cadastreDataRef.current) return;
-
-        const features: GeoJSON.Feature[] = [];
+        console.log("🗺️ Affichage parcelles CERFA:", { parcelles, commune, insee });
         
-        for (const parcelle of parcelles) {
-          const found = cadastreDataRef.current.features.find((f: any) => 
-            f.properties?.section === parcelle.section && 
-            f.properties?.numero === parcelle.numero
-          );
+        try {
+          // Récupérer les géométries de toutes les parcelles
+          const features: GeoJSON.Feature[] = [];
           
-          if (found) {
-            features.push({
-              type: "Feature",
-              geometry: found.geometry,
-              properties: {
-                section: parcelle.section,
-                numero: parcelle.numero,
-                commune,
-                insee
+          for (const parcelle of parcelles) {
+            try {
+              // Utiliser la commune (comme dans ParcelleSearchForm)
+              const url = `${API_BASE}/parcelle/et-voisins?commune=${encodeURIComponent(commune)}&section=${parcelle.section}&numero=${parcelle.numero}`;
+              
+              console.log(`📡 Récupération parcelle ${parcelle.section} ${parcelle.numero}:`, url);
+              
+              const res = await fetch(url);
+              
+              if (res.ok) {
+                const data = await res.json();
+                console.log(`✅ Réponse API pour ${parcelle.section} ${parcelle.numero}:`, data);
+                
+                if (data.features && data.features.length > 0) {
+                  // Prendre la parcelle cible (celle qui correspond exactement)
+                  const targetFeature = data.features.find((f: any) => 
+                    f.properties?.section === parcelle.section && 
+                    f.properties?.numero === parcelle.numero
+                  ) || data.features[0];
+                  
+                  if (targetFeature && targetFeature.geometry) {
+                    features.push({
+                      type: "Feature",
+                      geometry: targetFeature.geometry,
+                      properties: {
+                        section: parcelle.section,
+                        numero: parcelle.numero,
+                        commune,
+                        insee
+                      }
+                    });
+                    console.log(`✅ Parcelle ${parcelle.section} ${parcelle.numero} ajoutée`);
+                  } else {
+                    console.warn(`⚠️ Pas de géométrie trouvée pour ${parcelle.section} ${parcelle.numero}`);
+                  }
+                } else {
+                  console.warn(`⚠️ Aucune feature retournée pour ${parcelle.section} ${parcelle.numero}`);
+                }
+              } else {
+                console.warn(`❌ Erreur HTTP ${res.status} pour ${parcelle.section} ${parcelle.numero}`);
               }
-            });
+            } catch (err) {
+              console.error(`❌ Erreur récupération parcelle ${parcelle.section} ${parcelle.numero}:`, err);
+            }
           }
-        }
 
-        if (features.length > 0) {
-          const source = map.getSource("cerfa-parcelles") as maplibregl.GeoJSONSource;
-          if (source) {
-            source.setData({
-              type: "FeatureCollection",
-              features
-            });
+          console.log(`📊 Total features récupérées: ${features.length}`);
 
-            map.setLayoutProperty("cerfa-parcelles-fill", "visibility", "visible");
-            map.setLayoutProperty("cerfa-parcelles-outline", "visibility", "visible");
-
-            if (features.length === 1) {
-              const bbox = turf.bbox(features[0].geometry);
-              map.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], {
-                padding: 100,
-                maxZoom: 18,
-                duration: 800
-              });
-            } else {
-              const bbox = turf.bbox({
+          if (features.length > 0) {
+            const source = map.getSource("cerfa-parcelles") as maplibregl.GeoJSONSource;
+            if (source) {
+              console.log("🎨 Mise à jour de la source cerfa-parcelles avec", features.length, "features");
+              source.setData({
                 type: "FeatureCollection",
                 features
               });
-              map.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], {
-                padding: 100,
-                maxZoom: 18,
-                duration: 800
-              });
+
+              // S'assurer que les layers sont visibles
+              const fillLayer = map.getLayer("cerfa-parcelles-fill");
+              const outlineLayer = map.getLayer("cerfa-parcelles-outline");
+              
+              if (fillLayer) {
+                map.setLayoutProperty("cerfa-parcelles-fill", "visibility", "visible");
+                console.log("✅ Layer cerfa-parcelles-fill rendu visible");
+              } else {
+                console.error("❌ Layer cerfa-parcelles-fill non trouvé");
+              }
+              
+              if (outlineLayer) {
+                map.setLayoutProperty("cerfa-parcelles-outline", "visibility", "visible");
+                console.log("✅ Layer cerfa-parcelles-outline rendu visible");
+              } else {
+                console.error("❌ Layer cerfa-parcelles-outline non trouvé");
+              }
+
+              // Ajuster la vue pour afficher toutes les parcelles
+              if (features.length === 1) {
+                const bbox = turf.bbox(features[0].geometry);
+                map.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], {
+                  padding: 100,
+                  maxZoom: 18,
+                  duration: 800
+                });
+              } else {
+                const bbox = turf.bbox({
+                  type: "FeatureCollection",
+                  features
+                });
+                map.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], {
+                  padding: 100,
+                  maxZoom: 18,
+                  duration: 800
+                });
+              }
+              console.log("✅ Vue ajustée pour afficher les parcelles CERFA");
+            } else {
+              console.error("❌ Source cerfa-parcelles non trouvée");
             }
+          } else {
+            console.warn("⚠️ Aucune feature à afficher");
           }
+        } catch (err) {
+          console.error("❌ Erreur affichage parcelles CERFA:", err);
         }
       }
 
@@ -818,6 +866,7 @@ export default function LatresnePage() {
     };
   }, []);
 
+  // Charger les pings d'historique une fois que la carte est prête et l'utilisateur connecté
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady || !userId || historyPingsLoaded) return;
@@ -871,6 +920,7 @@ export default function LatresnePage() {
     loadHistoryPings();
   }, [mapReady, userId, historyPingsLoaded]);
 
+  // Mettre à jour filtres sélection
   useEffect(() => {
     if (!mapRef.current) return;
     const map = mapRef.current;
@@ -894,6 +944,7 @@ export default function LatresnePage() {
     }
   }, [selectedParcelle]);
 
+  // Mettre à jour UF builder
   useEffect(() => {
     if (!mapRef.current) return;
     const source = mapRef.current.getSource("uf-builder") as maplibregl.GeoJSONSource;
@@ -909,6 +960,7 @@ export default function LatresnePage() {
     });
   }, [selectedUfParcelles]);
 
+  // Visibilité UF builder
   useEffect(() => {
     if (!mapRef.current) return;
     const visibility = ufBuilderMode ? "visible" : "none";
@@ -918,6 +970,7 @@ export default function LatresnePage() {
     }
   }, [ufBuilderMode]);
 
+  // Visibilité couche pings historiques
   useEffect(() => {
     if (!mapRef.current) return;
     const visibility = showHistoryPings ? "visible" : "none";
@@ -927,6 +980,7 @@ export default function LatresnePage() {
     if (point) mapRef.current.setLayoutProperty("pipelines-history-point", "visibility", visibility);
   }, [showHistoryPings]);
 
+  // Synchroniser la carte avec l'unité foncière métier active
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -973,6 +1027,7 @@ export default function LatresnePage() {
     );
   }, [ufState]);
 
+  // Garder le popup ancré au ping quand la carte bouge (flyTo, pan, zoom)
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !selectedHistoryPipeline?.centroid || !historyPopupPosition) return;
@@ -994,10 +1049,11 @@ export default function LatresnePage() {
     };
   }, [selectedHistoryPipeline?.centroid]);
 
+  // Surligner les parcelles de l'UF du pipeline historique (section + numero)
   useEffect(() => {
     const map = mapRef.current;
     const source = map?.getSource("history-pipeline-parcelles") as maplibregl.GeoJSONSource | undefined;
-    if (!map || !source || !cadastreDataRef.current) return;
+    if (!map || !source) return;
 
     if (!selectedHistoryPipeline?.cerfa_data?.parcelles?.length) {
       source.setData({ type: "FeatureCollection", features: [] });
@@ -1007,26 +1063,38 @@ export default function LatresnePage() {
     }
 
     const parcelles = selectedHistoryPipeline.cerfa_data.parcelles;
-    const features: GeoJSON.Feature[] = [];
+    const commune = selectedHistoryPipeline.cerfa_data.commune_nom || selectedHistoryPipeline.commune || "Latresne";
+    const base = ((typeof API_BASE === "string" ? API_BASE : "") || "http://localhost:8000").replace(/\/$/, "");
 
-    for (const p of parcelles) {
-      const found = cadastreDataRef.current.features.find((f: any) =>
-        f.properties?.section === p.section && f.properties?.numero === p.numero
-      );
-      if (found) {
-        features.push({
-          type: "Feature",
-          geometry: found.geometry,
-          properties: { section: p.section, numero: p.numero }
-        });
+    const fetchAndShow = async () => {
+      const features: GeoJSON.Feature[] = [];
+      for (const p of parcelles) {
+        try {
+          const res = await fetch(
+            `${base}/parcelle/et-voisins?commune=${encodeURIComponent(commune)}&section=${p.section}&numero=${p.numero}`
+          );
+          if (res.ok) {
+            const data = await res.json();
+            if (data.features?.[0]?.geometry) {
+              features.push({
+                type: "Feature",
+                geometry: data.features[0].geometry,
+                properties: { section: p.section, numero: p.numero }
+              });
+            }
+          }
+        } catch {
+          // ignore
+        }
       }
-    }
+      if (features.length > 0) {
+        source.setData({ type: "FeatureCollection", features });
+        map.setLayoutProperty("history-pipeline-parcelles-fill", "visibility", "visible");
+        map.setLayoutProperty("history-pipeline-parcelles-outline", "visibility", "visible");
+      }
+    };
 
-    if (features.length > 0) {
-      source.setData({ type: "FeatureCollection", features });
-      map.setLayoutProperty("history-pipeline-parcelles-fill", "visibility", "visible");
-      map.setLayoutProperty("history-pipeline-parcelles-outline", "visibility", "visible");
-    }
+    fetchAndShow();
   }, [selectedHistoryPipeline]);
 
   const sidebarSections: SideBarSection[] = [
@@ -1050,44 +1118,6 @@ export default function LatresnePage() {
               prev.filter(p => !(p.section === section && p.numero === numero))
             );
           }}
-          onAddManualUfParcelleToMap={(section, numero) => {
-            const cadastre = cadastreDataRef.current;
-            if (!cadastre) return;
-
-            // Ne pas dépasser 20 parcelles au total
-            if (selectedUfParcelles.length >= 20) {
-              alert("Maximum 20 parcelles pour une unité foncière");
-              return;
-            }
-
-            // Éviter les doublons
-            const alreadySelected = selectedUfParcelles.some(
-              (p) => p.section === section && p.numero === numero
-            );
-            if (alreadySelected) return;
-
-            const found = cadastre.features.find((f: any) =>
-              f.properties?.section === section && f.properties?.numero === numero
-            );
-
-            if (!found || !found.geometry) {
-              alert("Parcelle introuvable dans le cadastre local");
-              return;
-            }
-
-            const props: any = found.properties || {};
-
-            setSelectedUfParcelles((prev) => [
-              ...prev,
-              {
-                section,
-                numero,
-                commune: props.commune || "Latresne",
-                insee: props.insee || "33234",
-                geometry: found.geometry as GeoJSON.Geometry,
-              },
-            ]);
-          }}
           onConfirmUF={async (parcelles, unionGeometry, commune, insee) => {
             const zonages = await getZonageForUFRef.current?.(insee, parcelles) || [];
             
@@ -1102,27 +1132,8 @@ export default function LatresnePage() {
               zonages
             });
 
-            // Enrichir les parcelles UF avec leur surface (à partir des géométries connues dans selectedUfParcelles)
-            const parcellesWithSurface = parcelles.map((p) => {
-              const found = selectedUfParcelles.find(
-                (sp) => sp.section === p.section && sp.numero === p.numero
-              );
-              let surface_m2: number | undefined;
-              if (found?.geometry) {
-                try {
-                  surface_m2 = turf.area(found.geometry as any);
-                } catch {
-                  surface_m2 = undefined;
-                }
-              }
-              return {
-                ...p,
-                surface_m2,
-              };
-            });
-
             setUfState({
-              parcelles: parcellesWithSurface,
+              parcelles,
               geometry: unionGeometry,
               commune,
               insee
@@ -1147,40 +1158,6 @@ export default function LatresnePage() {
         </>
       ),
     },
-    ...(ufState
-      ? [
-          {
-            id: "uf",
-            title: "Unité foncière active",
-            defaultOpen: true,
-            content: (
-              <UniteFonciereCard
-                ufParcelles={ufState.parcelles}
-                commune={ufState.commune}
-                insee={ufState.insee}
-                unionGeometry={ufState.geometry}
-                onParcellesDetected={async (parcelles, commune, insee) => {
-                  if (showCerfaParcellesRef.current) {
-                    await showCerfaParcellesRef.current(parcelles, commune, insee);
-                  }
-                }}
-                onClose={() => {
-                  setUfState(null);
-                  setSelectedParcelle(null);
-                  const source = mapRef.current?.getSource("uf-active") as maplibregl.GeoJSONSource;
-                  if (source) {
-                    source.setData({
-                      type: "FeatureCollection",
-                      features: [],
-                    });
-                  }
-                }}
-                embedded={true}
-              />
-            ),
-          } as SideBarSection,
-        ]
-      : []),
     ...(selectedHistoryPipeline
       ? [
           {
@@ -1224,8 +1201,12 @@ export default function LatresnePage() {
       content: (
         <CerfaTool
           onParcellesDetected={async (parcelles, commune, insee) => {
+            console.log("📞 Callback onParcellesDetected appelé:", { parcelles, commune, insee });
+            console.log("🔍 showCerfaParcellesRef.current:", showCerfaParcellesRef.current);
             if (showCerfaParcellesRef.current) {
               await showCerfaParcellesRef.current(parcelles, commune, insee);
+            } else {
+              console.error("❌ showCerfaParcellesRef.current est null - la carte n'est peut-être pas encore chargée");
             }
           }}
         />
@@ -1265,10 +1246,11 @@ export default function LatresnePage() {
 
         {ufBuilderMode && currentZoom >= PARCELLE_CLICK_ZOOM && (
           <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-40 bg-amber-600 text-white px-4 py-2 rounded-lg shadow-lg pointer-events-none">
-            <span className="text-sm font-medium">Mode UF actif - Cliquez sur les parcelles ({selectedUfParcelles.length}/20)</span>
+            <span className="text-sm font-medium">Mode UF actif - Cliquez sur les parcelles ({selectedUfParcelles.length}/5)</span>
           </div>
         )}
 
+        {/* Popup "Projet précédent" ancré au ping, position adaptative (au-dessus ou en dessous) */}
         {selectedHistoryPipeline && historyPopupPosition && (
           <div
             className="absolute z-50 pointer-events-auto"
