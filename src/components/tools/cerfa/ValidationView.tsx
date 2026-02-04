@@ -194,7 +194,7 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
       return;
     }
 
-    const insee = infoGenerales.commune_insee || "33234"; // Fallback sur Latresne
+    const insee = "33234"; // Application dédiée à Latresne
     const commune = infoGenerales.commune_nom || "";
 
     if (!insee) {
@@ -306,7 +306,7 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
       <div className="space-y-2">
         <div className="bg-gray-50 border border-gray-200 rounded p-2">
           <div className="text-xs font-semibold text-gray-700 mb-2">
-            Informations générales
+            3. Informations générales
           </div>
           <div className="space-y-2 text-xs">
             <div>
@@ -605,15 +605,6 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
                     placeholder="Numéro"
                     className="flex-1 border border-amber-300 rounded px-1.5 py-0.5 text-xs font-mono"
                   />
-                  <input
-                    type="number"
-                    value={p.surface_m2 || ""}
-                    onChange={(e) =>
-                      updateParcelle(i, "surface_m2", e.target.value)
-                    }
-                    placeholder="m²"
-                    className="w-20 border border-amber-300 rounded px-1.5 py-0.5 text-xs"
-                  />
                   <button
                     type="button"
                     onClick={() => removeParcelle(i)}
@@ -653,7 +644,7 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
         {parcelles.filter((p) => p.section && p.numero).length > 0 && (
           <div className="mb-2 text-xs text-gray-600 bg-gray-50 p-2 rounded">
             <span className="font-medium">
-              {parcelles.filter((p) => p.section && p.numero).length} parcelle(s) valide(s) :
+              {'4. Vérification des parcelles : ' + parcelles.filter((p) => p.section && p.numero).length + ' parcelle(s) valide(s) :'}
             </span>{" "}
             {parcelles
               .filter((p) => p.section && p.numero)
@@ -661,7 +652,7 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
               .join(", ")}
             {infoGenerales.commune_insee && (
               <span className="block mt-1 text-gray-500">
-                Code INSEE : {infoGenerales.commune_insee}
+                5. Code INSEE : {infoGenerales.commune_insee}
               </span>
             )}
           </div>
@@ -674,7 +665,7 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
             className="w-full px-3 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded text-xs font-medium transition-colors flex items-center justify-center gap-2"
           >
             <FileText className="w-3 h-3" />
-            Générer le CUA
+            6. Générer le CUA
           </button>
         ) : cuaStatus === "success" && cuaViewerUrl ? (
           <div className="space-y-2">

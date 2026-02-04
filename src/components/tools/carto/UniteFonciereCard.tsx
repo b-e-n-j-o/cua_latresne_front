@@ -88,6 +88,9 @@ export default function UniteFonciereCard({
 
         {/* Actions */}
         <div className="space-y-2">
+          <div className="text-md font-semibold text-gray-700 mb-1">
+            3. Choisir une action
+          </div>
           <button
             onClick={() => setShowIdentity(true)}
             className="w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white py-2 px-3 rounded text-sm transition-colors"

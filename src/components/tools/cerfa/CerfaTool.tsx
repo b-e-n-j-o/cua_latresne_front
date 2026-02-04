@@ -67,7 +67,7 @@ export default function CerfaTool({ onParcellesDetected }: Props) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-gray-800">
-          Certificat d'urbanisme (CERFA)
+          Certificat d'urbanisme via CERFA
         </h3>
       </div>
 
@@ -84,7 +84,7 @@ export default function CerfaTool({ onParcellesDetected }: Props) {
       )}
 
       {step === "analysing" && (
-        <div className="text-xs text-gray-600 italic">
+        <div className="text-xs text-gray-600 italic animate-pulse">
           Analyse du formulaire CERFA en cours…
         </div>
       )}

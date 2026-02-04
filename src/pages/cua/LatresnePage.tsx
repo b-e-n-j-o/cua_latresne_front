@@ -4,6 +4,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import * as turf from "@turf/turf";
 import { SideBarLeft, type SideBarSection } from "../../components/layout/SideBarLeft";
 import ParcelleSearchForm from "../../components/tools/carto/ParcelleSearchform";
+import SearchUniteFonciere from "../../components/tools/carto/SearchUniteFonciere";
 import HistoryPipelineCard, { type HistoryPipeline } from "../../components/tools/carto/HistoryPipelineCard";
 import SuiviInstructionCard from "../../components/tools/carto/SuiviInstructionCard";
 import CerfaTool from "../../components/tools/cerfa/CerfaTool";
@@ -1031,36 +1032,54 @@ export default function LatresnePage() {
 
   const sidebarSections: SideBarSection[] = [
     {
-      id: "search",
-      title: "Recherche parcelle / adresse / UF",
-      defaultOpen: true,
+      id: "search-parcelle",
+      title: "Recherche parcelle / adresse",
+      defaultOpen: false,
       content: (
         <>
-        <ParcelleSearchForm
-          onSearch={(geojson, addressPoint, keepSelection) => {
-            if (!showParcelleResultRef.current) return;
-            showParcelleResultRef.current(geojson, addressPoint);
-            if (!keepSelection) setSelectedParcelle(null);
-          }}
+          <ParcelleSearchForm
+            onSearch={(geojson, addressPoint, keepSelection) => {
+              if (!showParcelleResultRef.current) return;
+              showParcelleResultRef.current(geojson, addressPoint);
+              if (!keepSelection) setSelectedParcelle(null);
+            }}
+            embedded={true}
+          />
+          <label className="flex items-center gap-2 mt-3 text-xs text-gray-600 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showHistoryPings}
+              onChange={(e) => setShowHistoryPings(e.target.checked)}
+              className="rounded border-gray-300"
+            />
+            Afficher les projets précédents (pings)
+          </label>
+        </>
+      ),
+    },
+    {
+      id: "search-uf",
+      title: "Construire une unité foncière - CUA - CIF",
+      defaultOpen: true,
+      content: (
+        <SearchUniteFonciere
           ufBuilderMode={ufBuilderMode}
           selectedUfParcelles={selectedUfParcelles}
           onUfBuilderToggle={setUfBuilderMode}
           onUfParcelleRemove={(section, numero) => {
-            setSelectedUfParcelles(prev => 
-              prev.filter(p => !(p.section === section && p.numero === numero))
+            setSelectedUfParcelles((prev) =>
+              prev.filter((p) => !(p.section === section && p.numero === numero))
             );
           }}
           onAddManualUfParcelleToMap={(section, numero) => {
             const cadastre = cadastreDataRef.current;
             if (!cadastre) return;
 
-            // Ne pas dépasser 20 parcelles au total
             if (selectedUfParcelles.length >= 20) {
               alert("Maximum 20 parcelles pour une unité foncière");
               return;
             }
 
-            // Éviter les doublons
             const alreadySelected = selectedUfParcelles.some(
               (p) => p.section === section && p.numero === numero
             );
@@ -1089,20 +1108,20 @@ export default function LatresnePage() {
             ]);
           }}
           onConfirmUF={async (parcelles, unionGeometry, commune, insee) => {
-            const zonages = await getZonageForUFRef.current?.(insee, parcelles) || [];
-            
+            const zonages =
+              (await getZonageForUFRef.current?.(insee, parcelles)) || [];
+
             setSelectedParcelle({
-              section: parcelles.map(p => p.section).join("+"),
-              numero: parcelles.map(p => p.numero).join("+"),
+              section: parcelles.map((p) => p.section).join("+"),
+              numero: parcelles.map((p) => p.numero).join("+"),
               commune,
               insee,
               isUF: true,
               ufParcelles: parcelles,
               ufUnionGeometry: unionGeometry,
-              zonages
+              zonages,
             });
 
-            // Enrichir les parcelles UF avec leur surface (à partir des géométries connues dans selectedUfParcelles)
             const parcellesWithSurface = parcelles.map((p) => {
               const found = selectedUfParcelles.find(
                 (sp) => sp.section === p.section && sp.numero === p.numero
@@ -1125,26 +1144,22 @@ export default function LatresnePage() {
               parcelles: parcellesWithSurface,
               geometry: unionGeometry,
               commune,
-              insee
+              insee,
             });
-            
-            const source = mapRef.current?.getSource("uf-builder") as maplibregl.GeoJSONSource;
-            if (source) source.setData({ type: "FeatureCollection", features: [] });
+
+            const source = mapRef.current?.getSource(
+              "uf-builder"
+            ) as maplibregl.GeoJSONSource;
+            if (source)
+              source.setData({
+                type: "FeatureCollection",
+                features: [],
+              });
             setUfBuilderMode(false);
             setSelectedUfParcelles([]);
           }}
           embedded={true}
         />
-        <label className="flex items-center gap-2 mt-3 text-xs text-gray-600 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={showHistoryPings}
-            onChange={(e) => setShowHistoryPings(e.target.checked)}
-            className="rounded border-gray-300"
-          />
-          Afficher les projets précédents (pings)
-        </label>
-        </>
       ),
     },
     ...(ufState
@@ -1219,8 +1234,8 @@ export default function LatresnePage() {
       : []),
     {
       id: "cerfa",
-      title: "Certificat d'urbanisme (CERFA)",
-      defaultOpen: true,
+      title: "Certificat d'urbanisme via CERFA",
+      defaultOpen: false,
       content: (
         <CerfaTool
           onParcellesDetected={async (parcelles, commune, insee) => {

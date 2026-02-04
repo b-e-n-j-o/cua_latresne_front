@@ -48,10 +48,10 @@ type Props = {
           {!file ? (
             <>
               <span className="text-xs text-gray-600">
-                Déposez un fichier CERFA (PDF)
+                1. Déposez le PDF CERFA
               </span>
-              <span className="text-[11px] text-gray-400 mt-1">
-                ou cliquez pour sélectionner un fichier
+              <span className="text-[11px] text-gray-900 mt-1">
+                Cliquez pour sélectionner un fichier
               </span>
             </>
           ) : (
@@ -94,7 +94,7 @@ type Props = {
               }
             `}
           >
-            Analyser le CERFA
+            2. Analyser le CERFA
           </button>
         </div>
       </div>
