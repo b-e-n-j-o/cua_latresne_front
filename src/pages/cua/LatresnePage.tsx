@@ -5,12 +5,15 @@ import * as turf from "@turf/turf";
 import { SideBarLeft, type SideBarSection } from "../../components/layout/SideBarLeft";
 import ParcelleSearchForm from "../../components/tools/carto/ParcelleSearchform";
 import SearchUniteFonciere from "../../components/tools/carto/SearchUniteFonciere";
-import HistoryPipelineCard, { type HistoryPipeline } from "../../components/tools/carto/HistoryPipelineCard";
+import { type HistoryPipeline } from "../../components/tools/carto/HistoryPipelineCard";
 import SuiviInstructionCard from "../../components/tools/carto/SuiviInstructionCard";
 import CerfaTool from "../../components/tools/cerfa/CerfaTool";
 import UniteFonciereCard from "../../components/tools/carto/UniteFonciereCard";
 import type { ParcelleInfo, ZonageInfo } from "../../types/parcelle";
 import supabase from "../../supabaseClient";
+import { HistoryPipelinePopup, MapLoadingOverlay, MapTooltipOverlay, UfBuilderModeBanner } from "./LatresneMapOverlays";
+import RightHistorySidebar from "./RightHistorySidebar";
+import LogoutButton from "../../auth/LogoutButton";
 
 const LATRESNE_BOUNDS: [number, number, number, number] = [
   -0.533033, 44.769809, -0.459991, 44.808794
@@ -73,6 +76,7 @@ export default function LatresnePage() {
   const [selectedParcelle, setSelectedParcelle] = useState<ParcelleInfo | null>(null);
   const [currentZoom, setCurrentZoom] = useState(5.5);
   const [userId, setUserId] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [historyPingsLoaded, setHistoryPingsLoaded] = useState(false);
   const [historyPipelines, setHistoryPipelines] = useState<HistoryPipeline[]>([]);
   const [selectedHistoryPipeline, setSelectedHistoryPipeline] = useState<HistoryPipeline | null>(null);
@@ -81,6 +85,7 @@ export default function LatresnePage() {
   const [showHistoryPings, setShowHistoryPings] = useState(true);
   const [isLoadingCadastre, setIsLoadingCadastre] = useState(true);
   const [ufState, setUfState] = useState<UFState | null>(null);
+  const [rightHistoryOpen, setRightHistoryOpen] = useState(true);
   
   // Mode UF actif par défaut pour permettre la sélection au clic dès l'arrivée sur la page
   const [ufBuilderMode, setUfBuilderMode] = useState(true);
@@ -105,6 +110,7 @@ export default function LatresnePage() {
   const showParcelleResultRef = useRef<((geojson: any, addressPoint?: [number, number], targetZoom?: number) => void) | null>(null);
   const getZonageForUFRef = useRef<((insee: string, parcelles: Array<{ section: string; numero: string }>) => Promise<ZonageInfo[]>) | null>(null);
   const showCerfaParcellesRef = useRef<((parcelles: Array<{ section: string; numero: string }>, commune: string, insee: string) => Promise<void>) | null>(null);
+  const isHoveringHistoryPingRef = useRef(false);
 
   useEffect(() => {
     (async () => {
@@ -113,6 +119,7 @@ export default function LatresnePage() {
         const user = sess.session?.user;
         if (user) {
           setUserId(user.id || null);
+          setUserEmail(user.email || null);
         }
       } catch (e) {
         console.error("Erreur récupération session Supabase dans LatresnePage", e);
@@ -136,6 +143,97 @@ export default function LatresnePage() {
   useEffect(() => {
     historyPipelinesRef.current = historyPipelines;
   }, [historyPipelines]);
+
+  const clearHistorySelection = () => {
+    setSelectedHistoryPipeline(null);
+    setHistoryPopupPosition(null);
+  };
+
+  const handleSelectHistoryFromSlug = (slug: string) => {
+    const pipeline = historyPipelinesRef.current.find((p) => p.slug === slug);
+    if (!pipeline) return;
+
+    setSelectedHistoryPipeline(pipeline);
+
+    const map = mapRef.current;
+    if (map && pipeline.centroid) {
+      const [lon, lat] = [pipeline.centroid.lon, pipeline.centroid.lat];
+
+      // Centrer la carte sur le projet sélectionné (même logique que le click sur le ping)
+      map.flyTo({ center: [lon, lat], zoom: Math.max(map.getZoom(), 16), duration: 600 });
+
+      // Positionner la popup "map"
+      const point = map.project([lon, lat]);
+      const container = map.getContainer();
+      const cw = container.clientWidth;
+      const ch = container.clientHeight;
+      const placement = getPopupPlacement(point.x, point.y, cw, ch);
+      const x = clampPopupX(point.x, cw);
+      setHistoryPopupPosition({ x, y: point.y, placement });
+    } else {
+      setHistoryPopupPosition(null);
+    }
+  };
+
+  const updateHistoryPipelineInState = (slug: string, updater: (p: HistoryPipeline) => HistoryPipeline) => {
+    setHistoryPipelines((prev) => prev.map((p) => (p.slug === slug ? updater(p) : p)));
+    setSelectedHistoryPipeline((prev) => (prev && prev.slug === slug ? updater(prev) : prev));
+    historyPipelinesRef.current = historyPipelinesRef.current.map((p) => (p.slug === slug ? updater(p) : p));
+  };
+
+  const handleUpdateHistoryProject = async (
+    slug: string,
+    payload: {
+      cerfa_data: {
+        demandeur?: string;
+        numero_cu?: string;
+        adresse_terrain?: {
+          numero?: string;
+          voie?: string;
+          code_postal?: string;
+          ville?: string;
+        };
+      };
+    }
+  ) => {
+    const base = (API_BASE || "http://localhost:8000").replace(/\/$/, "");
+    const res = await fetch(`${base}/pipelines/${slug}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.error || "Erreur de mise à jour");
+    }
+
+    updateHistoryPipelineInState(slug, (p) => ({
+      ...p,
+      cerfa_data: {
+        ...(p.cerfa_data || {}),
+        ...(payload.cerfa_data || {}),
+        adresse_terrain: {
+          ...(p.cerfa_data?.adresse_terrain || {}),
+          ...(payload.cerfa_data?.adresse_terrain || {}),
+        },
+      },
+    }));
+  };
+
+  const handleDeleteHistoryProject = async (slug: string) => {
+    const base = (API_BASE || "http://localhost:8000").replace(/\/$/, "");
+    const res = await fetch(`${base}/pipelines/${slug}`, { method: "DELETE" });
+    const data = await res.json();
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.error || "Erreur de suppression");
+    }
+
+    setHistoryPipelines((prev) => prev.filter((p) => p.slug !== slug));
+    historyPipelinesRef.current = historyPipelinesRef.current.filter((p) => p.slug !== slug);
+    if (selectedHistoryPipeline?.slug === slug) {
+      clearHistorySelection();
+    }
+  };
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -407,16 +505,29 @@ export default function LatresnePage() {
       // Hover sur pings historiques
       map.on("mousemove", "pipelines-history-halo", (e) => {
         if (!e.features?.length) return;
+        isHoveringHistoryPingRef.current = true;
         map.getCanvas().style.cursor = "pointer";
         const props = e.features[0].properties as any;
+        const demandeur = String(props.demandeur || "").trim();
+        const numeroCu = String(props.numero_cu || "").trim();
+        const section = String(props.section || "").trim();
+        const numero = String(props.numero || "").trim();
+        const line1 = demandeur || "Projet precedent";
+        const line2 =
+          section && numero
+            ? `Section ${section} - Parcelle ${numero}`
+            : numeroCu
+              ? `CU ${numeroCu}`
+              : "Parcelle non renseignee";
         setTooltip({
           x: e.point.x,
           y: e.point.y,
-          content: props.numero_cu ? `CU ${props.numero_cu}` : "Projet précédent",
+          content: `${line1}\n${line2}`,
         });
       });
 
       map.on("mouseleave", "pipelines-history-halo", () => {
+        isHoveringHistoryPingRef.current = false;
         map.getCanvas().style.cursor = "";
         setTooltip(null);
       });
@@ -443,6 +554,7 @@ export default function LatresnePage() {
 
       // Hover sur cadastre avec feature-state
       map.on("mousemove", "latresne_parcelles-fill", (e) => {
+        if (isHoveringHistoryPingRef.current) return;
         if (ufStateRef.current) return;
         if (!e.features?.length) return;
         
@@ -849,6 +961,8 @@ export default function LatresnePage() {
             slug: p.slug,
             numero_cu: p.cerfa_data?.numero_cu,
             demandeur: p.cerfa_data?.demandeur,
+            section: p.cerfa_data?.parcelles?.[0]?.section,
+            numero: p.cerfa_data?.parcelles?.[0]?.numero,
             commune: p.commune,
             code_insee: p.code_insee,
             pingColor: getPingColor(p.created_at),
@@ -871,6 +985,35 @@ export default function LatresnePage() {
 
     loadHistoryPings();
   }, [mapReady, userId, historyPingsLoaded]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const source = map.getSource("pipelines-history") as maplibregl.GeoJSONSource | undefined;
+    if (!source) return;
+
+    const features: GeoJSON.Feature[] = historyPipelines
+      .filter((p: any) => p.centroid && typeof p.centroid.lon === "number" && typeof p.centroid.lat === "number")
+      .map((p: any) => ({
+        type: "Feature",
+        geometry: {
+          type: "Point",
+          coordinates: [p.centroid.lon, p.centroid.lat],
+        },
+        properties: {
+          slug: p.slug,
+          numero_cu: p.cerfa_data?.numero_cu,
+          demandeur: p.cerfa_data?.demandeur,
+          section: p.cerfa_data?.parcelles?.[0]?.section,
+          numero: p.cerfa_data?.parcelles?.[0]?.numero,
+          commune: p.commune,
+          code_insee: p.code_insee,
+          pingColor: getPingColor(p.created_at),
+        },
+      }));
+
+    source.setData({ type: "FeatureCollection", features });
+  }, [historyPipelines]);
 
   useEffect(() => {
     if (!mapRef.current) return;
@@ -1059,7 +1202,7 @@ export default function LatresnePage() {
     },
     {
       id: "search-uf",
-      title: "Construire une unité foncière - CUA - CIF",
+      title: "Générer CUA - CIF",
       defaultOpen: true,
       content: (
         <SearchUniteFonciere
@@ -1249,83 +1392,53 @@ export default function LatresnePage() {
   ];
 
   return (
-    <div className="flex h-screen">
-      <SideBarLeft sections={sidebarSections} />
-      
-      <div className="flex-1 relative">
-        <div ref={containerRef} className="w-full h-full" />
+    <div className="relative">
+      <header className="fixed top-0 left-0 right-0 z-50 h-14 bg-white/90 backdrop-blur border-b border-gray-200">
+        <div className="max-w-[1600px] mx-auto h-full px-6 flex items-center justify-between">
+          <img src="/logo_kerelia_noir.png" className="h-7" alt="Kerelia" />
+
+          <div className="flex items-center gap-4">
+            {userEmail && (
+              <div className="text-xs text-[#0b131f]/60">
+                <div className="font-medium">{userEmail}</div>
+              </div>
+            )}
+            <LogoutButton />
+          </div>
+        </div>
+      </header>
+      <div className="flex h-screen pt-20 overflow-hidden">
+        <SideBarLeft sections={sidebarSections} />
         
-        {tooltip && (
-          <div
-            className="absolute z-50 bg-black text-white text-xs px-2 py-1 rounded pointer-events-none"
-            style={{
-              left: `${tooltip.x}px`,
-              top: `${tooltip.y}px`,
-              transform: "translate(-50%, -100%)",
-              marginTop: "-8px"
-            }}
-          >
-            {tooltip.content}
-          </div>
-        )}
-
-        {isLoadingCadastre && (
-          <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-50">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4" />
-              <p className="text-sm text-gray-600">Chargement du cadastre...</p>
-            </div>
-          </div>
-        )}
-
-        {ufBuilderMode && currentZoom >= PARCELLE_CLICK_ZOOM && (
-          <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-40 bg-amber-600 text-white px-4 py-2 rounded-lg shadow-lg pointer-events-none">
-            <span className="text-sm font-medium">Mode UF actif - Cliquez sur les parcelles ({selectedUfParcelles.length}/20)</span>
-          </div>
-        )}
-
-        {selectedHistoryPipeline && historyPopupPosition && (
-          <div
-            className="absolute z-50 pointer-events-auto"
-            style={
-              historyPopupPosition.placement === "above"
-                ? {
-                    left: historyPopupPosition.x,
-                    top: historyPopupPosition.y,
-                    transform: "translate(-50%, calc(-100% - 14px))",
-                  }
-                : {
-                    left: historyPopupPosition.x,
-                    top: historyPopupPosition.y + POPUP_GAP,
-                    transform: "translate(-50%, 0)",
-                  }
-            }
-          >
-            <div className="relative">
-              {historyPopupPosition.placement === "below" && (
-                <div
-                  className="absolute left-1/2 -top-2 -translate-x-1/2 w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-b-[12px] border-b-white"
-                  style={{ filter: "drop-shadow(0 -1px 2px rgba(0,0,0,0.1))" }}
-                />
-              )}
-              <HistoryPipelineCard
-                pipeline={selectedHistoryPipeline}
-                onClose={() => {
-                  setSelectedHistoryPipeline(null);
-                  setHistoryPopupPosition(null);
-                }}
-                embedded={false}
-                mapPopup
-              />
-              {historyPopupPosition.placement === "above" && (
-                <div
-                  className="absolute left-1/2 -bottom-2 -translate-x-1/2 w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-t-[12px] border-t-white"
-                  style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.1))" }}
-                />
-              )}
-            </div>
-          </div>
-        )}
+        <div className="flex-1 relative">
+          <div ref={containerRef} className="w-full h-full" />
+        
+          <MapTooltipOverlay tooltip={tooltip} />
+          <MapLoadingOverlay isLoadingCadastre={isLoadingCadastre} />
+          <UfBuilderModeBanner
+            ufBuilderMode={ufBuilderMode}
+            currentZoom={currentZoom}
+            minZoom={PARCELLE_CLICK_ZOOM}
+            selectedCount={selectedUfParcelles.length}
+            maxCount={20}
+          />
+          <HistoryPipelinePopup
+            selectedHistoryPipeline={selectedHistoryPipeline}
+            historyPopupPosition={historyPopupPosition}
+            onClose={clearHistorySelection}
+          />
+        </div>
+        
+        <RightHistorySidebar
+          rows={historyPipelines}
+          isOpen={rightHistoryOpen}
+          onToggle={() => setRightHistoryOpen((v) => !v)}
+          selectedSlug={selectedHistoryPipeline?.slug ?? null}
+          onSelect={handleSelectHistoryFromSlug}
+          onClearSelection={clearHistorySelection}
+          onUpdateProject={handleUpdateHistoryProject}
+          onDeleteProject={handleDeleteHistoryProject}
+        />
       </div>
     </div>
   );
