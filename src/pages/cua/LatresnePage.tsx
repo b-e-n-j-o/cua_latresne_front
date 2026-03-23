@@ -8,7 +8,7 @@ import ParcelleSearchForm from "../../components/tools/carto/ParcelleSearchform"
 import SearchUniteFonciere from "../../components/tools/carto/SearchUniteFonciere";
 import { type HistoryPipeline } from "../../components/tools/carto/HistoryPipelineCard";
 import SuiviInstructionCard from "../../components/tools/carto/SuiviInstructionCard";
-import CerfaTool from "../../components/tools/cerfa/CerfaTool";
+import CerfaTool from "./cerfa/CerfaTool";
 import UniteFonciereCard from "../../components/tools/carto/UniteFonciereCard";
 import type { ParcelleInfo, ZonageInfo } from "../../types/parcelle";
 import supabase from "../../supabaseClient";
@@ -234,6 +234,69 @@ export default function LatresnePage() {
     historyPipelinesRef.current = historyPipelinesRef.current.filter((p) => p.slug !== slug);
     if (selectedHistoryPipeline?.slug === slug) {
       clearHistorySelection();
+    }
+  };
+
+  const refreshHistoryPipelines = async (focusSlug?: string) => {
+    const map = mapRef.current;
+    if (!map || !userId) return;
+    try {
+      const base = API_BASE.replace(/\/$/, "");
+      const res = await fetch(`${base}/pipelines/by_user?user_id=${userId}`);
+      const j = await res.json();
+      if (!j.success || !Array.isArray(j.pipelines)) {
+        console.warn("⚠️ Impossible de charger l'historique des pipelines pour la carte");
+        return;
+      }
+
+      const pipelinesWithCentroid = j.pipelines.filter(
+        (p: any) => p.centroid && typeof p.centroid.lon === "number" && typeof p.centroid.lat === "number"
+      );
+      setHistoryPipelines(pipelinesWithCentroid);
+
+      const features: GeoJSON.Feature[] = pipelinesWithCentroid.map((p: any) => ({
+        type: "Feature",
+        geometry: {
+          type: "Point",
+          coordinates: [p.centroid.lon, p.centroid.lat],
+        },
+        properties: {
+          slug: p.slug,
+          numero_cu: p.cerfa_data?.numero_cu,
+          demandeur: p.cerfa_data?.demandeur,
+          section: p.cerfa_data?.parcelles?.[0]?.section,
+          numero: p.cerfa_data?.parcelles?.[0]?.numero,
+          commune: p.commune,
+          code_insee: p.code_insee,
+          pingColor: getPingColor(p.created_at),
+        },
+      }));
+
+      const source = map.getSource("pipelines-history") as maplibregl.GeoJSONSource | undefined;
+      if (source) {
+        source.setData({ type: "FeatureCollection", features });
+      }
+
+      if (focusSlug) {
+        const created = pipelinesWithCentroid.find((p: any) => p.slug === focusSlug);
+        if (created) {
+          setSelectedHistoryPipeline(created);
+          const point = map.project([created.centroid.lon, created.centroid.lat]);
+          const container = map.getContainer();
+          const cw = container.clientWidth;
+          const ch = container.clientHeight;
+          const placement = getPopupPlacement(point.x, point.y, cw, ch);
+          const x = clampPopupX(point.x, cw);
+          setHistoryPopupPosition({ x, y: point.y, placement });
+          map.flyTo({
+            center: [created.centroid.lon, created.centroid.lat],
+            zoom: Math.max(map.getZoom(), 16),
+            duration: 600,
+          });
+        }
+      }
+    } catch (e) {
+      console.error("Erreur chargement des pings d'historique sur la carte:", e);
     }
   };
 
@@ -938,51 +1001,8 @@ export default function LatresnePage() {
     if (!map || !mapReady || !userId || historyPingsLoaded) return;
 
     const loadHistoryPings = async () => {
-      try {
-        const base = API_BASE.replace(/\/$/, "");
-        const res = await fetch(`${base}/pipelines/by_user?user_id=${userId}`);
-        const j = await res.json();
-
-        if (!j.success || !Array.isArray(j.pipelines)) {
-          console.warn("⚠️ Impossible de charger l'historique des pipelines pour la carte");
-          return;
-        }
-
-        const pipelinesWithCentroid = j.pipelines.filter(
-          (p: any) => p.centroid && typeof p.centroid.lon === "number" && typeof p.centroid.lat === "number"
-        );
-        setHistoryPipelines(pipelinesWithCentroid);
-
-        const features: GeoJSON.Feature[] = pipelinesWithCentroid.map((p: any) => ({
-          type: "Feature",
-          geometry: {
-            type: "Point",
-            coordinates: [p.centroid.lon, p.centroid.lat],
-          },
-          properties: {
-            slug: p.slug,
-            numero_cu: p.cerfa_data?.numero_cu,
-            demandeur: p.cerfa_data?.demandeur,
-            section: p.cerfa_data?.parcelles?.[0]?.section,
-            numero: p.cerfa_data?.parcelles?.[0]?.numero,
-            commune: p.commune,
-            code_insee: p.code_insee,
-            pingColor: getPingColor(p.created_at),
-          },
-        }));
-
-        const source = map.getSource("pipelines-history") as maplibregl.GeoJSONSource | undefined;
-        if (source) {
-          source.setData({
-            type: "FeatureCollection",
-            features,
-          });
-          setHistoryPingsLoaded(true);
-          console.log(`📍 ${features.length} pings d'historique affichés sur la carte`);
-        }
-      } catch (e) {
-        console.error("Erreur chargement des pings d'historique sur la carte:", e);
-      }
+      await refreshHistoryPipelines();
+      setHistoryPingsLoaded(true);
     };
 
     loadHistoryPings();
@@ -1383,6 +1403,9 @@ export default function LatresnePage() {
       defaultOpen: false,
       content: (
         <CerfaTool
+          onPipelineCreated={(newSlug) => {
+            refreshHistoryPipelines(newSlug);
+          }}
           onParcellesDetected={async (parcelles, commune, insee) => {
             if (showCerfaParcellesRef.current) {
               await showCerfaParcellesRef.current(parcelles, commune, insee);

@@ -6,7 +6,7 @@ import { SideBarLeft, type SideBarSection } from "../components/layout/SideBarLe
 import ParcelleSearchForm from "../components/tools/carto/ParcelleSearchform";
 import ParcelleCard from "../components/tools/carto/ParcelleCard";
 import UniteFonciereCard from "../components/tools/carto/UniteFonciereCard";
-import CerfaTool from "../components/tools/cerfa/CerfaTool";
+import CerfaTool from "../pages/cua/cerfa/CerfaTool";
 import registerParcellesLatresneLayer from "../carto/layers/latresne/parcelles";
 import type { ParcelleInfo, ZonageInfo } from "../types/parcelle";
 

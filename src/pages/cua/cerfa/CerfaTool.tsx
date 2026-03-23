@@ -13,9 +13,10 @@ type Props = {
     numero: string;
     surface_m2?: number;
   }>, commune: string, insee: string) => void;
+  onPipelineCreated?: (slug: string) => void;
 };
 
-export default function CerfaTool({ onParcellesDetected }: Props) {
+export default function CerfaTool({ onParcellesDetected, onPipelineCreated }: Props) {
   const [step, setStep] = useState<Step>("idle");
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<any>(null);
@@ -80,13 +81,13 @@ export default function CerfaTool({ onParcellesDetected }: Props) {
             onFileSelected={setFile}
             onAnalyse={handleAnalyse}
           />
-          <ManualCuaForm onParcellesDetected={onParcellesDetected} />
+          <ManualCuaForm onParcellesDetected={onParcellesDetected} onPipelineCreated={onPipelineCreated} />
         </>
       )}
 
       {step === "analysing" && (
         <div className="text-xs text-gray-600 italic animate-pulse">
-          Analyse du formulaire CERFA en cours…
+          Analyse du CERFA en cours. Cette opération peut prendre une minute...
         </div>
       )}
 
@@ -94,6 +95,7 @@ export default function CerfaTool({ onParcellesDetected }: Props) {
         <ValidationView
           result={{ ...result, data: currentData || result.data }}
           file={file}
+          onPipelineCreated={onPipelineCreated}
           onBack={() => {
             setStep("idle");
             setFile(null);

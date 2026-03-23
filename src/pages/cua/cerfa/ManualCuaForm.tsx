@@ -1,13 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FileText, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import supabase from "../../../supabaseClient";
-
-type Props = {
-  result: any;
-  file?: File | null;
-  onBack?: () => void;
-  onDataChange?: (data: any) => void;
-};
 
 type Parcelle = {
   section: string;
@@ -15,40 +8,70 @@ type Parcelle = {
   surface_m2?: number;
 };
 
-export function ValidationView({ result, file, onBack, onDataChange }: Props) {
-  const { data: initialData, alerts } = result;
-  const LATRESNE_INSEE = "33234";
+type UFParcelle = {
+  section: string;
+  numero: string;
+};
 
-  const handleVisualiser = () => {
-    if (!file) return;
-    
-    // Créer une URL d'objet à partir du fichier
-    const objectUrl = URL.createObjectURL(file);
-    
-    // Ouvrir le PDF dans un nouvel onglet
-    const newWindow = window.open(objectUrl, '_blank');
-    
-    // Nettoyer l'URL après un délai pour libérer la mémoire
-    if (newWindow) {
-      newWindow.addEventListener('beforeunload', () => {
-        URL.revokeObjectURL(objectUrl);
-      });
-    } else {
-      // Si la fenêtre n'a pas pu s'ouvrir (popup bloquée), nettoyer immédiatement
-      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-    }
-  };
+type Props = {
+  ufParcelles?: UFParcelle[];
+  unionGeometry?: GeoJSON.Geometry;
+  onParcellesDetected?: (
+    parcelles: Array<{
+      section: string;
+      numero: string;
+      surface_m2?: number;
+    }>,
+    commune: string,
+    insee: string
+  ) => void;
+  onPipelineCreated?: (slug: string) => void;
+};
 
-  // État local pour les données modifiables
-  const [infoGenerales, setInfoGenerales] = useState({
-    ...initialData.info_generales,
-    commune_insee: LATRESNE_INSEE,
+export function ManualCuaForm({ ufParcelles, unionGeometry, onParcellesDetected, onPipelineCreated }: Props) {
+  // État local pour les données modifiables (initialisées vides)
+  const [infoGenerales, setInfoGenerales] = useState<any>({
+    numero_cu: "",
+    type_cu: "",
+    date_depot: "",
+    commune_nom: "Latresne",
+    commune_insee: "33234",
   });
-  const [demandeur, setDemandeur] = useState(initialData.info_generales.demandeur);
-  const [adresseTerrain, setAdresseTerrain] = useState(initialData.info_generales.adresse_terrain || {});
+
+  const [demandeur, setDemandeur] = useState<any>({
+    type: "",
+    prenom: "",
+    nom: "",
+    denomination: "",
+    representant_prenom: "",
+    representant_nom: "",
+    siret: "",
+    adresse: {
+      numero: "",
+      voie: "",
+      code_postal: "",
+      ville: "",
+      email: "",
+      telephone: "",
+    },
+  });
+
+  const [adresseTerrain, setAdresseTerrain] = useState<any>({
+    numero: "",
+    voie: "",
+    lieu_dit: "",
+    ville: "Latresne",
+    code_postal: "33610",
+  });
+
   const [parcelles, setParcelles] = useState<Parcelle[]>(
-    initialData.parcelles_detectees.references_cadastrales || []
+    ufParcelles?.map((p) => ({
+      section: p.section,
+      numero: p.numero,
+    })) || [{ section: "", numero: "" }]
   );
+
+  const isUFMode = !!ufParcelles;
 
   // Recalculer la superficie totale quand les parcelles changent
   const superficieTotale = parcelles.reduce(
@@ -56,7 +79,7 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
     0
   );
 
-  // Ref pour éviter les appels multiples
+  // Ref pour éviter les appels multiples inutiles
   const isInitialMount = useRef(true);
 
   // État pour la génération de CUA
@@ -65,6 +88,7 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
   const [cuaError, setCuaError] = useState<string | null>(null);
   const [slug, setSlug] = useState<string | null>(null);
   const [cuaViewerUrl, setCuaViewerUrl] = useState<string | null>(null);
+  const notifiedPipelineSlugRef = useRef<string | null>(null);
 
   // Utilisateur connecté (pour associer le pipeline à l'historique)
   const [userId, setUserId] = useState<string | null>(null);
@@ -80,37 +104,34 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
           setUserEmail(user.email || null);
         }
       } catch (e) {
-        console.error("Erreur récupération session Supabase dans ValidationView", e);
+        console.error(
+          "Erreur récupération session Supabase dans ManualCuaForm",
+          e
+        );
       }
     })();
   }, []);
 
-  // Notifier le parent des changements
+  // Notifier la carte quand les parcelles / commune changent
   useEffect(() => {
-    // Ignorer le premier rendu pour éviter les appels inutiles
+    if (!onParcellesDetected) return;
     if (isInitialMount.current) {
       isInitialMount.current = false;
       return;
     }
 
-    if (onDataChange) {
-      const updatedData = {
-        ...initialData,
-        info_generales: {
-          ...infoGenerales,
-          commune_insee: LATRESNE_INSEE,
-          demandeur,
-          adresse_terrain: adresseTerrain,
-        },
-        parcelles_detectees: {
-          references_cadastrales: parcelles,
-          superficie_totale_m2: superficieTotale,
-        },
-      };
-      onDataChange(updatedData);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [infoGenerales, demandeur, adresseTerrain, parcelles, superficieTotale]);
+    const validParcelles = parcelles.filter(
+      (p) => p.section && p.numero && p.section.trim() && p.numero.trim()
+    );
+
+    if (validParcelles.length === 0) return;
+
+    const commune = infoGenerales.commune_nom || "";
+    const insee = infoGenerales.commune_insee || "";
+    if (!commune || !insee) return;
+
+    onParcellesDetected(validParcelles, commune, insee);
+  }, [parcelles, infoGenerales.commune_nom, infoGenerales.commune_insee, onParcellesDetected]);
 
   function updateInfoGenerales(field: string, value: string) {
     setInfoGenerales((prev: any) => ({ ...prev, [field]: value }));
@@ -131,7 +152,11 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
     setAdresseTerrain((prev: any) => ({ ...prev, [field]: value }));
   }
 
-  function updateParcelle(index: number, field: keyof Parcelle, value: string | number) {
+  function updateParcelle(
+    index: number,
+    field: keyof Parcelle,
+    value: string | number
+  ) {
     setParcelles((prev) =>
       prev.map((p, i) =>
         i === index
@@ -150,7 +175,10 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
   }
 
   function addParcelle() {
-    setParcelles((prev) => [...prev, { section: "", numero: "", surface_m2: 0 }]);
+    setParcelles((prev) => [
+      ...prev,
+      { section: "", numero: "", surface_m2: 0 },
+    ]);
   }
 
   function removeParcelle(index: number) {
@@ -188,6 +216,12 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
     return () => clearInterval(pollInterval);
   }, [jobId]);
 
+  useEffect(() => {
+    if (!slug || !onPipelineCreated || notifiedPipelineSlugRef.current === slug) return;
+    notifiedPipelineSlugRef.current = slug;
+    onPipelineCreated(slug);
+  }, [slug, onPipelineCreated]);
+
   const handleGenerateCUA = async () => {
     // Valider les données
     const validParcelles = parcelles.filter(
@@ -195,11 +229,13 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
     );
 
     if (validParcelles.length === 0) {
-      alert("Veuillez ajouter au moins une parcelle valide avant de générer le CUA");
+      alert(
+        "Veuillez ajouter au moins une parcelle valide avant de générer le CUA"
+      );
       return;
     }
 
-    const insee = "33234"; // Application dédiée à Latresne
+    const insee = infoGenerales.commune_insee || "33234"; // Fallback sur Latresne
     const commune = infoGenerales.commune_nom || "";
 
     if (!insee) {
@@ -208,13 +244,12 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
     }
 
     // Construire l'objet demandeur à partir de l'état local
-    // On conserve l'ensemble des champs (type, prénom/nom, dénomination, représentant, SIRET, adresse complète, email, téléphone, etc.)
     const demandeurData: any = {
       ...(demandeur || {}),
       type: demandeur?.type || "particulier",
     };
 
-    // Réinitialiser l'état
+    // Réinitialiser l'état de génération
     setJobId(null);
     setCuaStatus(null);
     setCuaError(null);
@@ -222,7 +257,7 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
     setCuaViewerUrl(null);
 
     try {
-      // Construire un objet "data" au format attendu par le CUA (ancien cerfa_result.data)
+      // Construire un objet "data" au format attendu par le CUA
       const cerfaDataForBuilder = {
         ...infoGenerales,
         demandeur: demandeurData,
@@ -242,12 +277,12 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
         code_insee: insee,
         commune_nom: commune,
         cerfa_data: cerfaDataForBuilder,
+        union_geometry: unionGeometry,
         user_id: userId || undefined,
         user_email: userEmail || undefined,
       };
 
-      // Log côté front pour tracer le pont vers le backend
-      console.log("[CUA] Envoi analyze-parcelles-with-json-data", {
+      console.log("[CUA] Envoi manual analyze-parcelles-with-json-data", {
         parcelles: requestBody.parcelles,
         code_insee: requestBody.code_insee,
         commune_nom: requestBody.commune_nom,
@@ -275,43 +310,20 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
     }
   };
 
-
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 mt-3 border-t border-gray-100 pt-3">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-gray-200 pb-2">
-        <div className="flex items-center gap-2">
-          {file && (
-            <button
-              type="button"
-              onClick={handleVisualiser}
-              className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-            >
-              📄 Visualiser le PDF
-            </button>
-          )}
-        </div>
+      <div className="flex items-center justify-between">
+        <h4 className="text-xs font-semibold text-gray-800">
+          Saisie manuelle (sans CERFA)
+        </h4>
       </div>
-
-      {/* Alertes */}
-      {alerts && alerts.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded p-2 space-y-1">
-          <div className="text-xs font-semibold text-amber-800 mb-1">
-            ⚠️ Alertes ({alerts.length})
-          </div>
-          {alerts.map((a: string, i: number) => (
-            <div key={i} className="text-xs text-amber-700">
-              {a}
-            </div>
-          ))}
-        </div>
-      )}
 
       {/* Informations générales */}
       <div className="space-y-2">
         <div className="bg-gray-50 border border-gray-200 rounded p-2">
           <div className="text-xs font-semibold text-gray-700 mb-2">
-            3. Informations générales
+            Informations générales
           </div>
           <div className="space-y-2 text-xs">
             <div>
@@ -359,9 +371,11 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
               <label className="block text-gray-600 mb-0.5">Code INSEE</label>
               <input
                 type="text"
-                value={LATRESNE_INSEE}
-                readOnly
-                className="w-full border border-gray-300 rounded px-2 py-1 text-xs font-mono bg-gray-100 text-gray-700"
+                value={infoGenerales.commune_insee || ""}
+                onChange={(e) =>
+                  updateInfoGenerales("commune_insee", e.target.value)
+                }
+                className="w-full border border-gray-300 rounded px-2 py-1 text-xs font-mono"
                 placeholder="33234"
               />
             </div>
@@ -370,7 +384,9 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
 
         {/* Demandeur */}
         <div className="bg-blue-50 border border-blue-200 rounded p-2">
-          <div className="text-xs font-semibold text-blue-800 mb-2">Demandeur</div>
+          <div className="text-xs font-semibold text-blue-800 mb-2">
+            Demandeur
+          </div>
           <div className="space-y-2 text-xs">
             {/* Type de demandeur */}
             <div>
@@ -410,7 +426,9 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
 
             {/* Personne morale */}
             <div>
-              <label className="block text-blue-700 mb-0.5">Dénomination (personne morale)</label>
+              <label className="block text-blue-700 mb-0.5">
+                Dénomination (personne morale)
+              </label>
               <input
                 type="text"
                 value={demandeur.denomination || ""}
@@ -421,20 +439,28 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-blue-700 mb-0.5">Représentant - Prénom</label>
+                <label className="block text-blue-700 mb-0.5">
+                  Représentant - Prénom
+                </label>
                 <input
                   type="text"
                   value={demandeur.representant_prenom || ""}
-                  onChange={(e) => updateDemandeur("representant_prenom", e.target.value)}
+                  onChange={(e) =>
+                    updateDemandeur("representant_prenom", e.target.value)
+                  }
                   className="w-full border border-blue-300 rounded px-2 py-1 text-xs"
                 />
               </div>
               <div>
-                <label className="block text-blue-700 mb-0.5">Représentant - Nom</label>
+                <label className="block text-blue-700 mb-0.5">
+                  Représentant - Nom
+                </label>
                 <input
                   type="text"
                   value={demandeur.representant_nom || ""}
-                  onChange={(e) => updateDemandeur("representant_nom", e.target.value)}
+                  onChange={(e) =>
+                    updateDemandeur("representant_nom", e.target.value)
+                  }
                   className="w-full border border-blue-300 rounded px-2 py-1 text-xs"
                 />
               </div>
@@ -457,7 +483,9 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
                 <input
                   type="text"
                   value={demandeur.adresse?.numero || ""}
-                  onChange={(e) => updateDemandeurAdresse("numero", e.target.value)}
+                  onChange={(e) =>
+                    updateDemandeurAdresse("numero", e.target.value)
+                  }
                   className="w-full border border-blue-300 rounded px-2 py-1 text-xs"
                 />
               </div>
@@ -466,7 +494,9 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
                 <input
                   type="text"
                   value={demandeur.adresse?.voie || ""}
-                  onChange={(e) => updateDemandeurAdresse("voie", e.target.value)}
+                  onChange={(e) =>
+                    updateDemandeurAdresse("voie", e.target.value)
+                  }
                   className="w-full border border-blue-300 rounded px-2 py-1 text-xs"
                   placeholder="allées de Chartres"
                 />
@@ -477,7 +507,9 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
               <input
                 type="text"
                 value={demandeur.adresse?.code_postal || ""}
-                onChange={(e) => updateDemandeurAdresse("code_postal", e.target.value)}
+                onChange={(e) =>
+                  updateDemandeurAdresse("code_postal", e.target.value)
+                }
                 className="w-full border border-blue-300 rounded px-2 py-1 text-xs"
                 placeholder="33360"
               />
@@ -487,7 +519,9 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
               <input
                 type="text"
                 value={demandeur.adresse?.ville || ""}
-                onChange={(e) => updateDemandeurAdresse("ville", e.target.value)}
+                onChange={(e) =>
+                  updateDemandeurAdresse("ville", e.target.value)
+                }
                 className="w-full border border-blue-300 rounded px-2 py-1 text-xs"
                 placeholder="Latresne"
               />
@@ -498,7 +532,9 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
                 <input
                   type="email"
                   value={demandeur.adresse?.email || ""}
-                  onChange={(e) => updateDemandeurAdresse("email", e.target.value)}
+                  onChange={(e) =>
+                    updateDemandeurAdresse("email", e.target.value)
+                  }
                   className="w-full border border-blue-300 rounded px-2 py-1 text-xs"
                 />
               </div>
@@ -507,7 +543,9 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
                 <input
                   type="tel"
                   value={demandeur.adresse?.telephone || ""}
-                  onChange={(e) => updateDemandeurAdresse("telephone", e.target.value)}
+                  onChange={(e) =>
+                    updateDemandeurAdresse("telephone", e.target.value)
+                  }
                   className="w-full border border-blue-300 rounded px-2 py-1 text-xs"
                 />
               </div>
@@ -527,7 +565,9 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
                 <input
                   type="text"
                   value={adresseTerrain.numero || ""}
-                  onChange={(e) => updateAdresseTerrain("numero", e.target.value)}
+                  onChange={(e) =>
+                    updateAdresseTerrain("numero", e.target.value)
+                  }
                   className="w-full border border-green-300 rounded px-2 py-1 text-xs"
                 />
               </div>
@@ -547,7 +587,9 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
               <input
                 type="text"
                 value={adresseTerrain.lieu_dit || ""}
-                onChange={(e) => updateAdresseTerrain("lieu_dit", e.target.value)}
+                onChange={(e) =>
+                  updateAdresseTerrain("lieu_dit", e.target.value)
+                }
                 className="w-full border border-green-300 rounded px-2 py-1 text-xs"
                 placeholder="Les Hauts de Latresne"
               />
@@ -567,7 +609,9 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
               <input
                 type="text"
                 value={adresseTerrain.code_postal || ""}
-                onChange={(e) => updateAdresseTerrain("code_postal", e.target.value)}
+                onChange={(e) =>
+                  updateAdresseTerrain("code_postal", e.target.value)
+                }
                 className="w-full border border-green-300 rounded px-2 py-1 text-xs"
                 placeholder="33610"
               />
@@ -575,27 +619,29 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
           </div>
         </div>
 
-        {/* Parcelles détectées */}
+        {/* Parcelles */}
         <div className="bg-amber-50 border border-amber-200 rounded p-2">
           <div className="flex items-center justify-between mb-2">
             <div className="text-xs font-semibold text-amber-800">
-              Parcelles détectées ({parcelles.length})
+              Parcelles ({parcelles.length})
             </div>
-            <button
-              type="button"
-              onClick={addParcelle}
-              className="text-xs px-2 py-0.5 bg-amber-600 text-white rounded hover:bg-amber-700 transition-colors"
-            >
-              + Ajouter
-            </button>
+            {!isUFMode && (
+              <button
+                type="button"
+                onClick={addParcelle}
+                className="text-xs px-2 py-0.5 bg-amber-600 text-white rounded hover:bg-amber-700 transition-colors"
+              >
+                + Ajouter
+              </button>
+            )}
           </div>
           <div className="space-y-2 max-h-48 overflow-y-auto">
             {parcelles.map((p, i) => (
               <div
                 key={i}
-                className="bg-white rounded p-2 border border-amber-100 text-xs"
+                className="bg-white rounded p-2 border border-amber-100 text-xs space-y-1"
               >
-                <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center gap-2">
                   <input
                     type="text"
                     value={p.section}
@@ -610,14 +656,16 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
                     placeholder="Numéro"
                     className="flex-1 border border-amber-300 rounded px-1.5 py-0.5 text-xs font-mono"
                   />
-                  <button
-                    type="button"
-                    onClick={() => removeParcelle(i)}
-                    className="px-2 py-0.5 text-xs border border-red-300 text-red-600 rounded hover:bg-red-50 transition-colors"
-                    title="Supprimer"
-                  >
-                    ×
-                  </button>
+                  {!isUFMode && (
+                    <button
+                      type="button"
+                      onClick={() => removeParcelle(i)}
+                      className="px-2 py-0.5 text-xs border border-red-300 text-red-600 rounded hover:bg-red-50 transition-colors"
+                      title="Supprimer"
+                    >
+                      ×
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -629,7 +677,9 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
           </div>
           {superficieTotale > 0 && (
             <div className="mt-2 pt-2 border-t border-amber-200 text-xs">
-              <span className="font-medium text-amber-800">Superficie totale :</span>{" "}
+              <span className="font-medium text-amber-800">
+                Superficie totale :
+              </span>{" "}
               <span className="text-amber-900">
                 {superficieTotale.toLocaleString("fr-FR")} m²
               </span>
@@ -644,31 +694,36 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
           <FileText className="w-3 h-3" />
           Génération du Certificat d'Urbanisme
         </h4>
-        
+
         {/* Info sur les parcelles qui seront utilisées */}
         {parcelles.filter((p) => p.section && p.numero).length > 0 && (
           <div className="mb-2 text-xs text-gray-600 bg-gray-50 p-2 rounded">
             <span className="font-medium">
-              {'4. Vérification des parcelles : ' + parcelles.filter((p) => p.section && p.numero).length + ' parcelle(s) valide(s) :'}
+              {parcelles.filter((p) => p.section && p.numero).length} parcelle(s)
+              valide(s) :
             </span>{" "}
             {parcelles
               .filter((p) => p.section && p.numero)
               .map((p) => `${p.section} ${p.numero}`)
               .join(", ")}
-            <span className="block mt-1 text-gray-500">
-              5. Code INSEE : {LATRESNE_INSEE}
-            </span>
+            {infoGenerales.commune_insee && (
+              <span className="block mt-1 text-gray-500">
+                Code INSEE : {infoGenerales.commune_insee}
+              </span>
+            )}
           </div>
         )}
 
         {!jobId && !slug ? (
           <button
             onClick={handleGenerateCUA}
-            disabled={parcelles.filter((p) => p.section && p.numero).length === 0}
+            disabled={
+              parcelles.filter((p) => p.section && p.numero).length === 0
+            }
             className="w-full px-3 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded text-xs font-medium transition-colors flex items-center justify-center gap-2"
           >
             <FileText className="w-3 h-3" />
-            6. Générer le CUA
+            Générer le CUA
           </button>
         ) : cuaStatus === "success" && cuaViewerUrl ? (
           <div className="space-y-2">
@@ -684,12 +739,6 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
             >
               <FileText className="w-3 h-3" />
               Visualiser le CUA
-            </a>
-            <a
-              href="/app"
-              className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium transition-colors flex items-center justify-center gap-2"
-            >
-              Ouvrir dans l'interface Kerelia (historique)
             </a>
           </div>
         ) : cuaStatus === "error" ? (
@@ -717,18 +766,7 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
           </div>
         )}
       </div>
-
-      {/* Actions */}
-      <div className="flex gap-2 pt-2 border-t border-gray-200">
-        {onBack && (
-          <button
-            onClick={onBack}
-            className="flex-1 text-xs px-3 py-2 border border-gray-300 rounded hover:bg-gray-50 transition-colors"
-          >
-            Retour
-          </button>
-        )}
-      </div>
     </div>
   );
 }
+

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { FileText } from "lucide-react";
 import ParcelleIdentity from "./ParcelleIdentity";
-import { ManualCuaForm } from "../cerfa/ManualCuaForm";
+import { ManualCuaForm } from "../../../pages/cua/cerfa/ManualCuaForm";
 
 type UFParcelle = {
   section: string;

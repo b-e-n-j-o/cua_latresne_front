@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Editor } from "@tinymce/tinymce-react";
 
 export default function CuaViewer() {
+  const [initialHtml, setInitialHtml] = useState<string>("");
   const [html, setHtml] = useState<string>("");
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -29,6 +30,7 @@ export default function CuaViewer() {
         if (typeof data?.html !== "string") {
           throw new Error("Réponse invalide: HTML manquant");
         }
+        setInitialHtml(data.html);
         setHtml(data.html);
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Impossible de charger le document.";
@@ -101,7 +103,7 @@ export default function CuaViewer() {
       <Editor
         tinymceScriptSrc="/tinymce/tinymce.min.js"
         licenseKey="gpl" // Obligatoire pour self-hosted
-        initialValue={html}
+        initialValue={initialHtml}
         onEditorChange={(content) => setHtml(content)}
         init={{
           height: 1000,

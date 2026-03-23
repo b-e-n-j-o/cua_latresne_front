@@ -7,6 +7,7 @@ type Props = {
   file?: File | null;
   onBack?: () => void;
   onDataChange?: (data: any) => void;
+  onPipelineCreated?: (slug: string) => void;
 };
 
 type Parcelle = {
@@ -15,7 +16,7 @@ type Parcelle = {
   surface_m2?: number;
 };
 
-export function ValidationView({ result, file, onBack, onDataChange }: Props) {
+export function ValidationView({ result, file, onBack, onDataChange, onPipelineCreated }: Props) {
   const { data: initialData, alerts } = result;
   const LATRESNE_INSEE = "33234";
 
@@ -65,6 +66,8 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
   const [cuaError, setCuaError] = useState<string | null>(null);
   const [slug, setSlug] = useState<string | null>(null);
   const [cuaViewerUrl, setCuaViewerUrl] = useState<string | null>(null);
+  const uploadedCerfaForSlugRef = useRef<string | null>(null);
+  const notifiedPipelineSlugRef = useRef<string | null>(null);
 
   // Utilisateur connecté (pour associer le pipeline à l'historique)
   const [userId, setUserId] = useState<string | null>(null);
@@ -187,6 +190,40 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
 
     return () => clearInterval(pollInterval);
   }, [jobId]);
+
+  useEffect(() => {
+    if (!slug || !onPipelineCreated || notifiedPipelineSlugRef.current === slug) return;
+    notifiedPipelineSlugRef.current = slug;
+    onPipelineCreated(slug);
+  }, [slug, onPipelineCreated]);
+
+  useEffect(() => {
+    if (!file || !slug || uploadedCerfaForSlugRef.current === slug) return;
+
+    const uploadCerfaPdf = async () => {
+      try {
+        const form = new FormData();
+        form.append("file", file);
+        form.append("file_kind", "cerfa_pdf");
+        if (userId) form.append("user_id", userId);
+
+        const res = await fetch(
+          `${import.meta.env.VITE_API_BASE}/pipelines/${encodeURIComponent(slug)}/files/upload`,
+          { method: "POST", body: form }
+        );
+        const data = await res.json();
+        if (!res.ok || !data?.success) {
+          throw new Error(data?.error || "Upload PDF CERFA impossible");
+        }
+        uploadedCerfaForSlugRef.current = slug;
+      } catch (e) {
+        // Non bloquant: le pipeline doit rester fonctionnel même sans PDF CERFA.
+        console.warn("[CUA] Upload optionnel du PDF CERFA non réalisé:", e);
+      }
+    };
+
+    uploadCerfaPdf();
+  }, [file, slug, userId]);
 
   const handleGenerateCUA = async () => {
     // Valider les données
@@ -684,12 +721,6 @@ export function ValidationView({ result, file, onBack, onDataChange }: Props) {
             >
               <FileText className="w-3 h-3" />
               Visualiser le CUA
-            </a>
-            <a
-              href="/app"
-              className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium transition-colors flex items-center justify-center gap-2"
-            >
-              Ouvrir dans l'interface Kerelia (historique)
             </a>
           </div>
         ) : cuaStatus === "error" ? (
