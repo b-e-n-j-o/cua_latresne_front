@@ -33,6 +33,7 @@ import LatresneMap from "./pages/LatresneMap";
 import CartoWorkspacePage from "./pages/CartoWorkspacePage";
 import PortailApp from "./portail/PortailApp";
 import LatresneCuaPage from "./pages/cua/LatresnePage";
+import ProjectPage from "./pages/cua/ProjectPage";
 
 
 
@@ -118,6 +119,7 @@ function RouterWithAuthGate() {
         <Route path="/" element={<Navigate to="/app" replace />} />
 
         <Route path="/latresne/cua" element={<LatresneCuaPage />} />
+        <Route path="/latresne/cua/projects/:slug" element={<ProjectPage />} />
 
         <Route path="*" element={<div>Page introuvable</div>} />
       </Routes>

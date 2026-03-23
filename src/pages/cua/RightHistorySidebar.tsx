@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Menu, X, Clock } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import HistoryPipelineCard, { type HistoryPipeline } from "../../components/tools/carto/HistoryPipelineCard";
+import { type HistoryPipeline } from "../../components/tools/carto/HistoryPipelineCard";
 import ProjectHistoryCard from "./ProjectHistoryCard";
 
 interface HistorySidebarProps {
@@ -10,7 +10,7 @@ interface HistorySidebarProps {
   onToggle: () => void;
   selectedSlug: string | null;
   onSelect: (slug: string) => void;
-  onClearSelection: () => void;
+  onOpenProject: (slug: string) => void;
   onUpdateProject: (
     slug: string,
     payload: {
@@ -36,7 +36,7 @@ export default function HistorySidebar({
   onToggle,
   selectedSlug,
   onSelect,
-  onClearSelection,
+  onOpenProject,
   onUpdateProject,
   onDeleteProject,
   onCreateNew,
@@ -86,11 +86,6 @@ export default function HistorySidebar({
 
     return { matched: matches, others: rest };
   }, [rows, searchTerm]);
-
-  const selectedPipeline = useMemo(() => {
-    if (!selectedSlug) return null;
-    return rows.find((r) => r.slug === selectedSlug) ?? null;
-  }, [rows, selectedSlug]);
 
   const getPill = (p: HistoryPipeline) => {
     const isSuccess = Boolean(p.qr_url || p.output_cua);
@@ -166,8 +161,7 @@ export default function HistorySidebar({
                 </div>
               </div>
 
-              <div className="flex-1 overflow-hidden flex flex-col">
-                <div className="flex-1 overflow-y-auto">
+              <div className="flex-1 overflow-y-auto">
                   <div className="p-4">
                     <button
                       onClick={() => onCreateNew?.()}
@@ -193,6 +187,7 @@ export default function HistorySidebar({
                             pill={pill}
                             formattedDate={formatDate(row.created_at)}
                             onSelect={() => onSelect(row.slug)}
+                            onOpenProject={() => onOpenProject(row.slug)}
                             onUpdate={async (slug, payload) => {
                               setUpdatingSlug(slug);
                               try {
@@ -216,22 +211,6 @@ export default function HistorySidebar({
                       })}
                     </div>
                   )}
-                </div>
-
-                <div className="border-t border-[#d5e1e3] p-3 bg-white">
-                  {selectedPipeline ? (
-                    <HistoryPipelineCard
-                      pipeline={selectedPipeline}
-                      onClose={onClearSelection}
-                      embedded={false}
-                      mapPopup
-                    />
-                  ) : (
-                    <div className="text-xs text-[#0b131f]/40 text-center py-6">
-                      Sélectionnez un dossier pour voir ses références
-                    </div>
-                  )}
-                </div>
               </div>
             </motion.aside>
           </>

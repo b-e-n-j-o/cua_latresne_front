@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { FileText, Pencil, Save, Trash2, X } from "lucide-react";
-import { type HistoryPipeline } from "../../components/tools/carto/HistoryPipelineCard";
+import HistoryPipelineCard, { type HistoryPipeline } from "../../components/tools/carto/HistoryPipelineCard";
 
 type EditablePayload = {
   cerfa_data: {
@@ -21,6 +21,7 @@ type Props = {
   pill: { label: string; className: string };
   formattedDate: string;
   onSelect: () => void;
+  onOpenProject: () => void;
   onUpdate: (slug: string, payload: EditablePayload) => Promise<void>;
   onDelete: (slug: string) => Promise<void>;
   isUpdating: boolean;
@@ -33,6 +34,7 @@ export default function ProjectHistoryCard({
   pill,
   formattedDate,
   onSelect,
+  onOpenProject,
   onUpdate,
   onDelete,
   isUpdating,
@@ -132,24 +134,33 @@ export default function ProjectHistoryCard({
       {isSelected && (
         <div className="mt-2 pt-2 border-t border-[#d5e1e3]">
           {!isEditing ? (
-            <div className="flex gap-2">
+            <div className="space-y-2">
               <button
                 type="button"
-                onClick={() => setIsEditing(true)}
-                className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded border border-[#d5e1e3] hover:bg-white"
+                onClick={onOpenProject}
+                className="w-full inline-flex items-center justify-center gap-1 text-xs px-2 py-2 rounded bg-teal-600 hover:bg-teal-700 text-white transition-colors"
               >
-                <Pencil className="w-3 h-3" />
-                Modifier
+                Consulter le projet
               </button>
-              <button
-                type="button"
-                onClick={onDeleteClick}
-                disabled={isDeleting}
-                className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-60"
-              >
-                <Trash2 className="w-3 h-3" />
-                {isDeleting ? "Suppression..." : "Supprimer"}
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(true)}
+                  className="inline-flex items-center justify-center gap-1 text-xs px-2 py-1 rounded border border-[#d5e1e3] hover:bg-white"
+                >
+                  <Pencil className="w-3 h-3" />
+                  Modifier
+                </button>
+                <button
+                  type="button"
+                  onClick={onDeleteClick}
+                  disabled={isDeleting}
+                  className="inline-flex items-center justify-center gap-1 text-xs px-2 py-1 rounded border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-60"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  {isDeleting ? "Suppression..." : "Supprimer"}
+                </button>
+              </div>
             </div>
           ) : (
             <div className="space-y-2">
@@ -214,6 +225,18 @@ export default function ProjectHistoryCard({
           )}
 
           {localError && <div className="mt-2 text-[11px] text-red-600">{localError}</div>}
+
+          {!isEditing && !localError && (
+            <div className="mt-3">
+              <HistoryPipelineCard
+                pipeline={row}
+                onClose={() => {}}
+                embedded={true}
+                hideActions
+                hideClose
+              />
+            </div>
+          )}
         </div>
       )}
     </div>

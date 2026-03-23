@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import * as turf from "@turf/turf";
+import { useNavigate } from "react-router-dom";
 import { SideBarLeft, type SideBarSection } from "../../components/layout/SideBarLeft";
 import ParcelleSearchForm from "../../components/tools/carto/ParcelleSearchform";
 import SearchUniteFonciere from "../../components/tools/carto/SearchUniteFonciere";
@@ -11,7 +12,7 @@ import CerfaTool from "../../components/tools/cerfa/CerfaTool";
 import UniteFonciereCard from "../../components/tools/carto/UniteFonciereCard";
 import type { ParcelleInfo, ZonageInfo } from "../../types/parcelle";
 import supabase from "../../supabaseClient";
-import { HistoryPipelinePopup, MapLoadingOverlay, MapTooltipOverlay, UfBuilderModeBanner } from "./LatresneMapOverlays";
+import { MapLoadingOverlay, MapTooltipOverlay, UfBuilderModeBanner } from "./LatresneMapOverlays";
 import RightHistorySidebar from "./RightHistorySidebar";
 import LogoutButton from "../../auth/LogoutButton";
 
@@ -68,6 +69,7 @@ type UFState = {
 };
 
 export default function LatresnePage() {
+  const navigate = useNavigate();
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const cadastreDataRef = useRef<GeoJSON.FeatureCollection | null>(null);
@@ -1422,11 +1424,6 @@ export default function LatresnePage() {
             selectedCount={selectedUfParcelles.length}
             maxCount={20}
           />
-          <HistoryPipelinePopup
-            selectedHistoryPipeline={selectedHistoryPipeline}
-            historyPopupPosition={historyPopupPosition}
-            onClose={clearHistorySelection}
-          />
         </div>
         
         <RightHistorySidebar
@@ -1435,7 +1432,7 @@ export default function LatresnePage() {
           onToggle={() => setRightHistoryOpen((v) => !v)}
           selectedSlug={selectedHistoryPipeline?.slug ?? null}
           onSelect={handleSelectHistoryFromSlug}
-          onClearSelection={clearHistorySelection}
+          onOpenProject={(slug) => navigate(`/latresne/cua/projects/${slug}`)}
           onUpdateProject={handleUpdateHistoryProject}
           onDeleteProject={handleDeleteHistoryProject}
         />

@@ -35,6 +35,8 @@ type Props = {
   onClose: () => void;
   embedded?: boolean;
   mapPopup?: boolean;
+  hideActions?: boolean;
+  hideClose?: boolean;
 };
 
 function formatDate(iso: string | undefined): string {
@@ -86,6 +88,8 @@ export default function HistoryPipelineCard({
   onClose,
   embedded = false,
   mapPopup = false,
+  hideActions = false,
+  hideClose = false,
 }: Props) {
   const cerfa = pipeline.cerfa_data;
 
@@ -110,12 +114,14 @@ export default function HistoryPipelineCard({
           <MapPin size={headerIconSize} className="text-teal-600 shrink-0" />
           Projet précédent
         </h3>
-        <button
-          onClick={onClose}
-          className={`text-gray-500 hover:text-gray-700 leading-none ${mapPopup ? "text-base" : "text-lg"}`}
-        >
-          ×
-        </button>
+        {!hideClose && (
+          <button
+            onClick={onClose}
+            className={`text-gray-500 hover:text-gray-700 leading-none ${mapPopup ? "text-base" : "text-lg"}`}
+          >
+            ×
+          </button>
+        )}
       </div>
 
       <div className={`${contentSpacing} ${textSizeClass}`}>
@@ -232,30 +238,32 @@ export default function HistoryPipelineCard({
         )}
       </div>
 
-      <div className={`border-t border-gray-200 flex flex-col ${mapPopup ? "mt-2 pt-2 gap-1" : "mt-4 pt-3 gap-2"}`}>
-        {pipeline.qr_url && (
-          <a
-            href={pipeline.qr_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`w-full flex items-center justify-center gap-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded transition-colors ${mapPopup ? "py-2 px-3 text-[13px]" : "py-2 px-3 text-sm"}`}
-          >
-            <ExternalLink size={mapPopup ? 13 : 14} />
-            <span>Voir le projet (cartes + CUA)</span>
-          </a>
-        )}
-        {pipeline.output_cua && !pipeline.qr_url && (
-          <a
-            href={pipeline.output_cua}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`w-full flex items-center justify-center gap-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded transition-colors ${mapPopup ? "py-2 px-3 text-[13px]" : "py-2 px-3 text-sm"}`}
-          >
-            <ExternalLink size={mapPopup ? 13 : 14} />
-            <span>Télécharger le CUA</span>
-          </a>
-        )}
-      </div>
+      {!hideActions && (
+        <div className={`border-t border-gray-200 flex flex-col ${mapPopup ? "mt-2 pt-2 gap-1" : "mt-4 pt-3 gap-2"}`}>
+          {pipeline.qr_url && (
+            <a
+              href={pipeline.qr_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`w-full flex items-center justify-center gap-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded transition-colors ${mapPopup ? "py-2 px-3 text-[13px]" : "py-2 px-3 text-sm"}`}
+            >
+              <ExternalLink size={mapPopup ? 13 : 14} />
+              <span>Voir le projet (cartes + CUA)</span>
+            </a>
+          )}
+          {pipeline.output_cua && !pipeline.qr_url && (
+            <a
+              href={pipeline.output_cua}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`w-full flex items-center justify-center gap-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded transition-colors ${mapPopup ? "py-2 px-3 text-[13px]" : "py-2 px-3 text-sm"}`}
+            >
+              <ExternalLink size={mapPopup ? 13 : 14} />
+              <span>Télécharger le CUA</span>
+            </a>
+          )}
+        </div>
+      )}
     </div>
   );
 }
