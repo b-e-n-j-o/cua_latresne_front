@@ -199,7 +199,20 @@ export function ManualCuaForm({ ufParcelles, unionGeometry, onParcellesDetected,
         setCuaStatus(data.status);
 
         if (data.status === "success") {
-          setSlug(data.slug);
+          const resolvedSlug =
+            data.slug ||
+            data.pipeline_slug ||
+            data.result?.slug ||
+            data.result?.pipeline_slug ||
+            data.result_enhanced?.slug ||
+            data.result_enhanced?.pipeline_slug ||
+            null;
+          console.log("[CUA] status success (manual)", {
+            jobId,
+            resolvedSlug,
+            rawData: data,
+          });
+          setSlug(resolvedSlug);
           if (data.result_enhanced?.cua_viewer_url) {
             setCuaViewerUrl(data.result_enhanced.cua_viewer_url);
           }
@@ -218,6 +231,7 @@ export function ManualCuaForm({ ufParcelles, unionGeometry, onParcellesDetected,
 
   useEffect(() => {
     if (!slug || !onPipelineCreated || notifiedPipelineSlugRef.current === slug) return;
+    console.log("[CUA] onPipelineCreated (manual)", { slug });
     notifiedPipelineSlugRef.current = slug;
     onPipelineCreated(slug);
   }, [slug, onPipelineCreated]);

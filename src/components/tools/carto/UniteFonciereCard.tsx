@@ -25,6 +25,7 @@ type Props = {
     commune: string,
     insee: string
   ) => void;
+  onPipelineCreated?: (slug: string) => void;
   onClose: () => void;
   embedded?: boolean;
 };
@@ -35,6 +36,7 @@ export default function UniteFonciereCard({
   insee,
   unionGeometry,
   onParcellesDetected,
+  onPipelineCreated,
   onClose,
   embedded = false
 }: Props) {
@@ -137,6 +139,7 @@ export default function UniteFonciereCard({
             ufParcelles={ufParcelles}
             unionGeometry={unionGeometry}
             onParcellesDetected={onParcellesDetected}
+            onPipelineCreated={onPipelineCreated}
           />
         </div>
       )}

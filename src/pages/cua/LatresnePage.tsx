@@ -1339,6 +1339,11 @@ export default function LatresnePage() {
                 commune={ufState.commune}
                 insee={ufState.insee}
                 unionGeometry={ufState.geometry}
+                onPipelineCreated={(newSlug) => {
+                  console.log("[CUA] Redirection vers page projet (UF)", { newSlug });
+                  refreshHistoryPipelines(newSlug);
+                  navigate(`/latresne/cua/projects/${newSlug}`);
+                }}
                 onParcellesDetected={async (parcelles, commune, insee) => {
                   if (showCerfaParcellesRef.current) {
                     await showCerfaParcellesRef.current(parcelles, commune, insee);
@@ -1404,7 +1409,9 @@ export default function LatresnePage() {
       content: (
         <CerfaTool
           onPipelineCreated={(newSlug) => {
+            console.log("[CUA] Redirection vers page projet", { newSlug });
             refreshHistoryPipelines(newSlug);
+            navigate(`/latresne/cua/projects/${newSlug}`);
           }}
           onParcellesDetected={async (parcelles, commune, insee) => {
             if (showCerfaParcellesRef.current) {
