@@ -118,13 +118,15 @@ export default function UniteFonciereCard({
             <h3 className="font-semibold text-lg">Identité Unité Foncière</h3>
             <button onClick={() => setShowIdentity(false)} className="text-gray-500 hover:text-gray-700 text-xl leading-none">×</button>
           </div>
-          <ParcelleIdentity 
+          <ParcelleIdentity
+            autoFetch
             parcelle={{
-              section: ufParcelles.map(p => p.section).join("+"),
-              numero: ufParcelles.map(p => p.numero).join("+"),
+              section: ufParcelles.map((p) => p.section).join("+"),
+              numero: ufParcelles.map((p) => p.numero).join("+"),
               commune,
-              insee
-            }} 
+              insee,
+            }}
+            geometry={unionGeometry}
           />
         </div>
       )}

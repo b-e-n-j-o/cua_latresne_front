@@ -28,9 +28,7 @@ import TestPage from "./routes/TestPage";
 import HomePage from "./routes/HomePage";
 import TeamPage from "./pages/TeamPage";
 import ChatUrba from "./routes/ChatUrba";
-import MapPage from "./pages/BordeauxMetropoleMap";
 import LatresneMap from "./pages/LatresneMap";
-import CartoWorkspacePage from "./pages/CartoWorkspacePage";
 import PortailApp from "./portail/PortailApp";
 import LatresneCuaPage from "./pages/cua/LatresnePage";
 import ProjectPage from "./pages/cua/ProjectPage";
@@ -90,13 +88,13 @@ function RouterWithAuthGate() {
         {/* ➡️ AUTRES ROUTES PUBLIQUES */}
         <Route path="/notre-equipe" element={<TeamPage />} />
         <Route path="/maps" element={<MapsViewer />} />
-        <Route path="/map" element={<MapPage />} />
+        <Route path="/map" element={<Navigate to="/latresne" replace />} />
         <Route path="/cua" element={<CuaViewer />} />
         <Route path="/ressources" element={<ResourcesPage />} />
         <Route path="/test" element={<TestPage />} />
         <Route path="/chat-urba" element={<ChatUrba />} />
         <Route path="/latresne" element={<LatresneMap />} />
-        <Route path="/carto" element={<CartoWorkspacePage />} />
+        <Route path="/carto" element={<Navigate to="/latresne" replace />} />
         <Route path="/m/:slug" element={<RedirectSlugPage />} />
         <Route path="*" element={<div>Page introuvable</div>} />
       </Routes>

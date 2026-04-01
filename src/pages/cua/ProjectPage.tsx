@@ -84,7 +84,7 @@ export default function ProjectPage() {
   const [fileKind, setFileKind] = useState<"cerfa_pdf" | "attachment">("cerfa_pdf");
   const [isDragOver, setIsDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"documents" | "cartography">("documents");
+  const [activeTab, setActiveTab] = useState<"documents" | "cartography" | "cua">("documents");
   const [mapSelected, setMapSelected] = useState<"2d" | "3d">("2d");
   const [mapIframeSrc, setMapIframeSrc] = useState<string>("");
   const [mapLoading, setMapLoading] = useState<boolean>(false);
@@ -130,6 +130,18 @@ export default function ProjectPage() {
     });
     window.open(`/cua?t=${encodeURIComponent(token)}`, "_blank", "noopener,noreferrer");
   };
+
+  const cuaEmbeddedSrc = useMemo(() => {
+    if (!cuaDocxFile) return "";
+    const parsedBucket = bucketFromPublicUrl(cuaDocxFile.public_url);
+    const token = encodeViewerToken({
+      bucket: parsedBucket || cuaDocxFile.storage_bucket || "project-directories",
+      docx: cuaDocxFile.public_url || cuaDocxFile.storage_path || "",
+      file_id: cuaDocxFile.id,
+      slug,
+    });
+    return `/cua?t=${encodeURIComponent(token)}`;
+  }, [cuaDocxFile, slug]);
 
   const loadAll = async () => {
     if (!slug) return;
@@ -307,6 +319,17 @@ export default function ProjectPage() {
               }`}
             >
               Cartographie projet
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("cua")}
+              className={`px-3 py-2 text-sm rounded-t border ${
+                activeTab === "cua"
+                  ? "bg-white border-gray-300 border-b-white font-medium text-teal-700"
+                  : "bg-gray-100 border-transparent text-gray-600 hover:text-gray-800"
+              }`}
+            >
+              CUA
             </button>
           </div>
         </div>
@@ -540,7 +563,7 @@ export default function ProjectPage() {
               )}
             </section>
           </div>
-        ) : (
+        ) : activeTab === "cartography" ? (
           <section className="bg-white border border-gray-200 rounded-lg p-4">
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-medium">Cartographie du projet</h2>
@@ -600,6 +623,35 @@ export default function ProjectPage() {
                 </div>
               )}
             </div>
+          </section>
+        ) : (
+          <section className="bg-white border border-gray-200 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-medium">CUA du projet</h2>
+              {cuaDocxFile && (
+                <button
+                  type="button"
+                  onClick={() => openCuaViewer(cuaDocxFile)}
+                  className="inline-flex text-sm px-3 py-2 rounded bg-teal-600 hover:bg-teal-700 text-white transition-colors"
+                >
+                  Ouvrir dans un nouvel onglet
+                </button>
+              )}
+            </div>
+
+            {cuaEmbeddedSrc ? (
+              <div className="relative h-[78vh] rounded border border-gray-200 overflow-hidden bg-white">
+                <iframe
+                  src={cuaEmbeddedSrc}
+                  sandbox="allow-scripts allow-same-origin allow-forms"
+                  style={{ width: "100%", height: "100%", border: "none", background: "white" }}
+                />
+              </div>
+            ) : (
+              <div className="h-[40vh] flex items-center justify-center text-sm text-gray-500 px-4 text-center border border-dashed border-gray-300 rounded">
+                Aucun document CUA disponible pour ce projet.
+              </div>
+            )}
           </section>
         )}
       </main>

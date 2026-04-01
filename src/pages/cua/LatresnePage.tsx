@@ -893,6 +893,9 @@ export default function LatresnePage() {
       }
 
       async function getZonageForUF(insee: string, parcelles: Array<{ section: string; numero: string }>) {
+        if (import.meta.env.VITE_ENABLE_ZONAGE_PLUI_UF !== "true") {
+          return [];
+        }
         try {
           const res = await fetch(`${API_BASE}/zonage-plui/uf`, {
             method: "POST",
