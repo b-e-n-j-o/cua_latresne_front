@@ -256,30 +256,28 @@ export default function ParcelleIdentity({
     } finally {
       setLoading(false);
     }
-  }, [geometry, parcelle.commune, parcelle.insee]);
+  }, [stableGeometry, parcelle.commune, parcelle.insee]);
 
   const runFetch = useCallback(async () => {
-    if (geometry) {
+    if (stableGeometry) {
       await runFetchFonciereSse();
     } else {
       await runFetchParcelle();
     }
-  }, [geometry, runFetchFonciereSse, runFetchParcelle]);
-
-  const geomFingerprint = geometry ? JSON.stringify(geometry) : "";
+  }, [stableGeometry, runFetchFonciereSse, runFetchParcelle]);
 
   useEffect(() => {
-    if (!autoFetch || !geometry) return;
+    if (!autoFetch || !stableGeometry) return;
     void runFetch();
     return () => abortRef.current?.abort();
-  }, [autoFetch, geomFingerprint, runFetch, geometry]);
+  }, [autoFetch, geomFingerprint, runFetch]);
 
   const handleManualClick = () => {
     void runFetch();
   };
 
   const handleOpenMap = useCallback(async () => {
-    if (!geometry) return;
+    if (!stableGeometry) return;
     const newTab = window.open("", "_blank");
     if (!newTab) {
       setMapError("Le navigateur bloque l'ouverture d'onglet (popup).");
@@ -297,7 +295,7 @@ export default function ParcelleIdentity({
         body: JSON.stringify({
           commune: parcelle.commune,
           insee: parcelle.insee,
-          geometry,
+          geometry: stableGeometry,
           intersections: results,
         }),
       });
@@ -320,7 +318,7 @@ export default function ParcelleIdentity({
     } finally {
       setMapLoading(false);
     }
-  }, [geometry, parcelle.commune, parcelle.insee, results]);
+  }, [stableGeometry, parcelle.commune, parcelle.insee, results]);
 
   const handleDownloadPdf = useCallback(async () => {
     if (results.length === 0) return;
@@ -345,10 +343,20 @@ export default function ParcelleIdentity({
           .filter(Boolean)
           .join(", ");
       }
-      if (geometry) {
-        body.geometry = geometry;
+      if (stableGeometry) {
+        body.geometry = stableGeometry;
       } else if (!body.parcelle) {
         body.parcelle = `${parcelle.section} ${parcelle.numero}`.trim();
+      }
+      if (layerRows.length > 0) {
+        body.couches_synthese = layerRows.map((row) => ({
+          table: row.table,
+          display_name: row.displayName,
+          status: row.status,
+          elements_count: row.elementsCount,
+          skip_reason: row.skipReason ?? null,
+          error: row.error ?? null,
+        }));
       }
       const response = await fetch(`${apiBase}/api/identite-fonciere/rapport`, {
         method: "POST",
@@ -375,9 +383,18 @@ export default function ParcelleIdentity({
     } finally {
       setPdfLoading(false);
     }
-  }, [results, geometry, parcelle, parcellesCadastrales]);
+  }, [
+    results,
+    layerRows,
+    stableGeometry,
+    parcelle.section,
+    parcelle.numero,
+    parcelle.commune,
+    parcelle.insee,
+    parcellesCadastrales,
+  ]);
 
-  const showManualButton = !autoFetch || !geometry;
+  const showManualButton = !autoFetch || !stableGeometry;
 
   const statusIcon = (s: LayerRowState["status"]) => {
     switch (s) {
@@ -427,7 +444,7 @@ export default function ParcelleIdentity({
         </button>
       )}
 
-      {geometry && layerRows.length > 0 && (
+      {stableGeometry && layerRows.length > 0 && (
         <div className="mt-3 border border-slate-200 rounded-md overflow-hidden text-xs">
           <div className="bg-slate-100 px-2 py-1.5 font-medium text-slate-700">
             Couches du catalogue (intersection)
@@ -466,18 +483,18 @@ export default function ParcelleIdentity({
           {mapError && <div className="text-red-600 mb-2">{mapError}</div>}
           {pdfError && <div className="text-red-600 mb-2">{pdfError}</div>}
 
-          {!error && results.length === 0 && !geometry && (
+          {!error && results.length === 0 && !stableGeometry && (
             <div className="text-gray-500">Aucune intersection</div>
           )}
 
-          {!error && results.length === 0 && geometry && (
+          {!error && results.length === 0 && stableGeometry && (
             <div className="text-gray-500">Aucune couche intersectante (détail ci-dessus).</div>
           )}
 
           {!error && results.length > 0 && (
             <>
               <div className="mb-3 flex flex-wrap gap-2">
-                {geometry && (
+                {stableGeometry && (
                   <button
                     type="button"
                     onClick={() => void handleOpenMap()}
