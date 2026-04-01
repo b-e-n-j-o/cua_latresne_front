@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   MapPin,
   Loader2,
@@ -39,6 +39,8 @@ type Props = {
   /** Si true + geometry : lance l’appel identité foncière au montage (pas de 2e bouton). */
   autoFetch?: boolean;
   onResult?: (result: unknown) => void;
+  /** UF : une entrée par parcelle pour la page de garde du PDF (section + numéro). */
+  parcellesCadastrales?: Array<{ section: string; numero: string }>;
 };
 
 function formatElement(element: Record<string, string | string[]>) {
@@ -76,6 +78,7 @@ export default function ParcelleIdentity({
   geometry,
   autoFetch = false,
   onResult,
+  parcellesCadastrales,
 }: Props) {
   const onResultRef = useRef(onResult);
   onResultRef.current = onResult;
@@ -118,10 +121,14 @@ export default function ParcelleIdentity({
     } finally {
       setLoading(false);
     }
-  }, [parcelle]);
+  }, [parcelle.section, parcelle.numero, parcelle.commune, parcelle.insee]);
+
+  /** Évite de recréer les callbacks quand le parent repasse une nouvelle ref GeoJSON identique (re-render hover, etc.). */
+  const geomFingerprint = geometry ? JSON.stringify(geometry) : "";
+  const stableGeometry = useMemo(() => geometry, [geomFingerprint]);
 
   const runFetchFonciereSse = useCallback(async () => {
-    if (!geometry) return;
+    if (!stableGeometry) return;
 
     abortRef.current?.abort();
     const ac = new AbortController();
@@ -139,7 +146,7 @@ export default function ParcelleIdentity({
       const payload = {
         commune: parcelle.commune,
         insee: parcelle.insee,
-        geometry,
+        geometry: stableGeometry,
       };
 
       const response = await fetch(endpoint, {
@@ -326,9 +333,21 @@ export default function ParcelleIdentity({
         insee: parcelle.insee,
         intersections: results,
       };
+      if (parcellesCadastrales && parcellesCadastrales.length > 0) {
+        const refs = parcellesCadastrales.map((p) => ({
+          section: String(p.section ?? "").trim(),
+          numero: String(p.numero ?? "").trim(),
+        }));
+        body.parcelles_cadastrales = refs;
+        // Toujours envoyer une référence lisible (sinon le backend met « UNITE_FONCIERE » sans le détail)
+        body.parcelle = refs
+          .map((p) => `${p.section} ${p.numero}`.trim())
+          .filter(Boolean)
+          .join(", ");
+      }
       if (geometry) {
         body.geometry = geometry;
-      } else {
+      } else if (!body.parcelle) {
         body.parcelle = `${parcelle.section} ${parcelle.numero}`.trim();
       }
       const response = await fetch(`${apiBase}/api/identite-fonciere/rapport`, {
@@ -356,7 +375,7 @@ export default function ParcelleIdentity({
     } finally {
       setPdfLoading(false);
     }
-  }, [results, geometry, parcelle]);
+  }, [results, geometry, parcelle, parcellesCadastrales]);
 
   const showManualButton = !autoFetch || !geometry;
 

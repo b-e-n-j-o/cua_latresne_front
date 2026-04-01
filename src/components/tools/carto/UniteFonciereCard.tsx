@@ -126,6 +126,10 @@ export default function UniteFonciereCard({
               commune,
               insee,
             }}
+            parcellesCadastrales={ufParcelles.map((p) => ({
+              section: p.section,
+              numero: p.numero,
+            }))}
             geometry={unionGeometry}
           />
         </div>
