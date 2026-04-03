@@ -45,6 +45,8 @@ type Props = {
 
 function formatElement(element: Record<string, string | string[]>) {
   return Object.entries(element)
+    // On évite d'afficher la réglementation (trop volumineuse) dans le panneau front.
+    .filter(([key]) => key.toLowerCase() !== "reglementation")
     .map(([key, value]) =>
       Array.isArray(value)
         ? `${key}: ${value.join(", ")}`
@@ -92,7 +94,13 @@ export default function ParcelleIdentity({
   const [mapError, setMapError] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
+  const [publierLoading, setPublierLoading] = useState(false);
+  const [publierError, setPublierError] = useState<string | null>(null);
+  const [storedCarteUrl, setStoredCarteUrl] = useState<string | null>(null);
+  const [storedPdfUrl, setStoredPdfUrl] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  /** Copie synchrone des lignes couche (pour POST /publier au `complete` SSE avant le prochain render). */
+  const layerRowsSyncRef = useRef<LayerRowState[]>([]);
 
   const runFetchParcelle = useCallback(async () => {
     setLoading(true);
@@ -127,6 +135,86 @@ export default function ParcelleIdentity({
   const geomFingerprint = geometry ? JSON.stringify(geometry) : "";
   const stableGeometry = useMemo(() => geometry, [geomFingerprint]);
 
+  /** Après le SSE : génère la carte + le PDF côté API et les dépose en Storage (POST /publier). */
+  const runPublierAfterComplete = useCallback(
+    async (intersections: IntersectionResult[], couchesSynthese: LayerRowState[]) => {
+      if (!stableGeometry || intersections.length === 0) return;
+      setPublierLoading(true);
+      setPublierError(null);
+      setStoredCarteUrl(null);
+      setStoredPdfUrl(null);
+      try {
+        const apiBase = import.meta.env.VITE_API_BASE;
+        const body: Record<string, unknown> = {
+          commune: parcelle.commune,
+          insee: parcelle.insee,
+          intersections,
+          geometry: stableGeometry,
+        };
+        if (parcellesCadastrales && parcellesCadastrales.length > 0) {
+          const refs = parcellesCadastrales.map((p) => ({
+            section: String(p.section ?? "").trim(),
+            numero: String(p.numero ?? "").trim(),
+          }));
+          body.parcelles_cadastrales = refs;
+          body.parcelle = refs
+            .map((p) => `${p.section} ${p.numero}`.trim())
+            .filter(Boolean)
+            .join(", ");
+        }
+        if (couchesSynthese.length > 0) {
+          body.couches_synthese = couchesSynthese.map((row) => ({
+            table: row.table,
+            display_name: row.displayName,
+            status: row.status,
+            elements_count: row.elementsCount,
+            skip_reason: row.skipReason ?? null,
+            error: row.error ?? null,
+          }));
+        }
+
+        const response = await fetch(`${apiBase}/api/identite-fonciere/publier`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = (await response.json()) as {
+          success?: boolean;
+          carte_url?: string | null;
+          pdf_url?: string | null;
+          detail?: unknown;
+          error?: string;
+        };
+        if (!response.ok) {
+          const d = data.detail;
+          const msg =
+            typeof d === "string"
+              ? d
+              : Array.isArray(d)
+                ? d
+                    .map((x) =>
+                      typeof x === "object" && x !== null && "msg" in x
+                        ? String((x as { msg: string }).msg)
+                        : String(x)
+                    )
+                    .join(", ")
+                : `HTTP ${response.status}`;
+          throw new Error(msg);
+        }
+        if (!data.success) {
+          throw new Error(data.error || "Publication échouée");
+        }
+        if (data.carte_url) setStoredCarteUrl(data.carte_url);
+        if (data.pdf_url) setStoredPdfUrl(data.pdf_url);
+      } catch (e) {
+        setPublierError((e as Error).message || "Erreur lors de la publication.");
+      } finally {
+        setPublierLoading(false);
+      }
+    },
+    [stableGeometry, parcelle.commune, parcelle.insee, parcellesCadastrales]
+  );
+
   const runFetchFonciereSse = useCallback(async () => {
     if (!stableGeometry) return;
 
@@ -139,6 +227,10 @@ export default function ParcelleIdentity({
     setShowResults(true);
     setResults([]);
     setLayerRows([]);
+    layerRowsSyncRef.current = [];
+    setPublierError(null);
+    setStoredCarteUrl(null);
+    setStoredPdfUrl(null);
 
     try {
       const apiBase = import.meta.env.VITE_API_BASE;
@@ -200,14 +292,14 @@ export default function ParcelleIdentity({
           if (typ === "init") {
             const layers = raw.layers as Array<{ table: string; display_name: string }>;
             if (!Array.isArray(layers)) continue;
-            setLayerRows(
-              layers.map((L) => ({
-                table: L.table,
-                displayName: L.display_name,
-                status: "pending" as const,
-                elementsCount: 0,
-              }))
-            );
+            const initial = layers.map((L) => ({
+              table: L.table,
+              displayName: L.display_name,
+              status: "pending" as const,
+              elementsCount: 0,
+            }));
+            layerRowsSyncRef.current = initial;
+            setLayerRows(initial);
           } else if (typ === "layer_done") {
             const ld = raw as {
               table: string;
@@ -231,20 +323,25 @@ export default function ParcelleIdentity({
               };
               if (i >= 0) next[i] = row;
               else next.push(row);
+              layerRowsSyncRef.current = next;
               return next;
             });
           } else if (typ === "complete") {
             const intersections = raw.intersections as IntersectionResult[] | undefined;
             const nb = (raw.nb_intersections as number | undefined) ?? 0;
-            setResults(intersections ?? []);
+            const ints = intersections ?? [];
+            setResults(ints);
             onResultRef.current?.({
               success: true,
               parcelle: "UNITE_FONCIERE",
               commune: parcelle.commune,
               insee: parcelle.insee,
               nb_intersections: nb,
-              intersections: intersections ?? [],
+              intersections: ints,
             });
+            if (ints.length > 0 && stableGeometry) {
+              void runPublierAfterComplete(ints, layerRowsSyncRef.current);
+            }
           } else if (typ === "error") {
             setError(String(raw.error ?? "Erreur"));
           }
@@ -256,7 +353,7 @@ export default function ParcelleIdentity({
     } finally {
       setLoading(false);
     }
-  }, [stableGeometry, parcelle.commune, parcelle.insee]);
+  }, [stableGeometry, parcelle.commune, parcelle.insee, runPublierAfterComplete]);
 
   const runFetch = useCallback(async () => {
     if (stableGeometry) {
@@ -278,6 +375,10 @@ export default function ParcelleIdentity({
 
   const handleOpenMap = useCallback(async () => {
     if (!stableGeometry) return;
+    if (storedCarteUrl) {
+      window.open(storedCarteUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
     const newTab = window.open("", "_blank");
     if (!newTab) {
       setMapError("Le navigateur bloque l'ouverture d'onglet (popup).");
@@ -318,10 +419,14 @@ export default function ParcelleIdentity({
     } finally {
       setMapLoading(false);
     }
-  }, [stableGeometry, parcelle.commune, parcelle.insee, results]);
+  }, [stableGeometry, parcelle.commune, parcelle.insee, results, storedCarteUrl]);
 
   const handleDownloadPdf = useCallback(async () => {
     if (results.length === 0) return;
+    if (storedPdfUrl) {
+      window.open(storedPdfUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
     setPdfLoading(true);
     setPdfError(null);
     try {
@@ -358,6 +463,9 @@ export default function ParcelleIdentity({
           error: row.error ?? null,
         }));
       }
+      if (storedCarteUrl) {
+        body.carte_web_url = storedCarteUrl;
+      }
       const response = await fetch(`${apiBase}/api/identite-fonciere/rapport`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -392,6 +500,8 @@ export default function ParcelleIdentity({
     parcelle.commune,
     parcelle.insee,
     parcellesCadastrales,
+    storedPdfUrl,
+    storedCarteUrl,
   ]);
 
   const showManualButton = !autoFetch || !stableGeometry;
@@ -429,6 +539,13 @@ export default function ParcelleIdentity({
         <div className="mb-3 flex items-center gap-2 text-sm text-gray-600">
           <Loader2 className="animate-spin" size={16} />
           <span>Analyse des intersections en cours…</span>
+        </div>
+      )}
+
+      {publierLoading && (
+        <div className="mb-3 flex items-center gap-2 text-sm text-slate-600">
+          <Loader2 className="animate-spin" size={16} />
+          <span>Enregistrement de la carte et du rapport PDF (stockage)…</span>
         </div>
       )}
 
@@ -482,6 +599,12 @@ export default function ParcelleIdentity({
           {error && <div className="text-red-600">{error}</div>}
           {mapError && <div className="text-red-600 mb-2">{mapError}</div>}
           {pdfError && <div className="text-red-600 mb-2">{pdfError}</div>}
+          {publierError && (
+            <div className="text-amber-700 mb-2 text-xs">
+              Publication stockage : {publierError} — vous pouvez encore générer la carte ou le PDF via les
+              boutons ci-dessous.
+            </div>
+          )}
 
           {!error && results.length === 0 && !stableGeometry && (
             <div className="text-gray-500">Aucune intersection</div>
@@ -498,21 +621,33 @@ export default function ParcelleIdentity({
                   <button
                     type="button"
                     onClick={() => void handleOpenMap()}
-                    disabled={mapLoading}
+                    disabled={mapLoading || (publierLoading && !storedCarteUrl)}
                     className="inline-flex items-center gap-2 rounded bg-slate-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
                   >
                     {mapLoading ? <Loader2 className="animate-spin" size={14} /> : <MapPin size={14} />}
-                    <span>{mapLoading ? "Génération carte..." : "Visualiser la carte"}</span>
+                    <span>
+                      {mapLoading
+                        ? "Génération carte..."
+                        : storedCarteUrl
+                          ? "Ouvrir la carte (lien enregistré)"
+                          : "Visualiser la carte"}
+                    </span>
                   </button>
                 )}
                 <button
                   type="button"
                   onClick={() => void handleDownloadPdf()}
-                  disabled={pdfLoading}
+                  disabled={pdfLoading || (publierLoading && !storedPdfUrl)}
                   className="inline-flex items-center gap-2 rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-50"
                 >
                   {pdfLoading ? <Loader2 className="animate-spin" size={14} /> : <FileDown size={14} />}
-                  <span>{pdfLoading ? "PDF..." : "Télécharger le rapport PDF"}</span>
+                  <span>
+                    {pdfLoading
+                      ? "PDF..."
+                      : storedPdfUrl
+                        ? "Ouvrir le rapport PDF (lien enregistré)"
+                        : "Télécharger le rapport PDF"}
+                  </span>
                 </button>
               </div>
               <div className="font-medium mb-2">{results.length} couche(s) intersectée(s) :</div>
