@@ -334,7 +334,7 @@ export default function UniteFonciereCard({
         </div>
 
         <div className="space-y-2">
-          <div className="text-md font-semibold text-gray-700 mb-1">3. Choisir une action</div>
+          <div className="text-md font-semibold text-gray-700 mb-1">Choisir une action</div>
 
           <button
             onClick={() => void runCifSse()}
@@ -342,7 +342,7 @@ export default function UniteFonciereCard({
             className="w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white py-2 px-3 rounded text-sm transition-colors disabled:opacity-60"
           >
             {cifBusy ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
-            <span>{cifBusy ? "Génération CIF en cours..." : "Carte d'identité foncière"}</span>
+            <span>{cifBusy ? "Génération CIF en cours..." : "Générer la carte d'identité foncière"}</span>
           </button>
 
           <button
@@ -358,7 +358,7 @@ export default function UniteFonciereCard({
           <div className="mt-3 p-2.5 bg-slate-50 border border-slate-200 rounded-md text-xs">
             <div className="flex items-center gap-2 mb-2 text-slate-700 font-medium">
               {cifReady ? <CheckCircle2 size={14} className="text-emerald-600" /> : <Loader2 size={14} className="animate-spin text-slate-500" />}
-              <span>{cifReady ? "Carte et PDF disponibles" : "Traitement CIF en cours..."}</span>
+              <span>{cifReady ? "Carte et PDF disponibles" : "Calculs et génération CIF en cours..."}</span>
             </div>
 
             {layerRows.length > 0 && (
