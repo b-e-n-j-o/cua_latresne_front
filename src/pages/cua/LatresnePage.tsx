@@ -114,23 +114,30 @@ export default function LatresnePage() {
   
   // Mode UF actif par défaut pour permettre la sélection au clic dès l'arrivée sur la page
   const [ufBuilderMode, setUfBuilderMode] = useState(true);
-  const [selectedUfParcelles, setSelectedUfParcelles] = useState<Array<{
-    section: string;
-    numero: string;
-    commune: string;
-    insee: string;
-    geometry: GeoJSON.Geometry;
-  }>>([]);
+  const [selectedUfParcelles, setSelectedUfParcelles] = useState<
+    Array<{
+      section: string;
+      numero: string;
+      commune: string;
+      insee: string;
+      geometry: GeoJSON.Geometry;
+      /** Carte vs saisie manuelle (liste séparée dans SearchUniteFonciere). */
+      addedVia?: "map" | "manual";
+    }>
+  >([]);
   
   const ufBuilderModeRef = useRef(false);
   const ufStateRef = useRef<UFState | null>(null);
-  const selectedUfParcellesRef = useRef<Array<{
-    section: string;
-    numero: string;
-    commune: string;
-    insee: string;
-    geometry: GeoJSON.Geometry;
-  }>>([]);
+  const selectedUfParcellesRef = useRef<
+    Array<{
+      section: string;
+      numero: string;
+      commune: string;
+      insee: string;
+      geometry: GeoJSON.Geometry;
+      addedVia?: "map" | "manual";
+    }>
+  >([]);
   
   const showParcelleResultRef = useRef<((geojson: any, addressPoint?: [number, number], targetZoom?: number) => void) | null>(null);
   const getZonageForUFRef = useRef<((insee: string, parcelles: Array<{ section: string; numero: string }>) => Promise<ZonageInfo[]>) | null>(null);
@@ -846,7 +853,8 @@ export default function LatresnePage() {
               numero: props.numero,
               commune: props.commune || "Latresne",
               insee: props.insee || "33234",
-              geometry: feature.geometry as GeoJSON.Geometry
+              geometry: feature.geometry as GeoJSON.Geometry,
+              addedVia: "map",
             }]);
           }
           return;
@@ -926,7 +934,8 @@ export default function LatresnePage() {
               numero: props.numero,
               commune: props.commune || "Latresne",
               insee: props.insee || props.code_insee || "33234",
-              geometry: feature.geometry as GeoJSON.Geometry
+              geometry: feature.geometry as GeoJSON.Geometry,
+              addedVia: "map",
             }]);
           }
           return;
@@ -1459,6 +1468,7 @@ export default function LatresnePage() {
                 commune: props.commune || "Latresne",
                 insee: props.insee || "33234",
                 geometry: found.geometry as GeoJSON.Geometry,
+                addedVia: "manual",
               },
             ]);
           }}
