@@ -41,6 +41,11 @@ type Props = {
   onResult?: (result: unknown) => void;
   /** UF : une entrée par parcelle pour la page de garde du PDF (section + numéro). */
   parcellesCadastrales?: Array<{ section: string; numero: string }>;
+  /** Session Supabase : enregistrement de la publication dans l’historique CIF (POST /publier). */
+  userId?: string | null;
+  userEmail?: string | null;
+  /** Après succès POST /publier (ex. rafraîchir l’onglet historique CIF). */
+  onIdentitePublished?: () => void;
 };
 
 function formatElement(element: Record<string, string | string[]>) {
@@ -81,9 +86,18 @@ export default function ParcelleIdentity({
   autoFetch = false,
   onResult,
   parcellesCadastrales,
+  userId,
+  userEmail,
+  onIdentitePublished,
 }: Props) {
   const onResultRef = useRef(onResult);
   onResultRef.current = onResult;
+  const onIdentitePublishedRef = useRef(onIdentitePublished);
+  onIdentitePublishedRef.current = onIdentitePublished;
+  const userIdRef = useRef(userId);
+  userIdRef.current = userId ?? null;
+  const userEmailRef = useRef(userEmail);
+  userEmailRef.current = userEmail ?? null;
 
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<IntersectionResult[]>([]);
@@ -135,6 +149,28 @@ export default function ParcelleIdentity({
   const geomFingerprint = geometry ? JSON.stringify(geometry) : "";
   const stableGeometry = useMemo(() => geometry, [geomFingerprint]);
 
+  /**
+   * Même problème que la géométrie : le parent passe souvent `parcellesCadastrales={list.map(...)}`
+   * → nouvelle référence à chaque re-render (ex. survol carte) → runPublierAfterComplete change
+   * → runFetch change → useEffect autoFetch relance tout le SSE depuis le début.
+   */
+  const parcellesCadFingerprint =
+    parcellesCadastrales && parcellesCadastrales.length > 0
+      ? JSON.stringify(
+          parcellesCadastrales.map((p) => [
+            String(p.section ?? "").trim(),
+            String(p.numero ?? "").trim(),
+          ])
+        )
+      : "";
+  const stableParcellesCadastrales = useMemo(() => {
+    if (!parcellesCadastrales?.length) return undefined;
+    return parcellesCadastrales.map((p) => ({
+      section: String(p.section ?? "").trim(),
+      numero: String(p.numero ?? "").trim(),
+    }));
+  }, [parcellesCadFingerprint]);
+
   /** Après le SSE : génère la carte + le PDF côté API et les dépose en Storage (POST /publier). */
   const runPublierAfterComplete = useCallback(
     async (intersections: IntersectionResult[], couchesSynthese: LayerRowState[]) => {
@@ -151,10 +187,10 @@ export default function ParcelleIdentity({
           intersections,
           geometry: stableGeometry,
         };
-        if (parcellesCadastrales && parcellesCadastrales.length > 0) {
-          const refs = parcellesCadastrales.map((p) => ({
-            section: String(p.section ?? "").trim(),
-            numero: String(p.numero ?? "").trim(),
+        if (stableParcellesCadastrales && stableParcellesCadastrales.length > 0) {
+          const refs = stableParcellesCadastrales.map((p) => ({
+            section: p.section,
+            numero: p.numero,
           }));
           body.parcelles_cadastrales = refs;
           body.parcelle = refs
@@ -171,6 +207,13 @@ export default function ParcelleIdentity({
             skip_reason: row.skipReason ?? null,
             error: row.error ?? null,
           }));
+        }
+
+        const uid = userIdRef.current?.trim();
+        if (uid) {
+          body.user_id = uid;
+          const em = userEmailRef.current?.trim();
+          if (em) body.user_email = em;
         }
 
         const response = await fetch(`${apiBase}/api/identite-fonciere/publier`, {
@@ -206,13 +249,14 @@ export default function ParcelleIdentity({
         }
         if (data.carte_url) setStoredCarteUrl(data.carte_url);
         if (data.pdf_url) setStoredPdfUrl(data.pdf_url);
+        onIdentitePublishedRef.current?.();
       } catch (e) {
         setPublierError((e as Error).message || "Erreur lors de la publication.");
       } finally {
         setPublierLoading(false);
       }
     },
-    [stableGeometry, parcelle.commune, parcelle.insee, parcellesCadastrales]
+    [stableGeometry, parcelle.commune, parcelle.insee, stableParcellesCadastrales]
   );
 
   const runFetchFonciereSse = useCallback(async () => {
@@ -363,11 +407,18 @@ export default function ParcelleIdentity({
     }
   }, [stableGeometry, runFetchFonciereSse, runFetchParcelle]);
 
+  /**
+   * Ne pas mettre `runFetch` dans les deps : son identité peut encore varier (Strict Mode, autres hooks).
+   * On ne veut relancer le SSE que si l’intention / la géométrie / la commune changent vraiment.
+   */
+  const runFetchRef = useRef(runFetch);
+  runFetchRef.current = runFetch;
+
   useEffect(() => {
     if (!autoFetch || !stableGeometry) return;
-    void runFetch();
+    void runFetchRef.current();
     return () => abortRef.current?.abort();
-  }, [autoFetch, geomFingerprint, runFetch]);
+  }, [autoFetch, geomFingerprint, stableGeometry, parcelle.commune, parcelle.insee]);
 
   const handleManualClick = () => {
     void runFetch();
@@ -436,10 +487,10 @@ export default function ParcelleIdentity({
         insee: parcelle.insee,
         intersections: results,
       };
-      if (parcellesCadastrales && parcellesCadastrales.length > 0) {
-        const refs = parcellesCadastrales.map((p) => ({
-          section: String(p.section ?? "").trim(),
-          numero: String(p.numero ?? "").trim(),
+      if (stableParcellesCadastrales && stableParcellesCadastrales.length > 0) {
+        const refs = stableParcellesCadastrales.map((p) => ({
+          section: p.section,
+          numero: p.numero,
         }));
         body.parcelles_cadastrales = refs;
         // Toujours envoyer une référence lisible (sinon le backend met « UNITE_FONCIERE » sans le détail)
@@ -499,7 +550,7 @@ export default function ParcelleIdentity({
     parcelle.numero,
     parcelle.commune,
     parcelle.insee,
-    parcellesCadastrales,
+    stableParcellesCadastrales,
     storedPdfUrl,
     storedCarteUrl,
   ]);

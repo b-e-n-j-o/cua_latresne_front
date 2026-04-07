@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { FileText } from "lucide-react";
 import ParcelleIdentity from "./ParcelleIdentity";
 import { ManualCuaForm } from "../../../pages/cua/cerfa/ManualCuaForm";
@@ -16,6 +16,10 @@ type Props = {
   commune: string;
   insee: string;
   unionGeometry: GeoJSON.Geometry;
+  /** Session : rattachement historique CIF côté API (POST /publier). */
+  userId?: string | null;
+  userEmail?: string | null;
+  onIdentitePublished?: () => void;
   onParcellesDetected?: (
     parcelles: Array<{
       section: string;
@@ -35,6 +39,9 @@ export default function UniteFonciereCard({
   commune,
   insee,
   unionGeometry,
+  userId,
+  userEmail,
+  onIdentitePublished,
   onParcellesDetected,
   onPipelineCreated,
   onClose,
@@ -46,6 +53,30 @@ export default function UniteFonciereCard({
   const totalSurface = ufParcelles.reduce(
     (sum, p) => sum + (p.surface_m2 || 0),
     0
+  );
+
+  /** Contenu UF (pas la ref du tableau) : stable si le parent repasse un nouveau [] identique à chaque hover. */
+  const ufContentKey = ufParcelles
+    .map((p) => `${p.section}\0${p.numero}`)
+    .join("\n");
+
+  const identityParcelle = useMemo(
+    () => ({
+      section: ufParcelles.map((p) => p.section).join("+"),
+      numero: ufParcelles.map((p) => p.numero).join("+"),
+      commune,
+      insee,
+    }),
+    [ufContentKey, commune, insee]
+  );
+
+  const identityParcellesCad = useMemo(
+    () =>
+      ufParcelles.map((p) => ({
+        section: p.section,
+        numero: p.numero,
+      })),
+    [ufContentKey]
   );
 
   return (
@@ -120,17 +151,12 @@ export default function UniteFonciereCard({
           </div>
           <ParcelleIdentity
             autoFetch
-            parcelle={{
-              section: ufParcelles.map((p) => p.section).join("+"),
-              numero: ufParcelles.map((p) => p.numero).join("+"),
-              commune,
-              insee,
-            }}
-            parcellesCadastrales={ufParcelles.map((p) => ({
-              section: p.section,
-              numero: p.numero,
-            }))}
+            parcelle={identityParcelle}
+            parcellesCadastrales={identityParcellesCad}
             geometry={unionGeometry}
+            userId={userId}
+            userEmail={userEmail}
+            onIdentitePublished={onIdentitePublished}
           />
         </div>
       )}

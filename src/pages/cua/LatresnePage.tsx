@@ -13,7 +13,7 @@ import UniteFonciereCard from "../../components/tools/carto/UniteFonciereCard";
 import type { ParcelleInfo, ZonageInfo } from "../../types/parcelle";
 import supabase from "../../supabaseClient";
 import { MapLoadingOverlay, MapTooltipOverlay, UfBuilderModeBanner } from "./LatresneMapOverlays";
-import RightHistorySidebar from "./RightHistorySidebar";
+import RightHistorySidebar, { type IdentiteFonciereHistoryRow } from "./RightHistorySidebar";
 import LogoutButton from "../../auth/LogoutButton";
 
 const LATRESNE_BOUNDS: [number, number, number, number] = [
@@ -35,6 +35,26 @@ function getPingColor(createdAt: string | undefined): "green" | "yellow" | "red"
   } catch {
     return "green";
   }
+}
+
+/** Centroïde CIF : Supabase peut renvoyer un objet ou une chaîne JSON. */
+function parseIdentiteCentroid(raw: unknown): { lon: number; lat: number } | null {
+  if (raw == null) return null;
+  if (typeof raw === "object" && raw !== null && "lon" in raw && "lat" in raw) {
+    const o = raw as { lon: unknown; lat: unknown };
+    const lon = Number(o.lon);
+    const lat = Number(o.lat);
+    if (Number.isFinite(lon) && Number.isFinite(lat)) return { lon, lat };
+    return null;
+  }
+  if (typeof raw === "string") {
+    try {
+      return parseIdentiteCentroid(JSON.parse(raw) as unknown);
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }
 
 const PARCELLE_CLICK_ZOOM = 13;
@@ -81,13 +101,16 @@ export default function LatresnePage() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [historyPingsLoaded, setHistoryPingsLoaded] = useState(false);
   const [historyPipelines, setHistoryPipelines] = useState<HistoryPipeline[]>([]);
+  const [identiteFonciereHistory, setIdentiteFonciereHistory] = useState<IdentiteFonciereHistoryRow[]>([]);
   const [selectedHistoryPipeline, setSelectedHistoryPipeline] = useState<HistoryPipeline | null>(null);
+  const [selectedIdentiteProjectId, setSelectedIdentiteProjectId] = useState<string | null>(null);
   const [historyPopupPosition, setHistoryPopupPosition] = useState<{ x: number; y: number; placement: "above" | "below" } | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [showHistoryPings, setShowHistoryPings] = useState(true);
   const [isLoadingCadastre, setIsLoadingCadastre] = useState(true);
   const [ufState, setUfState] = useState<UFState | null>(null);
   const [rightHistoryOpen, setRightHistoryOpen] = useState(true);
+  const [historySidebarTab, setHistorySidebarTab] = useState<"cua" | "cif">("cua");
   
   // Mode UF actif par défaut pour permettre la sélection au clic dès l'arrivée sur la page
   const [ufBuilderMode, setUfBuilderMode] = useState(true);
@@ -146,6 +169,11 @@ export default function LatresnePage() {
     historyPipelinesRef.current = historyPipelines;
   }, [historyPipelines]);
 
+  const identiteFonciereHistoryRef = useRef<IdentiteFonciereHistoryRow[]>([]);
+  useEffect(() => {
+    identiteFonciereHistoryRef.current = identiteFonciereHistory;
+  }, [identiteFonciereHistory]);
+
   const clearHistorySelection = () => {
     setSelectedHistoryPipeline(null);
     setHistoryPopupPosition(null);
@@ -155,6 +183,8 @@ export default function LatresnePage() {
     const pipeline = historyPipelinesRef.current.find((p) => p.slug === slug);
     if (!pipeline) return;
 
+    setHistorySidebarTab("cua");
+    setSelectedIdentiteProjectId(null);
     setSelectedHistoryPipeline(pipeline);
 
     const map = mapRef.current;
@@ -174,6 +204,24 @@ export default function LatresnePage() {
       setHistoryPopupPosition({ x, y: point.y, placement });
     } else {
       setHistoryPopupPosition(null);
+    }
+  };
+
+  const handleSelectIdentiteProject = (projectId: string) => {
+    const row = identiteFonciereHistoryRef.current.find((p) => p.project_id === projectId);
+    setHistorySidebarTab("cif");
+    setSelectedIdentiteProjectId(projectId);
+    setSelectedHistoryPipeline(null);
+    setHistoryPopupPosition(null);
+
+    const map = mapRef.current;
+    const c = row ? parseIdentiteCentroid(row.centroid as unknown) : null;
+    if (map && c) {
+      map.flyTo({
+        center: [c.lon, c.lat],
+        zoom: Math.max(map.getZoom(), 16),
+        duration: 600,
+      });
     }
   };
 
@@ -298,6 +346,51 @@ export default function LatresnePage() {
     } catch (e) {
       console.error("Erreur chargement des pings d'historique sur la carte:", e);
     }
+  };
+
+  const refreshIdentiteFonciereHistory = async () => {
+    if (!userId) return;
+    try {
+      const base = (API_BASE || "http://localhost:8000").replace(/\/$/, "");
+      const res = await fetch(
+        `${base}/api/identite-fonciere/history/by_user?user_id=${encodeURIComponent(userId)}&limit=100`
+      );
+      const j = await res.json();
+      if (!j.success || !Array.isArray(j.projects)) {
+        if (j?.error) console.warn("Historique CIF:", j.error);
+        return;
+      }
+      setIdentiteFonciereHistory(j.projects as IdentiteFonciereHistoryRow[]);
+    } catch (e) {
+      console.error("Historique CIF:", e);
+    }
+  };
+
+  const handleDeleteIdentiteProject = async (projectId: string) => {
+    if (!userId) throw new Error("Connexion requise.");
+    const base = (API_BASE || "http://localhost:8000").replace(/\/$/, "");
+    const res = await fetch(
+      `${base}/api/identite-fonciere/history/${encodeURIComponent(projectId)}?user_id=${encodeURIComponent(userId)}`,
+      { method: "DELETE" }
+    );
+    let data: { success?: boolean; error?: string; detail?: string } = {};
+    try {
+      data = await res.json();
+    } catch {
+      /* ignore */
+    }
+    if (!res.ok) {
+      const msg =
+        typeof data.detail === "string" ? data.detail : data.error || `Erreur ${res.status}`;
+      throw new Error(msg);
+    }
+    if (!data.success) {
+      throw new Error(data.error || "Échec de la suppression");
+    }
+    if (selectedIdentiteProjectId === projectId) {
+      setSelectedIdentiteProjectId(null);
+    }
+    await refreshIdentiteFonciereHistory();
   };
 
   useEffect(() => {
@@ -605,6 +698,8 @@ export default function LatresnePage() {
         if (!slug) return;
         const pipeline = historyPipelinesRef.current.find((p: HistoryPipeline) => p.slug === slug);
         if (pipeline) {
+          setHistorySidebarTab("cua");
+          setSelectedIdentiteProjectId(null);
           setSelectedHistoryPipeline(pipeline);
           const container = map.getContainer();
           const cw = container.clientWidth;
@@ -615,6 +710,69 @@ export default function LatresnePage() {
           const [lon, lat] = (feature.geometry as GeoJSON.Point).coordinates;
           map.flyTo({ center: [lon, lat], zoom: Math.max(map.getZoom(), 16), duration: 600 });
         }
+      });
+
+      map.addSource("identite-fonciere-history", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      });
+
+      map.addLayer({
+        id: "identite-fonciere-history-halo",
+        type: "circle",
+        source: "identite-fonciere-history",
+        paint: {
+          "circle-radius": 15,
+          "circle-color": "#7c3aed",
+          "circle-opacity": 0.22,
+        },
+      });
+
+      map.addLayer({
+        id: "identite-fonciere-history-point",
+        type: "circle",
+        source: "identite-fonciere-history",
+        paint: {
+          "circle-radius": 8,
+          "circle-color": "#7c3aed",
+          "circle-opacity": 1,
+          "circle-stroke-width": 1.5,
+          "circle-stroke-color": "#ffffff",
+        },
+      });
+
+      map.on("mousemove", "identite-fonciere-history-halo", (e) => {
+        if (!e.features?.length) return;
+        isHoveringHistoryPingRef.current = true;
+        map.getCanvas().style.cursor = "pointer";
+        const props = e.features[0].properties as Record<string, unknown>;
+        const label = String(props.parcelle_label || "").trim() || "Identité foncière";
+        setTooltip({
+          x: e.point.x,
+          y: e.point.y,
+          content: `${label}\nCIF`,
+        });
+      });
+
+      map.on("mouseleave", "identite-fonciere-history-halo", () => {
+        isHoveringHistoryPingRef.current = false;
+        map.getCanvas().style.cursor = "";
+        setTooltip(null);
+      });
+
+      map.on("click", "identite-fonciere-history-halo", (e) => {
+        const feature = e.features?.[0];
+        if (!feature) return;
+        const props = feature.properties as Record<string, unknown>;
+        const projectId = String(props.project_id || "").trim();
+        if (!projectId) return;
+        setHistorySidebarTab("cif");
+        setSelectedHistoryPipeline(null);
+        setHistoryPopupPosition(null);
+        setSelectedIdentiteProjectId(projectId);
+        setRightHistoryOpen(true);
+        const [lon, lat] = (feature.geometry as GeoJSON.Point).coordinates;
+        map.flyTo({ center: [lon, lat], zoom: Math.max(map.getZoom(), 16), duration: 600 });
       });
 
       // Hover sur cadastre avec feature-state
@@ -1005,6 +1163,7 @@ export default function LatresnePage() {
 
     const loadHistoryPings = async () => {
       await refreshHistoryPipelines();
+      await refreshIdentiteFonciereHistory();
       setHistoryPingsLoaded(true);
     };
 
@@ -1039,6 +1198,30 @@ export default function LatresnePage() {
 
     source.setData({ type: "FeatureCollection", features });
   }, [historyPipelines]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const source = map.getSource("identite-fonciere-history") as maplibregl.GeoJSONSource | undefined;
+    if (!source) return;
+
+    const features: GeoJSON.Feature[] = identiteFonciereHistory
+      .map((r) => {
+        const c = parseIdentiteCentroid(r.centroid as unknown);
+        if (!c) return null;
+        return {
+          type: "Feature",
+          geometry: { type: "Point", coordinates: [c.lon, c.lat] },
+          properties: {
+            project_id: r.project_id,
+            parcelle_label: r.parcelle_label ?? "",
+          },
+        } as GeoJSON.Feature;
+      })
+      .filter((f): f is GeoJSON.Feature => f != null);
+
+    source.setData({ type: "FeatureCollection", features });
+  }, [identiteFonciereHistory]);
 
   useEffect(() => {
     if (!mapRef.current) return;
@@ -1089,12 +1272,16 @@ export default function LatresnePage() {
 
   useEffect(() => {
     if (!mapRef.current) return;
-    const visibility = showHistoryPings ? "visible" : "none";
-    const halo = mapRef.current.getLayer("pipelines-history-halo");
-    const point = mapRef.current.getLayer("pipelines-history-point");
-    if (halo) mapRef.current.setLayoutProperty("pipelines-history-halo", "visibility", visibility);
-    if (point) mapRef.current.setLayoutProperty("pipelines-history-point", "visibility", visibility);
-  }, [showHistoryPings]);
+    const map = mapRef.current;
+    const cuaVis = showHistoryPings && historySidebarTab === "cua" ? "visible" : "none";
+    const cifVis = showHistoryPings && historySidebarTab === "cif" ? "visible" : "none";
+    for (const id of ["pipelines-history-halo", "pipelines-history-point"] as const) {
+      if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", cuaVis);
+    }
+    for (const id of ["identite-fonciere-history-halo", "identite-fonciere-history-point"] as const) {
+      if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", cifVis);
+    }
+  }, [showHistoryPings, historySidebarTab]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1220,7 +1407,7 @@ export default function LatresnePage() {
               onChange={(e) => setShowHistoryPings(e.target.checked)}
               className="rounded border-gray-300"
             />
-            Afficher les projets précédents (pings)
+            Afficher les pings sur la carte (CUA ou CIF selon l&apos;onglet Historique)
           </label>
         </>
       ),
@@ -1342,6 +1529,11 @@ export default function LatresnePage() {
                 commune={ufState.commune}
                 insee={ufState.insee}
                 unionGeometry={ufState.geometry}
+                userId={userId}
+                userEmail={userEmail}
+                onIdentitePublished={() => {
+                  void refreshIdentiteFonciereHistory();
+                }}
                 onPipelineCreated={(newSlug) => {
                   console.log("[CUA] Redirection vers page projet (UF)", { newSlug });
                   refreshHistoryPipelines(newSlug);
@@ -1468,6 +1660,12 @@ export default function LatresnePage() {
           onOpenProject={(slug) => navigate(`/latresne/cua/projects/${slug}`)}
           onUpdateProject={handleUpdateHistoryProject}
           onDeleteProject={handleDeleteHistoryProject}
+          identiteRows={identiteFonciereHistory}
+          selectedIdentiteProjectId={selectedIdentiteProjectId}
+          onSelectIdentite={handleSelectIdentiteProject}
+          historySidebarTab={historySidebarTab}
+          onHistorySidebarTabChange={setHistorySidebarTab}
+          onDeleteIdentiteProject={handleDeleteIdentiteProject}
         />
       </div>
     </div>
