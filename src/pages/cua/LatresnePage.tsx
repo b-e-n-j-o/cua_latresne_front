@@ -482,15 +482,21 @@ export default function LatresnePage() {
         map.setPaintProperty("building", "fill-opacity", 0.25);
       } catch {}
 
-      // Charger le cadastre depuis le GeoJSON local
+      // Charger le cadastre depuis l'API (base), avec fallback local en dev.
       setIsLoadingCadastre(true);
       let parcellesData: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
       try {
-        const response = await fetch('/data/parcelles.geojson');
-        if (response.ok) {
-          parcellesData = await response.json();
-          cadastreDataRef.current = parcellesData;
+        const base = (API_BASE || "http://localhost:8000").replace(/\/$/, "");
+        let response = await fetch(`${base}/latresne/parcelles/geojson`);
+        if (!response.ok) {
+          // Fallback local pour éviter un écran vide si backend indisponible.
+          response = await fetch("/data/parcelles.geojson");
         }
+        if (!response.ok) {
+          throw new Error(`Chargement cadastre impossible (${response.status})`);
+        }
+        parcellesData = await response.json();
+        cadastreDataRef.current = parcellesData;
       } catch (err) {
         console.error("Erreur chargement cadastre:", err);
       }
