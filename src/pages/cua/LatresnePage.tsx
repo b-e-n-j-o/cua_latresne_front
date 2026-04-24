@@ -22,6 +22,28 @@ const LATRESNE_BOUNDS: [number, number, number, number] = [
 
 const API_BASE = import.meta.env.VITE_API_BASE;
 
+function normalizeUfSection(raw: unknown): string {
+  return String(raw ?? "").trim().toUpperCase();
+}
+
+function normalizeUfNumero(raw: unknown): string {
+  const trimmed = String(raw ?? "").trim();
+  if (!trimmed) return "";
+  return trimmed.padStart(4, "0");
+}
+
+function isTopFeatureFromLayer(
+  map: maplibregl.Map,
+  point: maplibregl.PointLike,
+  layerId: "latresne_parcelles-fill" | "parcelle-search-fill"
+): boolean {
+  const hits = map.queryRenderedFeatures(point, {
+    layers: ["parcelle-search-fill", "latresne_parcelles-fill"],
+  });
+  if (!hits.length) return false;
+  return hits[0].layer.id === layerId;
+}
+
 function getPingColor(createdAt: string | undefined): "green" | "yellow" | "red" {
   if (!createdAt) return "green";
   try {
@@ -143,6 +165,42 @@ export default function LatresnePage() {
   const getZonageForUFRef = useRef<((insee: string, parcelles: Array<{ section: string; numero: string }>) => Promise<ZonageInfo[]>) | null>(null);
   const showCerfaParcellesRef = useRef<((parcelles: Array<{ section: string; numero: string }>, commune: string, insee: string) => Promise<void>) | null>(null);
   const isHoveringHistoryPingRef = useRef(false);
+
+  function toggleUfParcelle(next: {
+    section: string;
+    numero: string;
+    commune: string;
+    insee: string;
+    geometry: GeoJSON.Geometry;
+    addedVia?: "map" | "manual";
+  }) {
+    const normSection = normalizeUfSection(next.section);
+    const normNumero = normalizeUfNumero(next.numero);
+    if (!normSection || !normNumero) return;
+
+    setSelectedUfParcelles((prev) => {
+      const idx = prev.findIndex(
+        (p) =>
+          normalizeUfSection(p.section) === normSection &&
+          normalizeUfNumero(p.numero) === normNumero
+      );
+      if (idx >= 0) {
+        return prev.filter((_, i) => i !== idx);
+      }
+      if (prev.length >= 20) {
+        alert("Maximum 20 parcelles pour une unité foncière");
+        return prev;
+      }
+      return [
+        ...prev,
+        {
+          ...next,
+          section: normSection,
+          numero: normNumero,
+        },
+      ];
+    });
+  }
 
   useEffect(() => {
     (async () => {
@@ -829,34 +887,22 @@ export default function LatresnePage() {
 
       // Click sur cadastre
       map.on("click", "latresne_parcelles-fill", async (e) => {
+        if (!isTopFeatureFromLayer(map, e.point, "latresne_parcelles-fill")) return;
         const feature = e.features?.[0];
         if (!feature) return;
         const props = feature.properties as any;
+        const normalizedSection = normalizeUfSection(props.section);
+        const normalizedNumero = normalizeUfNumero(props.numero);
 
         if (ufBuilderModeRef.current) {
-          const currentSelection = selectedUfParcellesRef.current;
-          const alreadySelected = currentSelection.some(
-            p => p.section === props.section && p.numero === props.numero
-          );
-          
-          if (alreadySelected) {
-            setSelectedUfParcelles(prev => 
-              prev.filter(p => !(p.section === props.section && p.numero === props.numero))
-            );
-          } else {
-            if (currentSelection.length >= 20) {
-              alert("Maximum 20 parcelles pour une unité foncière");
-              return;
-            }
-            setSelectedUfParcelles(prev => [...prev, {
-              section: props.section,
-              numero: props.numero,
-              commune: props.commune || "Latresne",
-              insee: props.insee || "33234",
-              geometry: feature.geometry as GeoJSON.Geometry,
-              addedVia: "map",
-            }]);
-          }
+          toggleUfParcelle({
+            section: normalizedSection,
+            numero: normalizedNumero,
+            commune: props.commune || "Latresne",
+            insee: props.insee || "33234",
+            geometry: feature.geometry as GeoJSON.Geometry,
+            addedVia: "map",
+          });
           return;
         }
 
@@ -910,34 +956,22 @@ export default function LatresnePage() {
       });
 
       map.on("click", "parcelle-search-fill", async (e) => {
+        if (!isTopFeatureFromLayer(map, e.point, "parcelle-search-fill")) return;
         const feature = e.features?.[0];
         if (!feature) return;
         const props = feature.properties as any;
+        const normalizedSection = normalizeUfSection(props.section);
+        const normalizedNumero = normalizeUfNumero(props.numero);
 
         if (ufBuilderModeRef.current) {
-          const currentSelection = selectedUfParcellesRef.current;
-          const alreadySelected = currentSelection.some(
-            p => p.section === props.section && p.numero === props.numero
-          );
-          
-          if (alreadySelected) {
-            setSelectedUfParcelles(prev => 
-              prev.filter(p => !(p.section === props.section && p.numero === props.numero))
-            );
-          } else {
-            if (currentSelection.length >= 20) {
-              alert("Maximum 20 parcelles pour une unité foncière");
-              return;
-            }
-            setSelectedUfParcelles(prev => [...prev, {
-              section: props.section,
-              numero: props.numero,
-              commune: props.commune || "Latresne",
-              insee: props.insee || props.code_insee || "33234",
-              geometry: feature.geometry as GeoJSON.Geometry,
-              addedVia: "map",
-            }]);
-          }
+          toggleUfParcelle({
+            section: normalizedSection,
+            numero: normalizedNumero,
+            commune: props.commune || "Latresne",
+            insee: props.insee || props.code_insee || "33234",
+            geometry: feature.geometry as GeoJSON.Geometry,
+            addedVia: "map",
+          });
           return;
         }
 
@@ -1397,7 +1431,7 @@ export default function LatresnePage() {
   const sidebarSections: SideBarSection[] = [
     {
       id: "search-parcelle",
-      title: "Recherche parcelle / adresse",
+      title: "Rechercher une parcelle ou une adresse",
       defaultOpen: false,
       content: (
         <>
@@ -1409,21 +1443,12 @@ export default function LatresnePage() {
             }}
             embedded={true}
           />
-          <label className="flex items-center gap-2 mt-3 text-xs text-gray-600 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={showHistoryPings}
-              onChange={(e) => setShowHistoryPings(e.target.checked)}
-              className="rounded border-gray-300"
-            />
-            Afficher les pings sur la carte (CUA ou CIF selon l&apos;onglet Historique)
-          </label>
         </>
       ),
     },
     {
       id: "search-uf",
-      title: "Générer CUA - CIF",
+      title: "Certificat d'Urbanisme (CUA) / Carte d'Identité Foncière (CIF)",
       defaultOpen: true,
       content: (
         <SearchUniteFonciere
@@ -1432,12 +1457,20 @@ export default function LatresnePage() {
           onUfBuilderToggle={setUfBuilderMode}
           onUfParcelleRemove={(section, numero) => {
             setSelectedUfParcelles((prev) =>
-              prev.filter((p) => !(p.section === section && p.numero === numero))
+              prev.filter(
+                (p) =>
+                  !(
+                    normalizeUfSection(p.section) === normalizeUfSection(section) &&
+                    normalizeUfNumero(p.numero) === normalizeUfNumero(numero)
+                  )
+              )
             );
           }}
           onAddManualUfParcelleToMap={(section, numero) => {
             const cadastre = cadastreDataRef.current;
             if (!cadastre) return;
+            const normalizedSection = normalizeUfSection(section);
+            const normalizedNumero = normalizeUfNumero(numero);
 
             if (selectedUfParcelles.length >= 20) {
               alert("Maximum 20 parcelles pour une unité foncière");
@@ -1445,12 +1478,15 @@ export default function LatresnePage() {
             }
 
             const alreadySelected = selectedUfParcelles.some(
-              (p) => p.section === section && p.numero === numero
+              (p) =>
+                normalizeUfSection(p.section) === normalizedSection &&
+                normalizeUfNumero(p.numero) === normalizedNumero
             );
             if (alreadySelected) return;
 
             const found = cadastre.features.find((f: any) =>
-              f.properties?.section === section && f.properties?.numero === numero
+              normalizeUfSection(f.properties?.section) === normalizedSection &&
+              normalizeUfNumero(f.properties?.numero) === normalizedNumero
             );
 
             if (!found || !found.geometry) {
@@ -1463,8 +1499,8 @@ export default function LatresnePage() {
             setSelectedUfParcelles((prev) => [
               ...prev,
               {
-                section,
-                numero,
+                section: normalizedSection,
+                numero: normalizedNumero,
                 commune: props.commune || "Latresne",
                 insee: props.insee || "33234",
                 geometry: found.geometry as GeoJSON.Geometry,
@@ -1609,7 +1645,7 @@ export default function LatresnePage() {
       : []),
     {
       id: "cerfa",
-      title: "Certificat d'urbanisme via CERFA",
+      title: "CUA à partir d'un formulaire CERFA",
       defaultOpen: false,
       content: (
         <CerfaTool

@@ -211,10 +211,6 @@ export default function SearchUniteFonciere({
       } space-y-3`}
     >
       <div className="font-semibold text-gray-900">Unité foncière</div>
-      <p className="text-[11px] text-gray-500 leading-snug">
-        Choisissez une méthode : sélection sur la carte ou saisie des références
-        cadastrales une par une.
-      </p>
 
       {/* Onglets Carte / Manuel */}
       <div className="p-1 rounded-lg bg-amber-50/80 border border-amber-100 flex gap-1">
@@ -223,14 +219,14 @@ export default function SearchUniteFonciere({
           className={tabBtn(mode === "carte")}
           onClick={() => setMode("carte")}
         >
-          Sur la carte
+          Cliquer sur la carte
         </button>
         <button
           type="button"
           className={tabBtn(mode === "manuel")}
           onClick={() => setMode("manuel")}
         >
-          Saisie manuelle
+          Saisie des références cadastrales
         </button>
       </div>
 

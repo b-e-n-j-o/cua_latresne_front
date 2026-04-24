@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 type Props = {
   onSearch: (data: any, addressPoint?: [number, number], keepSelection?: boolean) => void;
@@ -19,6 +19,8 @@ export default function ParcelleSearchForm({
 
   // Adresse (commune forcée à Latresne côté backend)
   const [adresse, setAdresse] = useState("");
+  const [parcellesAdresse, setParcellesAdresse] = useState<Array<{ section: string; numero: string; label: string }>>([]);
+  const [matchedAddress, setMatchedAddress] = useState<string | null>(null);
 
   function padNumero(raw: string): string {
     const trimmed = raw.trim();
@@ -32,6 +34,9 @@ export default function ParcelleSearchForm({
       let url = "";
       let addressPoint: [number, number] | undefined;
       let geojson: any;
+
+      setParcellesAdresse([]);
+      setMatchedAddress(null);
 
       if (mode === "parcelle") {
         const communeValue = "Latresne";
@@ -51,10 +56,9 @@ export default function ParcelleSearchForm({
         };
         addressPoint = data.address_point as [number, number] | undefined;
       } else if (mode === "adresse") {
-        const q = `${adresse}, Latresne`;
         url =
-          `${import.meta.env.VITE_API_BASE}/parcelle/et-voisins-adresse` +
-          `?adresse=${encodeURIComponent(q)}`;
+          `${import.meta.env.VITE_API_BASE}/latresne/parcelles-via-adresse` +
+          `?adresse=${encodeURIComponent(adresse)}`;
 
         const res = await fetch(url);
         if (!res.ok) throw new Error();
@@ -65,6 +69,8 @@ export default function ParcelleSearchForm({
           features: data.features
         };
         addressPoint = data.address_point as [number, number] | undefined;
+        setParcellesAdresse(Array.isArray(data.parcelles) ? data.parcelles : []);
+        setMatchedAddress(typeof data.matched_address === "string" ? data.matched_address : null);
       }
 
       onSearch(geojson, addressPoint);
@@ -77,8 +83,6 @@ export default function ParcelleSearchForm({
 
   return (
     <div className={`${embedded ? '' : 'absolute top-4 left-4 z-40'} bg-white shadow-md rounded-md p-3 text-sm ${embedded ? 'w-full' : 'w-80'} space-y-3`}>
-      <div className="font-semibold">Rechercher une parcelle</div>
-
       {/* Onglets */}
       <div className="flex border rounded overflow-hidden">
         <button
@@ -122,6 +126,21 @@ export default function ParcelleSearchForm({
             value={adresse}
             onChange={(e) => setAdresse(e.target.value)}
           />
+          {matchedAddress && (
+            <div className="text-xs text-gray-500">
+              Adresse reconnue : <span className="font-medium text-gray-700">{matchedAddress}</span>
+            </div>
+          )}
+          {parcellesAdresse.length > 0 && (
+            <div className="border rounded p-2 bg-gray-50">
+              <div className="text-xs font-semibold text-gray-700 mb-1">
+                Parcelle(s) trouvée(s) ({parcellesAdresse.length})
+              </div>
+              <div className="text-xs text-gray-700">
+                {parcellesAdresse.map((p) => p.label || `${p.section} ${p.numero}`).join(", ")}
+              </div>
+            </div>
+          )}
         </>
       )}
 

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Menu, X, Clock, MapPin, Trash2 } from "lucide-react";
+import { Menu, X, Clock, MapPin, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { type HistoryPipeline } from "../../components/tools/carto/HistoryPipelineCard";
 import ProjectHistoryCard from "./ProjectHistoryCard";
@@ -82,6 +82,29 @@ export default function HistorySidebar({
   const [updatingSlug, setUpdatingSlug] = useState<string | null>(null);
   const [deletingSlug, setDeletingSlug] = useState<string | null>(null);
   const [deletingIdentiteId, setDeletingIdentiteId] = useState<string | null>(null);
+  const [openMonthGroups, setOpenMonthGroups] = useState<Record<string, boolean>>({});
+
+  const isMonthGroupOpen = (key: string): boolean => {
+    if (key in openMonthGroups) return Boolean(openMonthGroups[key]);
+    return true;
+  };
+
+  const toggleMonthGroup = (key: string) => {
+    setOpenMonthGroups((prev) => ({
+      ...prev,
+      [key]: !isMonthGroupOpen(key),
+    }));
+  };
+
+  const formatMonthGroupLabel = (dateStr?: string | null): string => {
+    if (!dateStr) return "Date inconnue";
+    try {
+      const d = new Date(dateStr);
+      return d.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+    } catch {
+      return "Date inconnue";
+    }
+  };
 
   const { matched, others } = useMemo(() => {
     if (!searchTerm.trim()) {
@@ -133,6 +156,27 @@ export default function HistorySidebar({
       return h.includes(term);
     });
   }, [identiteRows, searchTerm]);
+
+  const groupedCua = useMemo(() => {
+    const ordered = [...matched, ...others];
+    const groups = new Map<string, HistoryPipeline[]>();
+    for (const row of ordered) {
+      const key = formatMonthGroupLabel(row.created_at);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(row);
+    }
+    return Array.from(groups.entries()).map(([month, items]) => ({ month, items }));
+  }, [matched, others]);
+
+  const groupedIdentite = useMemo(() => {
+    const groups = new Map<string, IdentiteFonciereHistoryRow[]>();
+    for (const row of filteredIdentite) {
+      const key = formatMonthGroupLabel(row.created_at);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(row);
+    }
+    return Array.from(groups.entries()).map(([month, items]) => ({ month, items }));
+  }, [filteredIdentite]);
 
   const getPill = (p: HistoryPipeline) => {
     const isSuccess = Boolean(p.qr_url || p.output_cua);
@@ -202,16 +246,16 @@ export default function HistorySidebar({
 
                 <div className="flex gap-1 mt-3 p-0.5 rounded-lg bg-[#f4f6f8] border border-[#d5e1e3]">
                   <button type="button" className={tabBtn(productTab === "cua")} onClick={() => setProductTab("cua")}>
-                    CUA
+                    Certificat URBA
                   </button>
                   <button type="button" className={tabBtn(productTab === "cif")} onClick={() => setProductTab("cif")}>
-                    CIF
+                    Identité foncière
                   </button>
                 </div>
 
                 <p className="text-xs text-[#0b131f]/60 mt-2">
                   {productTab === "cua"
-                    ? `${rows.length} dossier${rows.length > 1 ? "s" : ""} CUA`
+                    ? `${rows.length} dossier${rows.length > 1 ? "s" : ""} Certificat URBA`
                     : `${identiteRows.length} identité${identiteRows.length > 1 ? "s" : ""} foncière${identiteRows.length > 1 ? "s" : ""}`}
                 </p>
                 <div className="mt-2">
@@ -221,7 +265,7 @@ export default function HistorySidebar({
                     onChange={(e) => setSearchTerm(e.target.value)}
                     placeholder={
                       productTab === "cua"
-                        ? "Rechercher (CU, demandeur, adresse, parcelles)…"
+                        ? "Rechercher (certificat, demandeur, adresse, parcelles)…"
                         : "Rechercher (parcelles, id…)…"
                     }
                     className="w-full px-2 py-1 text-xs border border-[#d5e1e3] rounded-md focus:outline-none focus:ring-1 focus:ring-[#0b131f]/40"
@@ -244,39 +288,56 @@ export default function HistorySidebar({
                       <div className="p-4 text-center text-[#0b131f]/40 text-sm">Aucun dossier</div>
                     ) : (
                       <div className="p-2">
-                        {[...matched, ...others].map((row) => {
-                          const isSelected = selectedSlug === row.slug;
-                          const pill = getPill(row);
-                          return (
-                            <ProjectHistoryCard
-                              key={row.slug}
-                              row={row}
-                              isSelected={isSelected}
-                              pill={pill}
-                              formattedDate={formatDate(row.created_at)}
-                              onSelect={() => onSelect(row.slug)}
-                              onOpenProject={() => onOpenProject(row.slug)}
-                              onUpdate={async (slug, payload) => {
-                                setUpdatingSlug(slug);
-                                try {
-                                  await onUpdateProject(slug, payload);
-                                } finally {
-                                  setUpdatingSlug(null);
-                                }
-                              }}
-                              onDelete={async (slug) => {
-                                setDeletingSlug(slug);
-                                try {
-                                  await onDeleteProject(slug);
-                                } finally {
-                                  setDeletingSlug(null);
-                                }
-                              }}
-                              isUpdating={updatingSlug === row.slug}
-                              isDeleting={deletingSlug === row.slug}
-                            />
-                          );
-                        })}
+                        {groupedCua.map((group) => (
+                          <div key={group.month} className="mb-3">
+                            <button
+                              type="button"
+                              onClick={() => toggleMonthGroup(`cua:${group.month}`)}
+                              className="w-full px-2 py-1 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-[#0b131f]/50 hover:text-[#0b131f]/80"
+                            >
+                              <span>{group.month}</span>
+                              {isMonthGroupOpen(`cua:${group.month}`) ? (
+                                <ChevronUp className="w-3.5 h-3.5" />
+                              ) : (
+                                <ChevronDown className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                            {isMonthGroupOpen(`cua:${group.month}`) &&
+                              group.items.map((row) => {
+                                const isSelected = selectedSlug === row.slug;
+                                const pill = getPill(row);
+                                return (
+                                  <ProjectHistoryCard
+                                    key={row.slug}
+                                    row={row}
+                                    isSelected={isSelected}
+                                    pill={pill}
+                                    formattedDate={formatDate(row.created_at)}
+                                    onSelect={() => onSelect(row.slug)}
+                                    onOpenProject={() => onOpenProject(row.slug)}
+                                    onUpdate={async (slug, payload) => {
+                                      setUpdatingSlug(slug);
+                                      try {
+                                        await onUpdateProject(slug, payload);
+                                      } finally {
+                                        setUpdatingSlug(null);
+                                      }
+                                    }}
+                                    onDelete={async (slug) => {
+                                      setDeletingSlug(slug);
+                                      try {
+                                        await onDeleteProject(slug);
+                                      } finally {
+                                        setDeletingSlug(null);
+                                      }
+                                    }}
+                                    isUpdating={updatingSlug === row.slug}
+                                    isDeleting={deletingSlug === row.slug}
+                                  />
+                                );
+                              })}
+                          </div>
+                        ))}
                       </div>
                     )}
                   </>
@@ -288,86 +349,103 @@ export default function HistorySidebar({
                         laissez l&apos;analyse se terminer (publication automatique carte + PDF).
                       </div>
                     ) : (
-                      filteredIdentite.map((r) => {
-                        const isSel = selectedIdentiteProjectId === r.project_id;
-                        return (
-                          <div
-                            key={r.project_id}
-                            className={`mb-2 rounded-lg border transition-all ${
-                              isSel ? "border-violet-400 bg-violet-50/50" : "border-transparent hover:bg-[#d5e1e3]/15"
-                            }`}
+                      groupedIdentite.map((group) => (
+                        <div key={group.month} className="mb-3">
+                          <button
+                            type="button"
+                            onClick={() => toggleMonthGroup(`cif:${group.month}`)}
+                            className="w-full px-2 py-1 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-[#0b131f]/50 hover:text-[#0b131f]/80"
                           >
-                            <div className="flex items-stretch gap-0">
-                              <button
-                                type="button"
-                                onClick={() => onSelectIdentite?.(r.project_id)}
-                                className="flex-1 text-left p-3 min-w-0"
-                              >
-                                <div className="flex items-start gap-2">
-                                  <MapPin className="w-4 h-4 mt-0.5 shrink-0 text-violet-600/80" />
-                                  <div className="flex-1 min-w-0">
-                                    <div className="text-sm font-medium text-black truncate">
-                                      {r.parcelle_label || "Unité foncière"}
-                                    </div>
-                                    <div className="text-xs text-[#0b131f]/40 mt-0.5">{formatDate(r.created_at)}</div>
-                                  </div>
-                                </div>
-                              </button>
-                              {onDeleteIdentiteProject ? (
-                                <button
-                                  type="button"
-                                  title="Supprimer de l'historique"
-                                  disabled={deletingIdentiteId === r.project_id}
-                                  onClick={async (e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    const ok = window.confirm(
-                                      "Supprimer cette identité foncière ? Les fichiers (carte, PDF) seront retirés du stockage."
-                                    );
-                                    if (!ok) return;
-                                    setDeletingIdentiteId(r.project_id);
-                                    try {
-                                      await onDeleteIdentiteProject(r.project_id);
-                                    } catch (err: unknown) {
-                                      const msg = err instanceof Error ? err.message : "Échec de la suppression";
-                                      window.alert(msg);
-                                    } finally {
-                                      setDeletingIdentiteId(null);
-                                    }
-                                  }}
-                                  className="shrink-0 px-2 flex items-center justify-center text-[#0b131f]/35 hover:text-red-600 hover:bg-red-50/80 disabled:opacity-40 border-l border-transparent hover:border-red-100"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              ) : null}
-                            </div>
-                            {isSel && (r.carte_url || r.pdf_url) && (
-                              <div className="px-3 pb-3 flex gap-2">
-                                {r.pdf_url ? (
-                                  <a
-                                    href={r.pdf_url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex-1 text-center text-xs font-medium py-2 rounded-md bg-violet-700 text-white hover:bg-violet-800 transition-colors"
-                                  >
-                                    PDF
-                                  </a>
-                                ) : null}
-                                {r.carte_url ? (
-                                  <a
-                                    href={r.carte_url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex-1 text-center text-xs font-medium py-2 rounded-md border border-violet-300 text-violet-800 bg-white hover:bg-violet-50 transition-colors"
-                                  >
-                                    Carte
-                                  </a>
-                                ) : null}
-                              </div>
+                            <span>{group.month}</span>
+                            {isMonthGroupOpen(`cif:${group.month}`) ? (
+                              <ChevronUp className="w-3.5 h-3.5" />
+                            ) : (
+                              <ChevronDown className="w-3.5 h-3.5" />
                             )}
-                          </div>
-                        );
-                      })
+                          </button>
+                          {isMonthGroupOpen(`cif:${group.month}`) &&
+                            group.items.map((r) => {
+                              const isSel = selectedIdentiteProjectId === r.project_id;
+                              return (
+                                <div
+                                  key={r.project_id}
+                                  className={`mb-2 rounded-lg border transition-all ${
+                                    isSel ? "border-violet-400 bg-violet-50/50" : "border-transparent hover:bg-[#d5e1e3]/15"
+                                  }`}
+                                >
+                                  <div className="flex items-stretch gap-0">
+                                    <button
+                                      type="button"
+                                      onClick={() => onSelectIdentite?.(r.project_id)}
+                                      className="flex-1 text-left p-3 min-w-0"
+                                    >
+                                      <div className="flex items-start gap-2">
+                                        <MapPin className="w-4 h-4 mt-0.5 shrink-0 text-violet-600/80" />
+                                        <div className="flex-1 min-w-0">
+                                          <div className="text-sm font-medium text-black truncate">
+                                            {r.parcelle_label || "Unité foncière"}
+                                          </div>
+                                          <div className="text-xs text-[#0b131f]/40 mt-0.5">{formatDate(r.created_at)}</div>
+                                        </div>
+                                      </div>
+                                    </button>
+                                    {onDeleteIdentiteProject ? (
+                                      <button
+                                        type="button"
+                                        title="Supprimer de l'historique"
+                                        disabled={deletingIdentiteId === r.project_id}
+                                        onClick={async (e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          const ok = window.confirm(
+                                            "Supprimer cette identité foncière ? Les fichiers (carte, PDF) seront retirés du stockage."
+                                          );
+                                          if (!ok) return;
+                                          setDeletingIdentiteId(r.project_id);
+                                          try {
+                                            await onDeleteIdentiteProject(r.project_id);
+                                          } catch (err: unknown) {
+                                            const msg = err instanceof Error ? err.message : "Échec de la suppression";
+                                            window.alert(msg);
+                                          } finally {
+                                            setDeletingIdentiteId(null);
+                                          }
+                                        }}
+                                        className="shrink-0 px-2 flex items-center justify-center text-[#0b131f]/35 hover:text-red-600 hover:bg-red-50/80 disabled:opacity-40 border-l border-transparent hover:border-red-100"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    ) : null}
+                                  </div>
+                                  {isSel && (r.carte_url || r.pdf_url) && (
+                                    <div className="px-3 pb-3 flex gap-2">
+                                      {r.pdf_url ? (
+                                        <a
+                                          href={r.pdf_url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="flex-1 text-center text-xs font-medium py-2 rounded-md bg-violet-700 text-white hover:bg-violet-800 transition-colors"
+                                        >
+                                          PDF
+                                        </a>
+                                      ) : null}
+                                      {r.carte_url ? (
+                                        <a
+                                          href={r.carte_url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="flex-1 text-center text-xs font-medium py-2 rounded-md border border-violet-300 text-violet-800 bg-white hover:bg-violet-50 transition-colors"
+                                        >
+                                          Carte
+                                        </a>
+                                      ) : null}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                        </div>
+                      ))
                     )}
                   </div>
                 )}
