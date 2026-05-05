@@ -9,9 +9,9 @@
  *   VITE_API_URL=https://ton-backend.onrender.com   (ou http://localhost:8000 en dev)
  */
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import DeckGL from "@deck.gl/react";
-import { PointCloudLayer } from "@deck.gl/layers";
+import { PathLayer, PointCloudLayer } from "@deck.gl/layers";
 import { OrbitView, COORDINATE_SYSTEM } from "@deck.gl/core";
 import { load } from "@loaders.gl/core";
 import { ArrowLoader } from "@loaders.gl/arrow";
@@ -82,6 +82,11 @@ function emptyParcelleRef(): ParcelleRef {
 export default function LidarViewer() {
   const [parcelles, setParcelles] = useState<ParcelleRef[]>([emptyParcelleRef()]);
   const [maxPoints, setMaxPoints] = useState<number>(0);
+  /** Tampon (m) autour de la parcelle pour le contexte terrain sans agrandir trop la zone */
+  const [contextBufferM, setContextBufferM] = useState<number>(5);
+  /** Polyligne 3D (coords relatives) pour tracer la limite parcelle cible, façon MNT jaune */
+  const [outlinePaths, setOutlinePaths] = useState<number[][][] | null>(null);
+  const [showParcelleOutline, setShowParcelleOutline] = useState(true);
   const [loading, setLoading] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -128,6 +133,7 @@ export default function LidarViewer() {
     setError(null);
     setLogs([]);
     setPointData(null);
+    setOutlinePaths(null);
     setNPoints(null);
 
     try {
@@ -139,7 +145,12 @@ export default function LidarViewer() {
       const res = await fetch(`${API}/lidar/points`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ parcelles, max_points: maxPoints }),
+        body: JSON.stringify({
+          parcelles,
+          max_points: maxPoints,
+          context_buffer_m: contextBufferM,
+          include_parcelle_outline: showParcelleOutline,
+        }),
       });
 
       if (!res.ok) {
@@ -152,11 +163,16 @@ export default function LidarViewer() {
       const centerX = res.headers.get("X-Center-X");
       const centerY = res.headers.get("X-Center-Y");
       const superficie = res.headers.get("X-Superficie-M2");
+      const clipArea = res.headers.get("X-Clip-Area-M2");
+      const bufferM = res.headers.get("X-Context-Buffer-M");
       const nTiles = res.headers.get("X-N-Tiles");
       const tilesMb = res.headers.get("X-Tiles-Mb");
       const pointsBruts = res.headers.get("X-Points-Bruts");
 
+      if (bufferM) addLog(`Tampon contexte : ${parseFloat(bufferM)} m`);
       if (superficie) addLog(`Superficie parcelle : ${parseFloat(superficie).toLocaleString()} m²`);
+      if (clipArea)
+        addLog(`Surface zone clip (parcelle + tampon) : ${parseFloat(clipArea).toLocaleString()} m²`);
       if (nTiles) addLog(`Dalles IGN intersectées : ${nTiles}`);
       if (tilesMb) addLog(`Poids dalles téléchargées : ${parseFloat(tilesMb).toFixed(1)} Mo`);
       if (pointsBruts) addLog(`Points bruts dans dalles : ${parseInt(pointsBruts).toLocaleString()}`);
@@ -164,7 +180,27 @@ export default function LidarViewer() {
       if (centerX && centerY) addLog(`Centre XY : (${Number(centerX).toFixed(1)}, ${Number(centerY).toFixed(1)})`);
 
       addLog("Parsing Arrow (Web Worker)…");
-      const table = await load(res, ArrowLoader);
+      const ct = res.headers.get("content-type") ?? "";
+      let table: unknown;
+      if (ct.includes("application/json")) {
+        const j = (await res.json()) as {
+          arrow_ipc_base64: string;
+          outline_paths?: number[][][];
+        };
+        const bin = atob(j.arrow_ipc_base64);
+        const buf = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+        table = await load(buf, ArrowLoader);
+        const op = j.outline_paths?.length ? j.outline_paths : null;
+        setOutlinePaths(op);
+        if (op?.length) {
+          const n = op.reduce((acc, p) => acc + p.length, 0);
+          addLog(`Contour parcelle (jaune) : ${op.length} boucle(s), ${n} sommets`);
+        }
+      } else {
+        setOutlinePaths(null);
+        table = await load(res, ArrowLoader);
+      }
 
       const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
       addLog(`Arrow parsé en ${elapsed}s — construction du nuage…`);
@@ -224,19 +260,39 @@ export default function LidarViewer() {
     } finally {
       setLoading(false);
     }
-  }, [parcelles, maxPoints, addLog]);
+  }, [parcelles, maxPoints, contextBufferM, showParcelleOutline, addLog]);
 
-  // ── Couche deck.gl ──
-  const layer = pointData
-    ? new (PointCloudLayer as any)({
-        id: "lidar-cloud",
-        data: pointData as any,
-        getPosition: (d: any) => d.position,
-        getColor: (d: any) => d.color,
-        pointSize: 2,
-        coordinateSystem: COORDINATE_SYSTEM.CARTESIAN, // Coordonnées relatives centrées
-      })
-    : null;
+  // ── Couches deck.gl : nuage + contour parcelle (jaune) ──
+  const layers = useMemo(() => {
+    const out: any[] = [];
+    if (pointData?.length) {
+      out.push(
+        new (PointCloudLayer as any)({
+          id: "lidar-cloud",
+          data: pointData as any,
+          getPosition: (d: any) => d.position,
+          getColor: (d: any) => d.color,
+          pointSize: 2,
+          coordinateSystem: COORDINATE_SYSTEM.CARTESIAN,
+        })
+      );
+    }
+    if (outlinePaths?.length) {
+      out.push(
+        new (PathLayer as any)({
+          id: "parcelle-limite",
+          data: outlinePaths.map((path, i) => ({ path, id: i })),
+          getPath: (d: any) => d.path,
+          getColor: [255, 234, 0, 255],
+          getWidth: 4,
+          widthUnits: "pixels",
+          coordinateSystem: COORDINATE_SYSTEM.CARTESIAN,
+          parameters: { depthTest: false },
+        })
+      );
+    }
+    return out.length ? out : null;
+  }, [pointData, outlinePaths]);
 
   // ─── Rendu ───────────────────────────────────────────────────────────────
 
@@ -291,6 +347,35 @@ export default function LidarViewer() {
         </div>
 
         {/* Options */}
+        <div style={styles.section}>
+          <label style={styles.label}>Tampon autour de la parcelle (m)</label>
+          <input
+            style={styles.input}
+            type="number"
+            min={0}
+            max={50}
+            step={1}
+            value={contextBufferM}
+            onChange={(e) => setContextBufferM(Math.min(50, Math.max(0, Number(e.target.value) || 0)))}
+            disabled={loading}
+          />
+          <div style={{ fontSize: 10, color: "#6b7280", marginTop: 4 }}>
+            0 = parcelle seule ; ~5 m = insert dans le terrain proche sans tout voisin contigu.
+          </div>
+        </div>
+
+        <div style={styles.section}>
+          <label style={checkboxOutlineStyle}>
+            <input
+              type="checkbox"
+              checked={showParcelleOutline}
+              onChange={(e) => setShowParcelleOutline(e.target.checked)}
+              disabled={loading}
+            />
+            <span>Tracer la limite de la parcelle cible (jaune, type MNT)</span>
+          </label>
+        </div>
+
         <div style={styles.section}>
           <label style={styles.label}>Limite de points (0 = tous)</label>
           <input
@@ -394,7 +479,7 @@ export default function LidarViewer() {
             viewState={viewState}
             onViewStateChange={({ viewState: vs }: any) => setViewState(vs)}
             controller
-            layers={layer ? [layer] : []}
+            layers={layers ?? []}
           />
         )}
       </div>
@@ -404,6 +489,16 @@ export default function LidarViewer() {
 
 // ─── Styles inline ────────────────────────────────────────────────────────────
 // (pas de dépendance CSS externe, s'intègre dans n'importe quelle app React)
+
+const checkboxOutlineStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "flex-start",
+  gap: 8,
+  fontSize: 12,
+  color: "#e5e7eb",
+  cursor: "pointer",
+  lineHeight: 1.4,
+};
 
 const styles: Record<string, React.CSSProperties> = {
   page: {

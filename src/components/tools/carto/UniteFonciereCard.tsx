@@ -2,13 +2,17 @@ import { useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   CheckCircle2,
+  Cloud,
   FileDown,
   FileText,
   Loader2,
   MapPin,
   MinusCircle,
+  Mountain,
   XCircle,
 } from "lucide-react";
+import { LidarVisualizationEmbed } from "./LidarVisualizationEmbed";
+import { MntVisualizationEmbed } from "./MntVisualizationEmbed";
 import { ManualCuaForm } from "../../../pages/cua/cerfa/ManualCuaForm";
 
 type UFParcelle = {
@@ -77,6 +81,8 @@ export default function UniteFonciereCard({
   embedded = false,
 }: Props) {
   const [showCUA, setShowCUA] = useState(false);
+  /** Visualisation terrain : MNT (1ère parcelle) ou LiDAR (toute l'UF) */
+  const [terrainViz, setTerrainViz] = useState<null | "mnt" | "lidar">(null);
 
   const [cifStarted, setCifStarted] = useState(false);
   const [cifLoading, setCifLoading] = useState(false);
@@ -97,6 +103,20 @@ export default function UniteFonciereCard({
     () => ufParcelles.map((p) => ({ section: p.section, numero: p.numero })),
     [ufContentKey]
   );
+
+  /** Références pour POST /lidar/points (union UF) */
+  const lidarParcelles = useMemo(
+    () =>
+      ufParcelles.map((p) => ({
+        code_insee: (p.insee ?? insee).trim(),
+        section: p.section.trim(),
+        numero: p.numero.trim(),
+      })),
+    [ufParcelles, insee]
+  );
+
+  /** POST /mnt/visualisation/html : une parcelle — on prend la 1re de l'UF */
+  const mntPrimary = lidarParcelles[0] ?? null;
 
   const abortRef = useRef<AbortController | null>(null);
   const layerRowsSyncRef = useRef<LayerRowState[]>([]);
@@ -352,6 +372,33 @@ export default function UniteFonciereCard({
             <FileText size={16} />
             <span>Certificat d'urbanisme</span>
           </button>
+
+          <div className="text-xs text-slate-500 pt-1 border-t border-slate-100 mt-2">
+            Visualisation 3D
+          </div>
+          <button
+            type="button"
+            onClick={() => setTerrainViz("mnt")}
+            disabled={!mntPrimary}
+            title={
+              ufParcelles.length > 1
+                ? "MNT sur la 1re parcelle listée ; pour l’ensemble UF utiliser LiDAR."
+                : "Topographie MNT 3D"
+            }
+            className="w-full flex items-center justify-center gap-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white py-2 px-3 rounded text-sm transition-colors"
+          >
+            <Mountain size={16} />
+            <span>Topographie (MNT)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setTerrainViz("lidar")}
+            disabled={lidarParcelles.length === 0}
+            className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white py-2 px-3 rounded text-sm transition-colors"
+          >
+            <Cloud size={16} />
+            <span>Nuage LiDAR HD</span>
+          </button>
         </div>
 
         {cifStarted && (
@@ -413,6 +460,42 @@ export default function UniteFonciereCard({
           </div>
         )}
       </div>
+
+      {terrainViz && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/55 p-3 sm:p-6"
+          role="presentation"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setTerrainViz(null);
+          }}
+        >
+          <div
+            className="flex h-[min(88vh,920px)] w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-label={terrainViz === "mnt" ? "Topographie MNT" : "Nuage LiDAR"}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {terrainViz === "mnt" && mntPrimary && (
+              <MntVisualizationEmbed
+                codeInsee={mntPrimary.code_insee}
+                section={mntPrimary.section}
+                numero={mntPrimary.numero}
+                onClose={() => setTerrainViz(null)}
+                className="min-h-0 flex-1"
+              />
+            )}
+            {terrainViz === "lidar" && (
+              <LidarVisualizationEmbed
+                key={ufContentKey}
+                parcelles={lidarParcelles}
+                onClose={() => setTerrainViz(null)}
+                className="min-h-0 flex-1"
+              />
+            )}
+          </div>
+        </div>
+      )}
 
       {showCUA && (
         <div className="absolute top-20 left-80 z-50 bg-white shadow-xl rounded-lg p-6 w-96 max-h-[80vh] overflow-y-auto">
