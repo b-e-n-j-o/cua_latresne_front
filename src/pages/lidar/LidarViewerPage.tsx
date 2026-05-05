@@ -151,14 +151,33 @@ export default function LidarViewer() {
       const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
       addLog(`Arrow parsé en ${elapsed}s — construction du nuage…`);
 
-      // Conversion Arrow table → tableau d'objets pour PointCloudLayer
-      // On extrait les colonnes directement pour éviter de tout itérer
-      const xCol = table.data?.children?.find((c: any) => c.name === "x")?.values as Float32Array;
-      const yCol = table.data?.children?.find((c: any) => c.name === "y")?.values as Float32Array;
-      const zCol = table.data?.children?.find((c: any) => c.name === "z")?.values as Float32Array;
-      const clsCol = table.data?.children?.find((c: any) => c.name === "classification")?.values as Uint8Array;
+      // ArrowLoader retourne un objet Apache Arrow Table
+      // On accède aux colonnes via .getChild() ou via les batches
+      addLog(`Structure Arrow reçue : ${JSON.stringify(Object.keys(table as any))}`);
 
-      if (!xCol || !yCol || !zCol) throw new Error("Colonnes Arrow manquantes (x/y/z).");
+      // Extraction via Arrow Table API standard
+      const getCol = (name: string) => {
+        // loaders.gl ArrowLoader retourne soit un Arrow Table, soit { schema, batches }
+        const t = table as any;
+        if (t.getChild) {
+          const col = t.getChild(name);
+          return col ? col.toArray() : null;
+        }
+        // Fallback : accès via batches
+        if (t.batches?.length > 0) {
+          const batch = t.batches[0];
+          const col = batch.getChild?.(name) ?? batch.schema?.fields?.find((f: any) => f.name === name);
+          return col?.values ?? null;
+        }
+        return null;
+      };
+
+      const xCol = getCol("x") as Float32Array;
+      const yCol = getCol("y") as Float32Array;
+      const zCol = getCol("z") as Float32Array;
+      const clsCol = getCol("classification") as Uint8Array;
+
+      if (!xCol || !yCol || !zCol) throw new Error(`Colonnes Arrow manquantes (x/y/z). Clés dispo: ${JSON.stringify(Object.keys(table as any))}`);
 
       const count = xCol.length;
       setNPoints(count);
