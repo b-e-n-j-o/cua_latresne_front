@@ -35,7 +35,7 @@ interface ViewState {
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
-const API = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+const API = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
 
 // Couleurs par classe LAS (classification IGN LiDAR HD)
 const CLASS_COLORS: Record<number, [number, number, number]> = {
