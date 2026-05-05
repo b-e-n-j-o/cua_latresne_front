@@ -12,7 +12,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import DeckGL from "@deck.gl/react";
 import { PointCloudLayer } from "@deck.gl/layers";
-import { OrbitView } from "@deck.gl/core";
+import { OrbitView, COORDINATE_SYSTEM } from "@deck.gl/core";
 import { load } from "@loaders.gl/core";
 import { ArrowLoader } from "@loaders.gl/arrow";
 
@@ -195,9 +195,12 @@ export default function LidarViewer() {
       }
       const zCenter = (zMin + zMax) / 2;
       setViewState({
-        ...INITIAL_VIEW_STATE,
         target: [0, 0, zCenter],
+        rotationX: 45,
+        rotationOrbit: 0,
         zoom: 1,
+        minZoom: -5,
+        maxZoom: 20,
       });
 
       addLog("✓ Visualisation prête.");
@@ -218,7 +221,7 @@ export default function LidarViewer() {
         getPosition: (d: any) => d.position,
         getColor: (d: any) => d.color,
         pointSize: 2,
-        coordinateSystem: 1, // CARTESIAN — coordonnées relatives
+        coordinateSystem: COORDINATE_SYSTEM.CARTESIAN, // Coordonnées relatives centrées
       })
     : null;
 
