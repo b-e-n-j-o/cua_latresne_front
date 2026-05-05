@@ -33,6 +33,11 @@ interface ViewState {
   maxZoom: number;
 }
 
+interface LidarPoint {
+  position: [number, number, number];
+  color: [number, number, number];
+}
+
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
 const API = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
@@ -80,7 +85,7 @@ export default function LidarViewer() {
   const [loading, setLoading] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [pointData, setPointData] = useState<unknown[] | null>(null);
+  const [pointData, setPointData] = useState<LidarPoint[] | null>(null);
   const [viewState, setViewState] = useState<ViewState>(INITIAL_VIEW_STATE);
   const [nPoints, setNPoints] = useState<number | null>(null);
   const logsRef = useRef<HTMLDivElement>(null);
@@ -151,70 +156,36 @@ export default function LidarViewer() {
       const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
       addLog(`Arrow parsé en ${elapsed}s — construction du nuage…`);
 
-      // La structure ArrowLoader loaders.gl varie selon version ({shape,schema,data}, Arrow Table, batches...)
+      // La structure ArrowLoader loaders.gl est ici { shape, schema, data }
       const d = (table as any).data;
       if (!d) throw new Error(`Structure Arrow inattendue. Clés table: ${JSON.stringify(Object.keys(table as any))}`);
 
       addLog(`Clés data : ${JSON.stringify(Object.keys(d))}`);
       addLog(`Clés data.attributes : ${JSON.stringify(Object.keys((d as any).attributes ?? {}))}`);
 
-      const toTypedArray = (col: any): any => {
-        if (!col) return null;
-        if (ArrayBuffer.isView(col)) return col;
-        if (typeof col.toArray === "function") return col.toArray();
-        if (ArrayBuffer.isView(col.values)) return col.values;
-        if (ArrayBuffer.isView(col.value)) return col.value;
-        if (ArrayBuffer.isView(col.data)) return col.data;
-        return null;
-      };
+      // Extraction directe depuis data
+      const xCol = d.x as Float32Array;
+      const yCol = d.y as Float32Array;
+      const zCol = d.z as Float32Array;
+      const clsCol = d.classification as Uint8Array;
 
-      const getColumn = (name: "x" | "y" | "z" | "classification") => {
-        const t = table as any;
-
-        // Format columnar fréquent loaders.gl
-        const direct =
-          d?.[name] ??
-          d?.attributes?.[name] ??
-          d?.attributes?.[name]?.value ??
-          d?.columns?.[name];
-        let arr = toTypedArray(direct);
-        if (arr) return arr;
-
-        // Arrow Table API
-        if (typeof t.getChild === "function") {
-          arr = toTypedArray(t.getChild(name));
-          if (arr) return arr;
-        }
-
-        // Fallback batches
-        if (t.batches?.length) {
-          const batch = t.batches[0];
-          arr = toTypedArray(batch.getChild?.(name));
-          if (arr) return arr;
-        }
-
-        return null;
-      };
-
-      const xCol = getColumn("x") as Float32Array | null;
-      const yCol = getColumn("y") as Float32Array | null;
-      const zCol = getColumn("z") as Float32Array | null;
-      const clsCol = (getColumn("classification") as Uint8Array | null) ?? undefined;
-
-      if (!xCol || !yCol || !zCol) {
-        throw new Error(
-          `Colonnes manquantes (x/y/z). Clés table=${JSON.stringify(Object.keys(table as any))} | data=${JSON.stringify(Object.keys(d))} | data.attributes=${JSON.stringify(Object.keys((d as any).attributes ?? {}))}`
-        );
-      }
+      if (!xCol || !yCol || !zCol) throw new Error(`Colonnes manquantes. Clés data: ${JSON.stringify(Object.keys(d))}`);
 
       const count = xCol.length;
       setNPoints(count);
       addLog(`${count.toLocaleString()} points prêts, chargement deck.gl…`);
 
-      // On passe les typed arrays directement — pas de création d'objets intermédiaires
-      // PointCloudLayer accepte des accessors sur des typed arrays via index
-      const data = { length: count, attributes: { x: xCol, y: yCol, z: zCol, cls: clsCol } };
-      setPointData(data as unknown as unknown[]);
+      // Construire un tableau d'objets simple — deck.gl l'accepte sans ambiguïté
+      const points: LidarPoint[] = [];
+      for (let i = 0; i < count; i++) {
+        const cls = clsCol?.[i] ?? 1;
+        points.push({
+          position: [xCol[i], yCol[i], zCol[i]],
+          color: CLASS_COLORS[cls] ?? DEFAULT_COLOR,
+        });
+      }
+
+      setPointData(points);
 
       // Centre la vue sur le nuage
       let zMin = Infinity, zMax = -Infinity;
@@ -240,25 +211,16 @@ export default function LidarViewer() {
   }, [parcelles, maxPoints, addLog]);
 
   // ── Couche deck.gl ──
-  const layer =
-    pointData && (pointData as any).length > 0
-      ? new (PointCloudLayer as any)({
-          id: "lidar-cloud",
-          data: pointData as any,
-          numInstances: (pointData as any).length,
-          getPosition: (_: unknown, { index, data }: any) => [
-            data.attributes.x[index],
-            data.attributes.y[index],
-            data.attributes.z[index],
-          ],
-          getColor: (_: unknown, { index, data }: any) => {
-            const cls = data.attributes.cls?.[index] ?? 1;
-            return CLASS_COLORS[cls] ?? DEFAULT_COLOR;
-          },
-          pointSize: 2,
-          coordinateSystem: 1, // CARTESIAN — coordonnées relatives
-        })
-      : null;
+  const layer = pointData
+    ? new (PointCloudLayer as any)({
+        id: "lidar-cloud",
+        data: pointData as any,
+        getPosition: (d: any) => d.position,
+        getColor: (d: any) => d.color,
+        pointSize: 2,
+        coordinateSystem: 1, // CARTESIAN — coordonnées relatives
+      })
+    : null;
 
   // ─── Rendu ───────────────────────────────────────────────────────────────
 
