@@ -151,19 +151,61 @@ export default function LidarViewer() {
       const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
       addLog(`Arrow parsé en ${elapsed}s — construction du nuage…`);
 
-      // La structure ArrowLoader loaders.gl est { shape, schema, data }
-      // data contient les colonnes directement : data.x, data.y, data.z, data.classification
+      // La structure ArrowLoader loaders.gl varie selon version ({shape,schema,data}, Arrow Table, batches...)
       const d = (table as any).data;
       if (!d) throw new Error(`Structure Arrow inattendue. Clés table: ${JSON.stringify(Object.keys(table as any))}`);
 
       addLog(`Clés data : ${JSON.stringify(Object.keys(d))}`);
+      addLog(`Clés data.attributes : ${JSON.stringify(Object.keys((d as any).attributes ?? {}))}`);
 
-      const xCol = d.x as Float32Array;
-      const yCol = d.y as Float32Array;
-      const zCol = d.z as Float32Array;
-      const clsCol = d.classification as Uint8Array;
+      const toTypedArray = (col: any): any => {
+        if (!col) return null;
+        if (ArrayBuffer.isView(col)) return col;
+        if (typeof col.toArray === "function") return col.toArray();
+        if (ArrayBuffer.isView(col.values)) return col.values;
+        if (ArrayBuffer.isView(col.value)) return col.value;
+        if (ArrayBuffer.isView(col.data)) return col.data;
+        return null;
+      };
 
-      if (!xCol || !yCol || !zCol) throw new Error(`Colonnes manquantes. Clés data: ${JSON.stringify(Object.keys(d))}`);
+      const getColumn = (name: "x" | "y" | "z" | "classification") => {
+        const t = table as any;
+
+        // Format columnar fréquent loaders.gl
+        const direct =
+          d?.[name] ??
+          d?.attributes?.[name] ??
+          d?.attributes?.[name]?.value ??
+          d?.columns?.[name];
+        let arr = toTypedArray(direct);
+        if (arr) return arr;
+
+        // Arrow Table API
+        if (typeof t.getChild === "function") {
+          arr = toTypedArray(t.getChild(name));
+          if (arr) return arr;
+        }
+
+        // Fallback batches
+        if (t.batches?.length) {
+          const batch = t.batches[0];
+          arr = toTypedArray(batch.getChild?.(name));
+          if (arr) return arr;
+        }
+
+        return null;
+      };
+
+      const xCol = getColumn("x") as Float32Array | null;
+      const yCol = getColumn("y") as Float32Array | null;
+      const zCol = getColumn("z") as Float32Array | null;
+      const clsCol = (getColumn("classification") as Uint8Array | null) ?? undefined;
+
+      if (!xCol || !yCol || !zCol) {
+        throw new Error(
+          `Colonnes manquantes (x/y/z). Clés table=${JSON.stringify(Object.keys(table as any))} | data=${JSON.stringify(Object.keys(d))} | data.attributes=${JSON.stringify(Object.keys((d as any).attributes ?? {}))}`
+        );
+      }
 
       const count = xCol.length;
       setNPoints(count);
