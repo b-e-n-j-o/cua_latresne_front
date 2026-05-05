@@ -147,8 +147,21 @@ export default function LidarViewer() {
         throw new Error(detail.detail ?? res.statusText);
       }
 
-      const n = res.headers.get("X-N-Points");
-      if (n) addLog(`Réponse reçue : ${parseInt(n).toLocaleString()} points`);
+      // Affiche les métadonnées retournées par le back
+      const nPointsHeader = res.headers.get("X-N-Points");
+      const centerX = res.headers.get("X-Center-X");
+      const centerY = res.headers.get("X-Center-Y");
+      const superficie = res.headers.get("X-Superficie-M2");
+      const nTiles = res.headers.get("X-N-Tiles");
+      const tilesMb = res.headers.get("X-Tiles-Mb");
+      const pointsBruts = res.headers.get("X-Points-Bruts");
+
+      if (superficie) addLog(`Superficie parcelle : ${parseFloat(superficie).toLocaleString()} m²`);
+      if (nTiles) addLog(`Dalles IGN intersectées : ${nTiles}`);
+      if (tilesMb) addLog(`Poids dalles téléchargées : ${parseFloat(tilesMb).toFixed(1)} Mo`);
+      if (pointsBruts) addLog(`Points bruts dans dalles : ${parseInt(pointsBruts).toLocaleString()}`);
+      if (nPointsHeader) addLog(`Points après clipping zone : ${parseInt(nPointsHeader).toLocaleString()}`);
+      if (centerX && centerY) addLog(`Centre XY : (${Number(centerX).toFixed(1)}, ${Number(centerY).toFixed(1)})`);
 
       addLog("Parsing Arrow (Web Worker)…");
       const table = await load(res, ArrowLoader);
