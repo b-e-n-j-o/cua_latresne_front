@@ -151,33 +151,19 @@ export default function LidarViewer() {
       const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
       addLog(`Arrow parsé en ${elapsed}s — construction du nuage…`);
 
-      // ArrowLoader retourne un objet Apache Arrow Table
-      // On accède aux colonnes via .getChild() ou via les batches
-      addLog(`Structure Arrow reçue : ${JSON.stringify(Object.keys(table as any))}`);
+      // La structure ArrowLoader loaders.gl est { shape, schema, data }
+      // data contient les colonnes directement : data.x, data.y, data.z, data.classification
+      const d = (table as any).data;
+      if (!d) throw new Error(`Structure Arrow inattendue. Clés table: ${JSON.stringify(Object.keys(table as any))}`);
 
-      // Extraction via Arrow Table API standard
-      const getCol = (name: string) => {
-        // loaders.gl ArrowLoader retourne soit un Arrow Table, soit { schema, batches }
-        const t = table as any;
-        if (t.getChild) {
-          const col = t.getChild(name);
-          return col ? col.toArray() : null;
-        }
-        // Fallback : accès via batches
-        if (t.batches?.length > 0) {
-          const batch = t.batches[0];
-          const col = batch.getChild?.(name) ?? batch.schema?.fields?.find((f: any) => f.name === name);
-          return col?.values ?? null;
-        }
-        return null;
-      };
+      addLog(`Clés data : ${JSON.stringify(Object.keys(d))}`);
 
-      const xCol = getCol("x") as Float32Array;
-      const yCol = getCol("y") as Float32Array;
-      const zCol = getCol("z") as Float32Array;
-      const clsCol = getCol("classification") as Uint8Array;
+      const xCol = d.x as Float32Array;
+      const yCol = d.y as Float32Array;
+      const zCol = d.z as Float32Array;
+      const clsCol = d.classification as Uint8Array;
 
-      if (!xCol || !yCol || !zCol) throw new Error(`Colonnes Arrow manquantes (x/y/z). Clés dispo: ${JSON.stringify(Object.keys(table as any))}`);
+      if (!xCol || !yCol || !zCol) throw new Error(`Colonnes manquantes. Clés data: ${JSON.stringify(Object.keys(d))}`);
 
       const count = xCol.length;
       setNPoints(count);
@@ -214,7 +200,7 @@ export default function LidarViewer() {
   // ── Couche deck.gl ──
   const layer =
     pointData && (pointData as any).length > 0
-      ? new PointCloudLayer({
+      ? new (PointCloudLayer as any)({
           id: "lidar-cloud",
           data: pointData as any,
           numInstances: (pointData as any).length,
@@ -389,7 +375,6 @@ export default function LidarViewer() {
             onViewStateChange={({ viewState: vs }: any) => setViewState(vs)}
             controller
             layers={layer ? [layer] : []}
-            parameters={{ clearColor: [0.05, 0.05, 0.08, 1] }}
           />
         )}
       </div>
