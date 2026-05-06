@@ -33,9 +33,10 @@ interface ViewState {
   maxZoom: number;
 }
 
-interface LidarPoint {
-  position: [number, number, number];
-  color: [number, number, number];
+interface LidarBuffer {
+  positions: Float32Array;
+  colors: Uint8Array;
+  count: number;
 }
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
@@ -90,7 +91,7 @@ export default function LidarViewer() {
   const [loading, setLoading] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [pointData, setPointData] = useState<LidarPoint[] | null>(null);
+  const [pointData, setPointData] = useState<LidarBuffer | null>(null);
   const [viewState, setViewState] = useState<ViewState>(INITIAL_VIEW_STATE);
   const [nPoints, setNPoints] = useState<number | null>(null);
   const logsRef = useRef<HTMLDivElement>(null);
@@ -224,17 +225,26 @@ export default function LidarViewer() {
       setNPoints(count);
       addLog(`${count.toLocaleString()} points prêts, chargement deck.gl…`);
 
-      // Construire un tableau d'objets simple — deck.gl l'accepte sans ambiguïté
-      const points: LidarPoint[] = [];
+      // Construction binaire : évite d'allouer un objet JS par point.
+      const positions = new Float32Array(count * 3);
+      const colors = new Uint8Array(count * 3);
       for (let i = 0; i < count; i++) {
         const cls = clsCol?.[i] ?? 1;
-        points.push({
-          position: [xCol[i], yCol[i], zCol[i]],
-          color: CLASS_COLORS[cls] ?? DEFAULT_COLOR,
-        });
+        const c = CLASS_COLORS[cls] ?? DEFAULT_COLOR;
+        const idx = i * 3;
+        positions[idx] = xCol[i];
+        positions[idx + 1] = yCol[i];
+        positions[idx + 2] = zCol[i];
+        colors[idx] = c[0];
+        colors[idx + 1] = c[1];
+        colors[idx + 2] = c[2];
       }
 
-      setPointData(points);
+      setPointData({
+        positions,
+        colors,
+        count,
+      });
 
       // Centre la vue sur le nuage
       let zMin = Infinity, zMax = -Infinity;
@@ -265,13 +275,17 @@ export default function LidarViewer() {
   // ── Couches deck.gl : nuage + contour parcelle (jaune) ──
   const layers = useMemo(() => {
     const out: any[] = [];
-    if (pointData?.length) {
+    if (pointData?.count) {
       out.push(
         new (PointCloudLayer as any)({
           id: "lidar-cloud",
-          data: pointData as any,
-          getPosition: (d: any) => d.position,
-          getColor: (d: any) => d.color,
+          data: {
+            length: pointData.count,
+            attributes: {
+              getPosition: { value: pointData.positions, size: 3 },
+              getColor: { value: pointData.colors, size: 3 },
+            },
+          },
           pointSize: 2,
           coordinateSystem: COORDINATE_SYSTEM.CARTESIAN,
         })

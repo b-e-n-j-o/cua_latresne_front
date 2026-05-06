@@ -214,11 +214,14 @@ function extractContourPoints(
 function TerrainMesh({
   data,
   onHoverPoint,
+  isOrbitingRef,
 }: {
   data: TerrainData;
   onHoverPoint?: (point: { x: number; y: number; elev: number; cellKey: string } | null) => void;
+  isOrbitingRef?: React.MutableRefObject<boolean>;
 }) {
   const meshRef = useRef<THREE.Mesh>(null);
+  const lastHoverSampleAtRef = useRef(0);
 
   const geometry = useMemo(() => buildTerrainGeometry(data), [data]);
   const elevations = useMemo(() => decodeElevations(data.elevations_b64), [data.elevations_b64]);
@@ -246,9 +249,15 @@ function TerrainMesh({
       geometry={geometry}
       material={material}
       rotation={[-Math.PI / 2, 0, 0]}
-      receiveShadow
-      castShadow
       onPointerMove={(e) => {
+        if (isOrbitingRef?.current) {
+          onHoverPoint?.(null);
+          return;
+        }
+        const now = performance.now();
+        if (now - lastHoverSampleAtRef.current < 100) return;
+        lastHoverSampleAtRef.current = now;
+
         const rx = e.point.x;
         const ry = -e.point.z;
         const W = data.width * data.resolution_m;
@@ -348,9 +357,15 @@ function CameraSetup({ data }: { data: TerrainData }) {
 function TerrainScene({
   data,
   onHoverPoint,
+  isOrbitingRef,
+  onOrbitStart,
+  onOrbitEnd,
 }: {
   data: TerrainData;
   onHoverPoint?: (point: { x: number; y: number; elev: number; cellKey: string } | null) => void;
+  isOrbitingRef: React.MutableRefObject<boolean>;
+  onOrbitStart?: () => void;
+  onOrbitEnd?: () => void;
 }) {
   return (
     <>
@@ -362,9 +377,6 @@ function TerrainScene({
       <directionalLight
         position={[300, 400, 500]}
         intensity={1.1}
-        castShadow
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
       />
       <directionalLight
         position={[-200, -300, 200]}
@@ -374,7 +386,7 @@ function TerrainScene({
 
       {/* Terrain */}
       <Suspense fallback={null}>
-        <TerrainMesh data={data} onHoverPoint={onHoverPoint} />
+        <TerrainMesh data={data} onHoverPoint={onHoverPoint} isOrbitingRef={isOrbitingRef} />
         <TerrainContours data={data} />
       </Suspense>
 
@@ -386,6 +398,8 @@ function TerrainScene({
         minDistance={10}
         maxDistance={5000}
         maxPolarAngle={Math.PI / 2 - 0.02}
+        onStart={onOrbitStart}
+        onEnd={onOrbitEnd}
       />
     </>
   );
@@ -409,6 +423,7 @@ export function MntVisualizationEmbed({
   const hoverRafRef = useRef<number | null>(null);
   const pendingHoverRef = useRef<{ x: number; y: number; elev: number; cellKey: string } | null>(null);
   const lastHoverKeyRef = useRef<string>("");
+  const isOrbitingRef = useRef(false);
 
   const handleHoverPoint = useCallback((point: { x: number; y: number; elev: number; cellKey: string } | null) => {
     pendingHoverRef.current = point;
@@ -474,7 +489,28 @@ export function MntVisualizationEmbed({
         }
 
         const json: TerrainData = await res.json();
-        if (!cancelled) setData(json);
+        if (!cancelled) {
+          setData(json);
+          const perf = performance as Performance & {
+            memory?: {
+              usedJSHeapSize: number;
+              totalJSHeapSize: number;
+              jsHeapSizeLimit: number;
+            };
+          };
+          if (perf.memory) {
+            const mem = perf.memory;
+            console.log(`[MNT] Heap JS utilise : ${(mem.usedJSHeapSize / 1e6).toFixed(1)} Mo`);
+            console.log(`[MNT] Heap JS total   : ${(mem.totalJSHeapSize / 1e6).toFixed(1)} Mo`);
+            console.log(`[MNT] Heap JS limite  : ${(mem.jsHeapSizeLimit / 1e6).toFixed(1)} Mo`);
+          }
+          console.log(
+            `[MNT] Payload JSON    : ${((json.elevations_b64.length * 0.75) / 1e6).toFixed(1)} Mo (Float32)`,
+          );
+          console.log(
+            `[MNT] Grille          : ${json.width}x${json.height} = ${((json.width * json.height) / 1e6).toFixed(2)}M vertices`,
+          );
+        }
       } catch (e) {
         if ((e as Error).name === "AbortError") return;
         if (!cancelled) setError((e as Error).message ?? String(e));
@@ -567,17 +603,27 @@ export function MntVisualizationEmbed({
         {data && !loading && (
           <>
             <Canvas
+              frameloop="demand"
               style={{ width: "100%", height: "100%" }}
               camera={{ fov: 45, near: 0.1, far: 50000 }}
-              shadows
               gl={{ antialias: true, alpha: false }}
               onCreated={({ gl }) => {
                 gl.setClearColor(new THREE.Color(BG_COLOR));
-                gl.shadowMap.enabled = true;
-                gl.shadowMap.type = THREE.PCFSoftShadowMap;
+                gl.shadowMap.enabled = false;
               }}
             >
-              <TerrainScene data={data} onHoverPoint={handleHoverPoint} />
+              <TerrainScene
+                data={data}
+                onHoverPoint={handleHoverPoint}
+                isOrbitingRef={isOrbitingRef}
+                onOrbitStart={() => {
+                  isOrbitingRef.current = true;
+                  handleHoverPoint(null);
+                }}
+                onOrbitEnd={() => {
+                  isOrbitingRef.current = false;
+                }}
+              />
             </Canvas>
 
             {hoverPoint && (
