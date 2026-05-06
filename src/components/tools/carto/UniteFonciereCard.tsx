@@ -115,7 +115,7 @@ export default function UniteFonciereCard({
     [ufParcelles, insee]
   );
 
-  /** POST /mnt/visualisation/html : une parcelle — on prend la 1re de l'UF */
+  /** POST /mnt/visualisation/html : on envoie l'UF unifiée + refs des parcelles composantes */
   const mntPrimary = lidarParcelles[0] ?? null;
 
   const abortRef = useRef<AbortController | null>(null);
@@ -481,6 +481,8 @@ export default function UniteFonciereCard({
                 codeInsee={mntPrimary.code_insee}
                 section={mntPrimary.section}
                 numero={mntPrimary.numero}
+                unionGeometry={unionGeometry}
+                parcelles={lidarParcelles}
                 onClose={() => setTerrainViz(null)}
                 className="min-h-0 flex-1"
               />

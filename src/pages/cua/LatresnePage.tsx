@@ -1472,11 +1472,12 @@ export default function LatresnePage() {
               )
             );
           }}
-          onAddManualUfParcelleToMap={(section, numero) => {
+          onAddManualUfParcelleToMap={(section, numero, inseeInput) => {
             const cadastre = cadastreDataRef.current;
             if (!cadastre) return;
             const normalizedSection = normalizeUfSection(section);
             const normalizedNumero = normalizeUfNumero(numero);
+            const normalizedInsee = (inseeInput || "").trim();
 
             if (selectedUfParcelles.length >= 20) {
               alert("Maximum 20 parcelles pour une unité foncière");
@@ -1490,10 +1491,14 @@ export default function LatresnePage() {
             );
             if (alreadySelected) return;
 
-            const found = cadastre.features.find((f: any) =>
-              normalizeUfSection(f.properties?.section) === normalizedSection &&
-              normalizeUfNumero(f.properties?.numero) === normalizedNumero
-            );
+            const found = cadastre.features.find((f: any) => {
+              const sameSectionNumero =
+                normalizeUfSection(f.properties?.section) === normalizedSection &&
+                normalizeUfNumero(f.properties?.numero) === normalizedNumero;
+              if (!sameSectionNumero) return false;
+              if (!normalizedInsee) return true;
+              return String(f.properties?.insee || "").trim() === normalizedInsee;
+            });
 
             if (!found || !found.geometry) {
               alert("Parcelle introuvable dans le cadastre local");
@@ -1508,7 +1513,7 @@ export default function LatresnePage() {
                 section: normalizedSection,
                 numero: normalizedNumero,
                 commune: props.commune || "Latresne",
-                insee: props.insee || "33234",
+                insee: normalizedInsee || props.insee || "33234",
                 geometry: found.geometry as GeoJSON.Geometry,
                 addedVia: "manual",
               },

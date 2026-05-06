@@ -23,7 +23,7 @@ type Props = {
     commune: string,
     insee: string
   ) => void;
-  onAddManualUfParcelleToMap?: (section: string, numero: string) => void;
+  onAddManualUfParcelleToMap?: (section: string, numero: string, insee?: string) => void;
   embedded?: boolean;
 };
 
@@ -47,9 +47,8 @@ export default function SearchUniteFonciere({
   embedded = false,
 }: Props) {
   const [loading, setLoading] = useState(false);
-  /** Onglet actif : deux façons de construire l'UF, bien séparées. */
-  const [mode, setMode] = useState<"carte" | "manuel">("carte");
   /** Brouillon saisie manuelle (une seule ligne à la fois). */
+  const [draftInsee, setDraftInsee] = useState("");
   const [draftSection, setDraftSection] = useState("");
   const [draftNumero, setDraftNumero] = useState("");
 
@@ -63,17 +62,19 @@ export default function SearchUniteFonciere({
   }
 
   function addDraftToUf() {
+    const insee = draftInsee.trim();
     const s = padSection(draftSection);
     const n = padNumero(draftNumero);
-    if (!s || !n) return;
-    onAddManualUfParcelleToMap?.(s, n);
+    if (!insee || !s || !n) return;
+    onAddManualUfParcelleToMap?.(s, n, insee);
+    setDraftInsee("");
     setDraftSection("");
     setDraftNumero("");
   }
 
   async function confirmUF() {
-    if (totalCount < 2) {
-      alert("Une unité foncière doit contenir au moins 2 parcelles.");
+    if (totalCount < 1) {
+      alert("Une unité foncière doit contenir au moins 1 parcelle.");
       return;
     }
 
@@ -195,13 +196,6 @@ export default function SearchUniteFonciere({
     }
   }
 
-  const tabBtn = (active: boolean) =>
-    `flex-1 py-2 px-2 text-xs font-medium rounded-md transition ${
-      active
-        ? "bg-white text-amber-900 shadow-sm border border-amber-200"
-        : "text-gray-600 hover:text-gray-900 hover:bg-white/60"
-    }`;
-
   return (
     <div
       className={`${
@@ -212,113 +206,98 @@ export default function SearchUniteFonciere({
     >
       <div className="font-semibold text-gray-900">Unité foncière</div>
 
-      {/* Onglets Carte / Manuel */}
-      <div className="p-1 rounded-lg bg-amber-50/80 border border-amber-100 flex gap-1">
-        <button
-          type="button"
-          className={tabBtn(mode === "carte")}
-          onClick={() => setMode("carte")}
-        >
-          Cliquer sur la carte
-        </button>
-        <button
-          type="button"
-          className={tabBtn(mode === "manuel")}
-          onClick={() => setMode("manuel")}
-        >
-          Saisie des références cadastrales
-        </button>
+      <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50/40 p-2.5">
+        <div className="flex items-start gap-2">
+          <input
+            type="checkbox"
+            id="uf-click-mode"
+            checked={ufBuilderMode}
+            onChange={(e) => onUfBuilderToggle?.(e.target.checked)}
+            className="w-4 h-4 mt-0.5 shrink-0"
+          />
+          <label htmlFor="uf-click-mode" className="text-xs cursor-pointer leading-snug text-gray-800">
+            <span className="font-medium text-amber-900">Sélection parcelles au clic</span>
+          </label>
+        </div>
+        {parcellesCarte.length === 0 && (
+          <p className="text-[11px] text-amber-800/80 italic">Aucune parcelle sélectionnée sur la carte pour l’instant.</p>
+        )}
       </div>
 
-      {/* ——— Mode carte ——— */}
-      {mode === "carte" && (
-        <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50/40 p-2.5">
-          <div className="flex items-start gap-2">
-            <input
-              type="checkbox"
-              id="uf-click-mode"
-              checked={ufBuilderMode}
-              onChange={(e) => onUfBuilderToggle?.(e.target.checked)}
-              className="w-4 h-4 mt-0.5 shrink-0"
-            />
-            <label htmlFor="uf-click-mode" className="text-xs cursor-pointer leading-snug text-gray-800">
-              <span className="font-medium text-amber-900">Mode sélection au clic</span>
-              <span className="block text-gray-600 mt-0.5">
-                Cliquez sur les parcelles du cadastre pour les ajouter,
-                recliquez pour les retirer.
-              </span>
-            </label>
-          </div>
-          {parcellesCarte.length === 0 && (
-            <p className="text-[11px] text-amber-800/80 italic">Aucune parcelle sélectionnée sur la carte pour l’instant.</p>
-          )}
+      <div className="space-y-2 rounded-md border border-gray-200 bg-gray-50/60 p-2.5">
+        <p className="text-[11px] text-gray-600 leading-snug">
+          Ou bien renseignez les références cadastrales
+        </p>
+        <div className="grid grid-cols-12 gap-2 text-[11px] font-medium text-gray-600 px-1">
+          <div className="col-span-4">INSEE</div>
+          <div className="col-span-3">Section</div>
+          <div className="col-span-4">Numéro</div>
+          <div className="col-span-1" />
         </div>
-      )}
-
-      {/* ——— Mode saisie manuelle ——— */}
-      {mode === "manuel" && (
-        <div className="space-y-2 rounded-md border border-gray-200 bg-gray-50/60 p-2.5">
-          <p className="text-[11px] text-gray-600 leading-snug">
-            Saisissez la <strong>section</strong> et le <strong>numéro</strong> (ex. AN et 0404), puis « Ajouter ».
-            Répétez pour chaque parcelle.
-          </p>
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="max-h-40 overflow-y-auto space-y-1">
+          {selectedUfParcelles.map((p, idx) => (
+            <div key={`${p.section}-${p.numero}-${idx}`} className="grid grid-cols-12 gap-2 items-center">
+              <input
+                className="col-span-4 border border-gray-200 px-2 py-1.5 rounded text-xs bg-white"
+                value={p.insee || ""}
+                readOnly
+              />
+              <input
+                className="col-span-3 border border-gray-200 px-2 py-1.5 rounded text-xs uppercase bg-white"
+                value={p.section}
+                readOnly
+              />
+              <input
+                className="col-span-4 border border-gray-200 px-2 py-1.5 rounded text-xs bg-white"
+                value={p.numero}
+                readOnly
+              />
+              {onUfParcelleRemove && (
+                <button
+                  type="button"
+                  className="col-span-1 text-red-600 hover:bg-red-50 px-1.5 rounded text-sm leading-none"
+                  onClick={() => onUfParcelleRemove(p.section, p.numero)}
+                  title="Retirer"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          ))}
+          <div className="grid grid-cols-12 gap-2 items-center">
             <input
-              className="w-[4.5rem] border border-gray-200 px-2 py-1.5 rounded text-xs uppercase"
-              placeholder="Sect."
+              className="col-span-4 border border-gray-200 px-2 py-1.5 rounded text-xs bg-white"
+              placeholder="33234"
+              value={draftInsee}
+              onChange={(e) => setDraftInsee(e.target.value)}
+            />
+            <input
+              className="col-span-3 border border-gray-200 px-2 py-1.5 rounded text-xs uppercase bg-white"
+              placeholder="XX"
               value={draftSection}
               onChange={(e) => setDraftSection(e.target.value.toUpperCase())}
               onBlur={() => setDraftSection((v) => padSection(v))}
               maxLength={2}
             />
             <input
-              className="flex-1 min-w-[5rem] border border-gray-200 px-2 py-1.5 rounded text-xs"
-              placeholder="N° parcelle"
+              className="col-span-4 border border-gray-200 px-2 py-1.5 rounded text-xs bg-white"
+              placeholder="XXXX"
               value={draftNumero}
               onChange={(e) => setDraftNumero(e.target.value)}
               onBlur={() => setDraftNumero((v) => padNumero(v))}
             />
             <button
               type="button"
-              className="px-3 py-1.5 text-xs font-medium rounded-md bg-gray-800 text-white hover:bg-gray-900 disabled:opacity-40"
-              disabled={!draftSection.trim() || !draftNumero.trim()}
+              className="col-span-1 h-full text-xs font-medium rounded-md bg-gray-800 text-white hover:bg-gray-900 disabled:opacity-40"
+              disabled={!draftInsee.trim() || !draftSection.trim() || !draftNumero.trim()}
               onClick={addDraftToUf}
+              title="Ajouter la ligne"
             >
-              Ajouter
+              +
             </button>
           </div>
         </div>
-      )}
-
-      {totalCount > 0 && (
-        <div className="space-y-1 bg-gray-50 p-2 rounded border border-gray-200">
-          <div className="text-xs font-medium text-gray-700">
-            Parcelles sélectionnées ({totalCount}/20)
-          </div>
-          <ul className="max-h-40 overflow-y-auto space-y-1">
-            {selectedUfParcelles.map((p, idx) => (
-              <li
-                key={`${p.section}-${p.numero}-${idx}`}
-                className="flex items-center justify-between gap-2 text-xs bg-white px-2 py-1 rounded border"
-              >
-                <span className="font-mono">
-                  {p.section} {p.numero}
-                </span>
-                {onUfParcelleRemove && (
-                  <button
-                    type="button"
-                    className="text-red-600 hover:bg-red-50 px-1.5 rounded text-sm leading-none"
-                    onClick={() => onUfParcelleRemove(p.section, p.numero)}
-                    title="Retirer"
-                  >
-                    ×
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      </div>
 
       {/* Récap global + validation */}
       <div className="rounded-md border border-dashed border-gray-200 bg-gray-50/80 px-2.5 py-2">
@@ -327,7 +306,7 @@ export default function SearchUniteFonciere({
         </div>
       </div>
 
-      {totalCount >= 2 && (
+      {totalCount >= 1 && (
         <button
           type="button"
           className="w-full bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2.5 rounded-md text-sm font-medium transition-colors"
