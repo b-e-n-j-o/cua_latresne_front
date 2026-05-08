@@ -24,14 +24,13 @@ const HistoryPage = () => (
 const NewLandingPage = () => (
   <iframe
     title="Kerelia Landing Page"
-    src="/src/pages/website/landingpage/landing_page.html"
+    src="/landing/landing_page.html"
     style={{
       width: "100%",
       minHeight: "100vh",
       border: "none",
       display: "block",
     }}
-    sandbox="allow-scripts allow-forms allow-popups allow-modals"
   />
 );
 
