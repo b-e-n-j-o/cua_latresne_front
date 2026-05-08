@@ -24,7 +24,7 @@ const HistoryPage = () => (
 const NewLandingPage = () => (
   <iframe
     title="Kerelia Landing Page"
-    src="/landing/landing_page.html"
+    src="/landing_page.html"
     style={{
       width: "100%",
       minHeight: "100vh",

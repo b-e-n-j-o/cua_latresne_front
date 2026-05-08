@@ -110,7 +110,7 @@ type UFState = {
   commune: string;
 };
 
-export default function LatresnePage() {
+export default function ArgelesPage() {
   const navigate = useNavigate();
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -212,7 +212,7 @@ export default function LatresnePage() {
           setUserEmail(user.email || null);
         }
       } catch (e) {
-        console.error("Erreur récupération session Supabase dans LatresnePage", e);
+        console.error("Erreur récupération session Supabase dans ArgelesPage", e);
       }
     })();
   }, []);
@@ -487,7 +487,7 @@ export default function LatresnePage() {
       let parcellesData: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
       try {
         const base = (API_BASE || "http://localhost:8000").replace(/\/$/, "");
-        let response = await fetch(`${base}/latresne/parcelles/geojson`);
+        let response = await fetch(`${base}/communes/argeles/parcelles/geojson`);
         if (!response.ok) {
           // Fallback local pour éviter un écran vide si backend indisponible.
           response = await fetch("/data/parcelles.geojson");
@@ -904,8 +904,8 @@ export default function LatresnePage() {
           toggleUfParcelle({
             section: normalizedSection,
             numero: normalizedNumero,
-            commune: props.commune || "Latresne",
-            insee: props.insee || "33234",
+            commune: props.commune || "Argeles",
+            insee: props.insee || "66008",
             geometry: feature.geometry as GeoJSON.Geometry,
             addedVia: "map",
           });
@@ -920,7 +920,7 @@ export default function LatresnePage() {
         });
 
         const zonageData = await getZonageAtPoint(
-          props.insee || "33234",
+          props.insee || "66008",
           props.section,
           props.numero
         );
@@ -928,8 +928,8 @@ export default function LatresnePage() {
         setSelectedParcelle({
           section: props.section,
           numero: props.numero,
-          commune: props.commune || "Latresne",
-          insee: props.insee || "33234",
+          commune: props.commune || "Argeles",
+          insee: props.insee || "66008",
           zonage: zonageData?.etiquette,
           zonages: zonageData ? [{
             section: props.section,
@@ -973,8 +973,8 @@ export default function LatresnePage() {
           toggleUfParcelle({
             section: normalizedSection,
             numero: normalizedNumero,
-            commune: props.commune || "Latresne",
-            insee: props.insee || props.code_insee || "33234",
+            commune: props.commune || "Argeles",
+            insee: props.insee || props.code_insee || "66008",
             geometry: feature.geometry as GeoJSON.Geometry,
             addedVia: "map",
           });
@@ -988,13 +988,13 @@ export default function LatresnePage() {
           easing: (t) => t * (2 - t)
         });
 
-        const insee = props.code_insee ?? props.insee ?? "33234";
+        const insee = props.code_insee ?? props.insee ?? "66008";
         const zonageData = await getZonageAtPoint(insee, props.section, props.numero);
 
         setSelectedParcelle({
           section: props.section,
           numero: props.numero,
-          commune: props.commune || "Latresne",
+          commune: props.commune || "Argeles",
           insee,
           zonage: zonageData?.etiquette,
           zonages: zonageData ? [{
@@ -1512,8 +1512,8 @@ export default function LatresnePage() {
               {
                 section: normalizedSection,
                 numero: normalizedNumero,
-                commune: props.commune || "Latresne",
-                insee: normalizedInsee || props.insee || "33234",
+                commune: props.commune || "Argeles",
+                insee: normalizedInsee || props.insee || "66008",
                 geometry: found.geometry as GeoJSON.Geometry,
                 addedVia: "manual",
               },
@@ -1594,7 +1594,7 @@ export default function LatresnePage() {
                 onPipelineCreated={(newSlug) => {
                   console.log("[CUA] Redirection vers page projet (UF)", { newSlug });
                   refreshHistoryPipelines(newSlug);
-                  navigate(`/latresne/cua/projects/${newSlug}`);
+                  navigate(`/argeles/cua/projects/${newSlug}`);
                 }}
                 onParcellesDetected={async (parcelles, commune, insee) => {
                   if (showCerfaParcellesRef.current) {
@@ -1663,7 +1663,7 @@ export default function LatresnePage() {
           onPipelineCreated={(newSlug) => {
             console.log("[CUA] Redirection vers page projet", { newSlug });
             refreshHistoryPipelines(newSlug);
-            navigate(`/latresne/cua/projects/${newSlug}`);
+            navigate(`/argeles/cua/projects/${newSlug}`);
           }}
           onParcellesDetected={async (parcelles, commune, insee) => {
             if (showCerfaParcellesRef.current) {
@@ -1714,7 +1714,7 @@ export default function LatresnePage() {
           onToggle={() => setRightHistoryOpen((v) => !v)}
           selectedSlug={selectedHistoryPipeline?.slug ?? null}
           onSelect={handleSelectHistoryFromSlug}
-          onOpenProject={(slug) => navigate(`/latresne/cua/projects/${slug}`)}
+          onOpenProject={(slug) => navigate(`/argeles/cua/projects/${slug}`)}
           onUpdateProject={handleUpdateHistoryProject}
           onDeleteProject={handleDeleteHistoryProject}
           identiteRows={identiteFonciereHistory}
