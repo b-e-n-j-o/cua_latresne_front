@@ -21,6 +21,86 @@ const LATRESNE_BOUNDS: [number, number, number, number] = [
 ];
 
 const API_BASE = import.meta.env.VITE_API_BASE;
+const ARG_CADASTRE_API_PATH = "/communes/argeles/parcelles/geojson";
+const ARG_CADASTRE_FALLBACK_PATH = "/data/parcelles.geojson";
+const ARG_CADASTRE_CACHE_NAME = "cua-cadastre-v1";
+const ARG_CADASTRE_CACHE_META_KEY = "cua-cadastre:argeles:last-sync";
+const ARG_CADASTRE_CACHE_TTL_MS = 1000 * 60 * 60 * 12; // 12h
+let cadastreMemoryCache: GeoJSON.FeatureCollection | null = null;
+
+function isFeatureCollection(value: unknown): value is GeoJSON.FeatureCollection {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as { type?: unknown; features?: unknown };
+  return candidate.type === "FeatureCollection" && Array.isArray(candidate.features);
+}
+
+async function readCadastreFromCache(apiUrl: string): Promise<GeoJSON.FeatureCollection | null> {
+  try {
+    if (typeof window === "undefined" || !("caches" in window)) return null;
+    const lastSync = Number(window.localStorage.getItem(ARG_CADASTRE_CACHE_META_KEY) || "0");
+    const isFresh = Number.isFinite(lastSync) && Date.now() - lastSync < ARG_CADASTRE_CACHE_TTL_MS;
+    if (!isFresh) return null;
+
+    const cache = await window.caches.open(ARG_CADASTRE_CACHE_NAME);
+    const cached = await cache.match(apiUrl);
+    if (!cached) return null;
+
+    const data = (await cached.json()) as unknown;
+    return isFeatureCollection(data) ? data : null;
+  } catch {
+    return null;
+  }
+}
+
+async function writeCadastreToCache(apiUrl: string, data: GeoJSON.FeatureCollection): Promise<void> {
+  try {
+    if (typeof window === "undefined" || !("caches" in window)) return;
+    const cache = await window.caches.open(ARG_CADASTRE_CACHE_NAME);
+    await cache.put(
+      apiUrl,
+      new Response(JSON.stringify(data), {
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+    window.localStorage.setItem(ARG_CADASTRE_CACHE_META_KEY, String(Date.now()));
+  } catch {
+    // Cache navigateur facultatif: on n'interrompt pas le flux principal.
+  }
+}
+
+async function fetchCadastreGeojson(): Promise<GeoJSON.FeatureCollection> {
+  if (cadastreMemoryCache) return cadastreMemoryCache;
+
+  const base = (API_BASE || "http://localhost:8000").replace(/\/$/, "");
+  const apiUrl = `${base}${ARG_CADASTRE_API_PATH}`;
+
+  const cached = await readCadastreFromCache(apiUrl);
+  if (cached) {
+    cadastreMemoryCache = cached;
+    return cached;
+  }
+
+  let response = await fetch(apiUrl);
+  if (!response.ok) {
+    // Fallback local pour éviter un écran vide si backend indisponible.
+    response = await fetch(ARG_CADASTRE_FALLBACK_PATH);
+  }
+  if (!response.ok) {
+    throw new Error(`Chargement cadastre impossible (${response.status})`);
+  }
+
+  const data = (await response.json()) as unknown;
+  if (!isFeatureCollection(data)) {
+    throw new Error("Réponse cadastre invalide");
+  }
+
+  cadastreMemoryCache = data;
+  // On ne persiste que les données API (pas le fallback local).
+  if (response.url.includes(ARG_CADASTRE_API_PATH)) {
+    await writeCadastreToCache(apiUrl, data);
+  }
+  return data;
+}
 
 function normalizeUfSection(raw: unknown): string {
   return String(raw ?? "").trim().toUpperCase();
@@ -482,20 +562,11 @@ export default function ArgelesPage() {
         map.setPaintProperty("building", "fill-opacity", 0.25);
       } catch {}
 
-      // Charger le cadastre depuis l'API (base), avec fallback local en dev.
+      // Charger le cadastre depuis l'API avec cache navigateur + fallback local.
       setIsLoadingCadastre(true);
       let parcellesData: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
       try {
-        const base = (API_BASE || "http://localhost:8000").replace(/\/$/, "");
-        let response = await fetch(`${base}/communes/argeles/parcelles/geojson`);
-        if (!response.ok) {
-          // Fallback local pour éviter un écran vide si backend indisponible.
-          response = await fetch("/data/parcelles.geojson");
-        }
-        if (!response.ok) {
-          throw new Error(`Chargement cadastre impossible (${response.status})`);
-        }
-        parcellesData = await response.json();
+        parcellesData = await fetchCadastreGeojson();
         cadastreDataRef.current = parcellesData;
       } catch (err) {
         console.error("Erreur chargement cadastre:", err);

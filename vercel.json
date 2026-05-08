@@ -1,7 +1,8 @@
 {
-    "rewrites": [
-      { "source": "/api/(.*)", "destination": "https://cua-latresne-1.onrender.com/$1" },
-      { "source": "/(.*)", "destination": "/index.html" }
-    ]
-  }
-  
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "https://cua-latresne-1.onrender.com/$1" },
+    { "source": "/landing_page.html", "destination": "/landing_page.html" },
+    { "source": "/assets/(.*)", "destination": "/assets/$1" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
