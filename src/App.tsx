@@ -1,73 +1,95 @@
-import React from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
-import MainApp from "./routes/MainApp";
-import MapsViewer from "./routes/MapsViewer";
-import RedirectSlugPage from "./routes/RedirectSlugPage";
-import LandingPage from "./routes/LandingPage";
-import ResourcesPage from "./routes/ResourcesPage";
-import TestPage from "./routes/TestPage";
+import { Routes, Route, useLocation } from "react-router-dom";
+import AuthGate from "./auth/AuthGate";
 import LoginForm from "./auth/LoginForm";
 import ResetPasswordPage from "./auth/ResetPasswordPage";
 import UpdatePasswordPage from "./auth/UpdatePasswordPage";
-import AuthGate from "./auth/AuthGate";
-import supabase from "./supabaseClient";
-import HomePage from "./routes/HomePage";
-import ChatUrba from "./routes/ChatUrba";
+import LandingPage from "./pages/website/landingpage/LandingPage";
+import RedirectSlugPage from "./routes/RedirectSlugPage";
+import HistoryPanel from "./HistoryPanel";
+import AdminPage from "./routes/AdminPage";
+import CuaViewer from "./routes/CuaViewer";
+import TeamPage from "./pages/website/TeamPage";
+import ChatUrba from "./pages/chat-urba/ChatUrba";
+import LidarViewerPage from "./pages/visualisations_de_test/lidar/LidarViewerPage";
+import MntViewerPage from "./pages/visualisations_de_test/mnt/MntViewerPage";
+import PortailApp from "./portail/PortailApp";
+import LatresneCuaPage from "./pages/communes/latresne/cua/LatresnePage";
+import ArgelesCuaPage from "./pages/communes/argeles/cua/ArgelesPage";
+import ProjectPage from "./pages/communes/latresne/cua/ProjectPage";
 
-import type { User } from "@supabase/supabase-js";
+const HistoryPage = () => (
+  <HistoryPanel apiBase={import.meta.env.VITE_API_BASE || ""} />
+);
 
-function PublicGate({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = React.useState<User | undefined>(undefined);
-  const [loaded, setLoaded] = React.useState(false);
+const NewLandingPage = () => (
+  <iframe
+    title="Kerelia Landing Page"
+    src="/src/pages/website/landingpage/landing_page.html"
+    style={{
+      width: "100%",
+      minHeight: "100vh",
+      border: "none",
+      display: "block",
+    }}
+    sandbox="allow-scripts allow-forms allow-popups allow-modals"
+  />
+);
 
-  React.useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setUser(data.session?.user ?? undefined);
-      setLoaded(true);
-    });
-  }, []);
-
-  if (!loaded) return null;
-  if (user) return <Navigate to="/app" replace />;
-
-  return <>{children}</>;
-}
+const PUBLIC_EXACT_ROUTES = [
+  "/",
+  "/login",
+  "/reset-password",
+  "/update-password",
+  "/notre-equipe",
+  "/chat-urba",
+  "/ancienne",
+  "/latresne",
+  "/lidar",
+  "/mnt",
+  "/carto",
+];
+const PUBLIC_PREFIX_ROUTES = ["/m/", "/cua"];
 
 export default function App() {
+  const location = useLocation();
+  const path = location.pathname;
+
+  const isExactPublic = PUBLIC_EXACT_ROUTES.includes(path);
+  const isPrefixPublic = PUBLIC_PREFIX_ROUTES.some((prefix) => path.startsWith(prefix));
+  const isPublic = isExactPublic || isPrefixPublic;
+
+  if (isPublic) {
+    return (
+      <Routes>
+        <Route path="/" element={<NewLandingPage />} />
+        <Route path="/ancienne" element={<LandingPage />} />
+        <Route path="/login" element={<LoginForm />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/update-password" element={<UpdatePasswordPage />} />
+        <Route path="/notre-equipe" element={<TeamPage />} />
+        <Route path="/cua" element={<CuaViewer />} />
+        <Route path="/chat-urba" element={<ChatUrba />} />
+        <Route path="/latresne" element={<div>Page introuvable</div>} />
+        <Route path="/lidar" element={<LidarViewerPage />} />
+        <Route path="/mnt" element={<MntViewerPage />} />
+        <Route path="/carto" element={<div>Page introuvable</div>} />
+        <Route path="/m/:slug" element={<RedirectSlugPage />} />
+        <Route path="*" element={<div>Page introuvable</div>} />
+      </Routes>
+    );
+  }
+
   return (
-    <Routes>
-      {/* Pages publiques mais interdites aux utilisateurs connectés */}
-      <Route path="/login" element={
-        <PublicGate><LoginForm /></PublicGate>
-      } />
-
-      <Route path="/reset-password" element={
-        <PublicGate><ResetPasswordPage /></PublicGate>
-      } />
-
-      <Route path="/update-password" element={
-        <PublicGate><UpdatePasswordPage /></PublicGate>
-      } />
-
-      {/* Landing page */}
-      <Route path="/" element={<LandingPage />} />
-
-      {/* Pages publiques */}
-      <Route path="/maps" element={<MapsViewer />} />
-      <Route path="/new" element={<HomePage />} />
-      <Route path="/m/:slug" element={<RedirectSlugPage />} />
-      <Route path="/ressources" element={<ResourcesPage />} />
-      <Route path="/test" element={<TestPage />} />
-      <Route path="/chat-urba" element={<ChatUrba />} />
-
-      {/* Pages protégées */}
-      <Route
-        path="/app"
-        element={<AuthGate><MainApp /></AuthGate>}
-      />
-
-      {/* 404 */}
-      <Route path="*" element={<div>Page introuvable</div>} />
-    </Routes>
+    <AuthGate>
+      <Routes>
+        <Route path="/history" element={<HistoryPage />} />
+        <Route path="/admin" element={<AdminPage />} />
+        <Route path="/portail/*" element={<PortailApp />} />
+        <Route path="/latresne/cua" element={<LatresneCuaPage />} />
+        <Route path="/argeles/cua" element={<ArgelesCuaPage />} />
+        <Route path="/latresne/cua/projects/:slug" element={<ProjectPage />} />
+        <Route path="*" element={<div>Page introuvable</div>} />
+      </Routes>
+    </AuthGate>
   );
 }

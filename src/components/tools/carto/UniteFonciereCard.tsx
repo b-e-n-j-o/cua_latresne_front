@@ -11,9 +11,9 @@ import {
   Mountain,
   XCircle,
 } from "lucide-react";
-import { LidarVisualizationEmbed } from "./LidarVisualizationEmbed";
-import { MntVisualizationEmbed } from "./MntVisualizationEmbed";
-import { ManualCuaForm } from "../../../pages/cua/cerfa/ManualCuaForm";
+import { LidarVisualizationEmbed } from "../lidar/LidarVisualizationEmbed";
+import { MntVisualizationEmbed } from "../mnt/MntVisualizationEmbed";
+import { ManualCuaForm } from "../../../pages/communes/latresne/cua/cerfa/ManualCuaForm";
 
 type UFParcelle = {
   section: string;

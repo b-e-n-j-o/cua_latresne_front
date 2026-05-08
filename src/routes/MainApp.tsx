@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState, useRef } from "react"
 import supabase from "../supabaseClient";
 import LogoutButton from "../auth/LogoutButton";
 import HistorySidebar from "../components/cua_app/HistorySidebar";
-import CuaEditorWithMap from "../components/cua_app/CuaEditorWithMap";
+import CuaEditorWithMap from "../pages/website/CuaEditorWithMap";
 import NewDossierPanel from "../components/cua_app/NewDossierPannel";
 import RightAISidebar from "../components/cua_app/RightAISidebar";
 import { useMeta } from "../hooks/useMeta";

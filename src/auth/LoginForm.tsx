@@ -26,8 +26,8 @@ export default function LoginForm() {
         throw error;
       }
       
-      // ✅ SUCCÈS : Rediriger l'utilisateur vers la page principale (/app)
-      navigate("/app", { replace: true }); 
+      // ✅ SUCCÈS : Rediriger l'utilisateur vers la page d'accueil
+      navigate("/", { replace: true }); 
 
     } catch (err: any) {
       console.error(err);

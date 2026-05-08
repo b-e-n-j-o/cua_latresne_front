@@ -40,7 +40,7 @@ export default function UpdatePasswordPage() {
       setMessage("Votre mot de passe a été mis à jour avec succès ! Redirection vers votre espace…");
       
       setTimeout(() => {
-        window.location.href = '/app';
+        window.location.href = '/';
       }, 1500);
 
     } catch (err) {

@@ -1,0 +1,285 @@
+/* ============================================================
+   KERELIA HEADER -- v12
+   Hauteur cases 26px (+15%), police 12px
+   ============================================================ */
+
+/* ========================================
+   1. RÈGLE UNIVERSELLE -- élimine toute ligne parasite
+======================================== */
+
+* {
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* ========================================
+   2. RESTAURATION DES BORDURES NÉCESSAIRES
+======================================== */
+
+.kh__nav-item {
+  border: 1px solid rgba(238, 238, 238, 0.08) !important;
+}
+
+.kh__cta {
+  border: 1px solid #000 !important;
+}
+
+/* ========================================
+   3. HEADER -- compact, presque collé aux bords
+======================================== */
+
+.kh,
+header.kh {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  height: 50px !important;
+  padding: 12px !important;
+  background: transparent !important;
+  display: flex !important;
+  align-items: center !important;
+  z-index: 100 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.kh__inner {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  height: 100% !important;
+}
+
+/* ========================================
+   4. SUPPRESSION DES SÉPARATEURS |
+======================================== */
+
+.kh__nav-sep {
+  display: none !important;
+}
+
+/* ========================================
+   5. LOGO -- carré 26×26
+======================================== */
+
+.kh__lockup {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: #fff313 !important;
+  padding: 0 !important;
+  border-radius: 6px !important;
+  width: 26px !important;
+  height: 26px !important;
+  box-sizing: border-box !important;
+  text-decoration: none !important;
+  transition: background 200ms linear !important;
+  flex-shrink: 0 !important;
+}
+
+.kh__lockup:hover {
+  background: #c0b400 !important;
+}
+
+.kh__lockup img {
+  height: 15px !important;
+  width: 15px !important;
+  display: block !important;
+  flex-shrink: 0 !important;
+  object-fit: contain !important;
+}
+
+.kh__lockup .kh__word,
+.kh__lockup span {
+  display: none !important;
+}
+
+/* ========================================
+   6. NAVIGATION -- hauteur 26px, police 12px
+======================================== */
+
+.kh__nav {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  flex: 1 1 auto !important;
+  background: transparent !important;
+  margin: 0 4px !important;
+}
+
+.kh__nav-item {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+
+  background: rgba(238, 238, 238, 0.06) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border-radius: 6px !important;
+
+  height: 26px !important;
+  padding: 0 14px !important;
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+
+  font-family: "Inter", -apple-system, system-ui, sans-serif !important;
+  font-weight: 400 !important;
+  font-size: 12px !important;
+  letter-spacing: 0 !important;
+  line-height: 1 !important;
+  color: rgba(238, 238, 238, 0.7) !important;
+  text-decoration: none !important;
+  white-space: nowrap !important;
+  cursor: pointer !important;
+
+  transition: background 200ms linear, color 200ms linear, border-color 200ms linear !important;
+}
+
+.kh__nav-item:hover {
+  background: rgba(51, 51, 51, 0.6) !important;
+  border-color: rgba(238, 238, 238, 0.14) !important;
+  color: #eeeeee !important;
+}
+
+.kh__nav-item[aria-expanded="true"],
+.kh__nav-item.is-active {
+  background: rgba(51, 51, 51, 0.8) !important;
+  border-color: rgba(238, 238, 238, 0.18) !important;
+  color: #fff313 !important;
+}
+
+.kh__nav-item::before,
+.kh__nav-item::after {
+  display: none !important;
+  content: none !important;
+}
+
+/* ========================================
+   7. CHEVRON (Expertise uniquement)
+======================================== */
+
+.kh__chev {
+  width: 8px !important;
+  height: 8px !important;
+  margin-left: auto !important;
+  flex-shrink: 0 !important;
+  color: rgba(238, 238, 238, 0.5) !important;
+  transition: transform 200ms linear, color 200ms linear !important;
+}
+
+.kh__nav-item:hover .kh__chev {
+  color: rgba(238, 238, 238, 0.85) !important;
+}
+
+.kh__nav-item[aria-expanded="true"] .kh__chev {
+  transform: rotate(180deg) !important;
+  color: #fff313 !important;
+}
+
+/* ========================================
+   8. CTA -- hauteur 26px, police 12px
+======================================== */
+
+.kh__cta {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 6px !important;
+  background: #fff313 !important;
+  color: #000 !important;
+  border-radius: 6px !important;
+  height: 26px !important;
+  padding: 0 16px !important;
+  font-family: "Inter", -apple-system, system-ui, sans-serif !important;
+  font-weight: 400 !important;
+  font-size: 12px !important;
+  letter-spacing: 0 !important;
+  line-height: 1 !important;
+  text-decoration: none !important;
+  white-space: nowrap !important;
+  transition: background 200ms linear !important;
+  box-sizing: border-box !important;
+  flex-shrink: 0 !important;
+}
+
+.kh__cta:hover {
+  background: #c0b400 !important;
+}
+
+/* ========================================
+   9. BOUTONS UTILITAIRES
+======================================== */
+
+.kh__close {
+  display: none !important;
+  background: rgba(238, 238, 238, 0.06) !important;
+  border-radius: 6px !important;
+  width: 26px !important;
+  height: 26px !important;
+  padding: 0 !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: rgba(238, 238, 238, 0.85) !important;
+  cursor: pointer !important;
+}
+
+.kh.is-menu-open .kh__close {
+  display: inline-flex !important;
+}
+
+.kh__burger {
+  display: none !important;
+  background: rgba(238, 238, 238, 0.06) !important;
+  border-radius: 6px !important;
+  width: 26px !important;
+  height: 26px !important;
+  padding: 0 !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: rgba(238, 238, 238, 0.85) !important;
+  cursor: pointer !important;
+}
+
+/* ========================================
+   10. RESPONSIVE -- mobile <834px
+======================================== */
+
+@media (max-width: 833px) {
+  .kh__nav,
+  .kh__cta {
+    display: none !important;
+  }
+
+  .kh__burger {
+    display: inline-flex !important;
+    margin-left: auto !important;
+  }
+}
+
+/* ========================================
+   11. MODE LIGHT (sections claires/jaunes)
+======================================== */
+
+.kh.kh--light .kh__nav-item {
+  background: rgba(0, 0, 0, 0.05) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+  color: rgba(0, 0, 0, 0.7) !important;
+}
+
+.kh.kh--light .kh__nav-item:hover {
+  background: rgba(0, 0, 0, 0.1) !important;
+  border-color: rgba(0, 0, 0, 0.15) !important;
+  color: #000 !important;
+}
+
+.kh.kh--light .kh__chev {
+  color: rgba(0, 0, 0, 0.5) !important;
+}

@@ -1,7 +1,7 @@
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useRef, useState } from "react";
-import UrbanHeroAnimation from "../components/UrbanHeroAnimation";
-import AudienceSmartForm from "../components/cua_app/AudienceSmartForm";
+import UrbanHeroAnimation from "../pages/website/landingpage/components/UrbanHeroAnimation";
+import AudienceSmartForm from "../pages/website/AudienceSmartForm";
 
 const solutionCards: { title: string; description: string }[] = [
   {

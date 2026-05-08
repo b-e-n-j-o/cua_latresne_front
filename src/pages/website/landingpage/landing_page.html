@@ -1,0 +1,1738 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kerelia — Cabinet d'expertise géospatiale</title>
+<link rel="icon" type="image/png" sizes="32x32" href="assets/kerelia_favicon_32.png" />
+<link rel="icon" type="image/png" sizes="180x180" href="assets/kerelia_favicon_180.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@100;200;300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/header_final.css" />
+<style>
+  /* Departure Mono fallback to Space Mono if not available */
+  @font-face {
+    font-family: 'Departure Mono';
+    src: url('https://cdn.jsdelivr.net/gh/dse/DepartureMono@main/fonts/webfonts/DepartureMono-Regular.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+
+  :root {
+    --color-black: #000000;
+    --color-yellow: #fff313;
+    --color-yellow-secondary: #c0b400;
+    --color-charcoal: #323232;
+    --color-charcoal-dark: #202020;
+    --color-arsenic: #4b4b4b;
+    --color-off-white: #eeeeee;
+    --color-silver: #afafaf;
+
+    --font-accent: "Space Mono", ui-monospace, monospace;
+    --font-base: "Inter", -apple-system, system-ui, sans-serif;
+    --font-mono-xl: "Departure Mono", "Space Mono", monospace;
+
+    --grid-margin: 2.5vw;
+    --grid-gutter: 1.11vw;
+
+    --radius-button: 1.6vw;
+    --radius-card: 1.6vw;
+    --radius-card-large: 2.4vw;
+
+    --tracking-tight: -0.04em;
+    --tracking-loose: 0.15em;
+    --tracking-extra-loose: 0.2em;
+
+    --ease-reveal: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--color-black);
+    color: var(--color-off-white);
+    font-family: var(--font-base);
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+  }
+  a { color: inherit; text-decoration: none; }
+  button { font: inherit; cursor: pointer; border: 0; background: none; color: inherit; padding: 0; }
+  img { display: block; max-width: 100%; }
+
+  /* ============ SECTION LABEL ============ */
+  .k-section-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    font-family: var(--font-mono-xl);
+    font-size: 11px;
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-silver);
+  }
+  .k-section-label--yellow { color: var(--color-yellow); }
+  .k-section-label--dark { color: #000; }
+  .k-section-label__dot {
+    width: 8px; height: 8px;
+    background: var(--color-yellow);
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .k-section-label--dark .k-section-label__dot { background: #000; }
+
+  /* ============ FILET JAUNE ============ */
+  .k-rule {
+    width: 64px; height: 1px;
+    background: var(--color-yellow);
+    margin: 32px 0;
+    transform-origin: left;
+  }
+  .k-rule--center { margin-left: auto; margin-right: auto; }
+
+  /* ============ HEADER (floating pills) ============ */
+  .kh {
+    position: fixed; top: 0; left: 0; right: 0;
+    height: 72px;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px clamp(24px, 4vw, 48px);
+    background: transparent;
+    border: 0;
+    transition: background 300ms linear, backdrop-filter 300ms linear;
+  }
+  .kh.is-scrolled {
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  .kh__inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: 24px;
+  }
+
+  /* --- Logo pill --- */
+  .kh__lockup {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--color-yellow);
+    padding: 10px 16px;
+    border-radius: 16px 4px 16px 4px;
+    transition: background 200ms linear;
+  }
+  .kh__lockup:hover { background: var(--color-yellow-secondary); }
+  .kh__lockup img { height: 20px; width: auto; }
+  .kh__word {
+    font-family: var(--font-accent);
+    font-weight: 400;
+    font-size: 13px;
+    letter-spacing: -0.01em;
+    color: #000;
+  }
+
+  /* --- Nav (no container) --- */
+  .kh__nav {
+    display: inline-flex;
+    align-items: center;
+    gap: 24px;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    border-radius: 0;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .kh__nav-item {
+    font-family: var(--font-accent);
+    font-weight: 400;
+    font-size: 13px;
+    letter-spacing: -0.01em;
+    color: rgba(238,238,238,0.85);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 2px;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    text-transform: none;
+    transition: color 200ms linear;
+  }
+  .kh__nav-item:hover { color: rgba(238,238,238,1); background: transparent; }
+  .kh.is-menu-open #exp-trigger { color: var(--color-yellow); background: transparent; }
+
+  .kh__nav-sep {
+    font-family: var(--font-accent);
+    font-weight: 400;
+    font-size: 11px;
+    color: rgba(175,175,175,0.4);
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .kh__chev {
+    display: inline-block;
+    width: 8px; height: 8px;
+    margin-left: 6px;
+    color: currentColor;
+    transition: transform 200ms linear;
+  }
+  .kh.is-menu-open .kh__chev { transform: rotate(180deg); }
+
+  /* --- Adaptive light/dark mode --- */
+  .kh--dark .kh__nav-item { color: rgba(0,0,0,0.85); }
+  .kh--dark .kh__nav-item:hover { color: #000; }
+  .kh--dark .kh__nav-sep { color: rgba(75,75,75,0.4); }
+  .kh--dark .kh__close { color: rgba(0,0,0,0.85); }
+  .kh--dark .kh__close:hover { color: #000; }
+  .kh--dark .kh__burger span { background: #000; }
+
+  /* --- CTA pill --- */
+  .kh__cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 20px;
+    background: var(--color-yellow);
+    color: #000;
+    border: 0;
+    border-radius: 16px;
+    font-family: var(--font-accent);
+    font-weight: 400;
+    font-size: 13px;
+    letter-spacing: -0.01em;
+    transition: background 200ms linear;
+  }
+  .kh__cta:hover { background: var(--color-yellow-secondary); box-shadow: none; }
+
+  /* --- Close button (replaces CTA when menu open) --- */
+  .kh__close {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    color: rgba(238,238,238,0.85);
+    transition: color 200ms linear;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .kh__close svg { width: 16px; height: 16px; display: block; }
+  .kh__close:hover { color: var(--color-yellow); }
+  .kh.is-menu-open .kh__cta { display: none; }
+  .kh.is-menu-open .kh__close { display: inline-flex; }
+
+  /* --- Mobile burger --- */
+  .kh__burger {
+    display: none;
+    width: auto; height: auto;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    padding: 4px;
+    align-items: center;
+    justify-content: center;
+    color: rgba(238,238,238,0.85);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .kh__burger svg { width: 16px; height: 12px; display: block; }
+
+  /* ============ MEGA MENU EXPERTISE ============ */
+  .kmenu {
+    position: fixed;
+    top: 72px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(100% - 48px);
+    max-width: 1200px;
+    height: 0;
+    overflow: hidden;
+    background: var(--color-charcoal);
+    border: 1px solid rgba(238,238,238,0.08);
+    border-top: 0;
+    border-radius: 0 0 16px 16px;
+    z-index: 99;
+    transition: height 400ms var(--ease-reveal);
+  }
+  .kmenu.is-open { height: 360px; }
+  .kmenu__inner {
+    height: 360px;
+    padding: 40px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 32px;
+  }
+  .kmenu__col-label {
+    margin-bottom: 14px;
+  }
+  .kmenu__col-title {
+    font-family: var(--font-accent);
+    font-weight: 400;
+    font-size: 24px;
+    letter-spacing: -0.02em;
+    color: var(--color-off-white);
+    margin: 0 0 14px;
+  }
+  .kmenu__col-desc {
+    font-family: var(--font-accent);
+    font-weight: 400;
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--color-silver);
+    max-width: 320px;
+    margin: 0 0 24px;
+  }
+  .kmenu__sublinks {
+    display: grid;
+    gap: 6px;
+    list-style: none;
+    padding: 0; margin: 0;
+  }
+  .kmenu__sublinks a {
+    font-family: var(--font-accent);
+    font-size: 13px;
+    color: var(--color-silver);
+    display: inline-block;
+    transition: color 200ms linear;
+  }
+  .kmenu__sublinks a::before { content: "— "; opacity: 0.7; }
+  .kmenu__sublinks a:hover { color: var(--color-yellow); }
+
+  /* ============ MAIN PUSH WRAPPER ============ */
+  main {
+    transition: padding-top 400ms var(--ease-reveal);
+    padding-top: 72px;
+  }
+  main.is-pushed { padding-top: calc(72px + 360px + 16px); }
+
+  /* ============ CTA BUTTONS ============ */
+  .k-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 36px;
+    padding: 0 17px;
+    background: var(--color-yellow);
+    color: #000;
+    border: 1px solid #000;
+    border-radius: 6px;
+    font-family: var(--font-accent);
+    font-weight: 400;
+    font-size: 14px;
+    letter-spacing: -0.01em;
+    transition: box-shadow 200ms linear, background 200ms linear;
+  }
+  .k-btn-primary:hover {
+    background: var(--color-yellow-secondary);
+    box-shadow: 0 0 24px rgba(255,243,19,0.35);
+  }
+  .k-btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 36px;
+    padding: 0 17px;
+    background: transparent;
+    color: var(--color-off-white);
+    border: 1px solid var(--color-silver);
+    border-radius: 0;
+    font-family: var(--font-accent);
+    font-size: 14px;
+    transition: border-color 200ms linear, color 200ms linear;
+  }
+  .k-btn-ghost:hover { border-color: var(--color-yellow); color: var(--color-yellow); }
+
+  .k-btn-dark {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    background: #000;
+    color: var(--color-yellow);
+    border: 1px solid #000;
+    border-radius: 6px;
+    font-family: var(--font-accent);
+    font-size: 14px;
+    transition: opacity 200ms linear;
+  }
+  .k-btn-dark:hover { opacity: 0.85; }
+
+  .k-tertiary {
+    font-family: var(--font-accent);
+    font-size: 14px;
+    color: var(--color-silver);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: color 200ms linear;
+  }
+  .k-tertiary:hover { color: var(--color-yellow); }
+
+  /* ============ HERO ============ */
+  .hero {
+    position: relative;
+    min-height: 100vh;
+    padding: clamp(160px, 18vh, 220px) var(--grid-margin) clamp(140px, 14vh, 180px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    background: var(--color-black);
+    overflow: hidden;
+  }
+  .hero::before {
+    /* dot-matrix subtil de fond */
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(circle at 50% 50%, rgba(75,75,75,0.32) 1px, transparent 1.5px);
+    background-size: 28px 28px;
+    opacity: 0.4;
+    mask-image: radial-gradient(ellipse at center, #000 30%, transparent 75%);
+    -webkit-mask-image: radial-gradient(ellipse at center, #000 30%, transparent 75%);
+    pointer-events: none;
+  }
+  .hero > * { position: relative; z-index: 1; }
+  .hero__sublabel {
+    font-size: 12px;
+    letter-spacing: var(--tracking-extra-loose);
+  }
+  .hero__headline {
+    font-family: var(--font-accent);
+    font-weight: 400;
+    font-size: clamp(56px, 8vw, 112px);
+    letter-spacing: var(--tracking-tight);
+    line-height: 0.95;
+    color: var(--color-off-white);
+    max-width: 1100px;
+    margin: 32px 0 28px;
+    text-wrap: balance;
+  }
+  .hero__headline em {
+    color: var(--color-yellow);
+    font-style: normal;
+  }
+  .hero__sub {
+    font-family: var(--font-accent);
+    font-size: clamp(16px, 1.4vw, 20px);
+    line-height: 1.55;
+    color: var(--color-silver);
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  .hero__cta {
+    display: flex;
+    gap: 16px;
+    margin-top: 72px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .hero__meta-bl {
+    position: absolute;
+    bottom: 32px;
+    left: 32px;
+    display: grid;
+    gap: 4px;
+    font-family: var(--font-mono-xl);
+    font-size: 11px;
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-silver);
+    z-index: 2;
+  }
+  .hero__scroll {
+    position: absolute;
+    bottom: 32px;
+    right: 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    z-index: 2;
+  }
+  .hero__scroll-line {
+    position: relative;
+    width: 1px;
+    height: 40px;
+    background: var(--color-arsenic);
+    overflow: hidden;
+  }
+  .hero__scroll-line::after {
+    content: "";
+    position: absolute;
+    left: 0; top: -10px;
+    width: 1px; height: 10px;
+    background: var(--color-yellow);
+    animation: scrollTick 1.8s linear infinite;
+  }
+  @keyframes scrollTick {
+    0%   { top: -10px; }
+    100% { top: 40px; }
+  }
+  .hero__scroll-label {
+    font-family: var(--font-mono-xl);
+    font-size: 10px;
+    letter-spacing: var(--tracking-extra-loose);
+    text-transform: uppercase;
+    color: var(--color-silver);
+  }
+
+  /* ============ STATS ============ */
+  .stats {
+    background: var(--color-black);
+    padding: clamp(96px, 12vw, 160px) var(--grid-margin);
+  }
+  .stats__row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    align-items: stretch;
+  }
+  .stat {
+    padding: 0 clamp(16px, 2.4vw, 40px);
+    border-right: 1px solid var(--color-arsenic);
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    min-height: 220px;
+    justify-content: space-between;
+  }
+  .stat:first-child { padding-left: 0; }
+  .stat:last-child { border-right: 0; padding-right: 0; }
+  .stat__num {
+    font-family: var(--font-base);
+    font-weight: 100;
+    font-size: clamp(72px, 8.33vw, 144px);
+    letter-spacing: var(--tracking-tight);
+    line-height: 0.9;
+    color: var(--color-off-white);
+  }
+  .stat__num--yellow { color: var(--color-yellow); }
+  .stat__num sup {
+    font-size: 0.4em;
+    vertical-align: top;
+    margin-left: 0.15em;
+    font-weight: 200;
+  }
+  .stat__desc {
+    font-family: var(--font-accent);
+    font-size: 12px;
+    color: var(--color-silver);
+    line-height: 1.4;
+  }
+
+  /* ============ EXPERTISE ============ */
+  .expertise {
+    background: var(--color-black);
+    padding: 120px var(--grid-margin);
+  }
+  .expertise__grid {
+    display: grid;
+    grid-template-columns: 10fr 14fr;
+    gap: clamp(40px, 6vw, 100px);
+    align-items: start;
+  }
+  .expertise__title {
+    font-family: var(--font-accent);
+    font-weight: 400;
+    font-size: clamp(48px, 5.5vw, 72px);
+    letter-spacing: var(--tracking-tight);
+    line-height: 1;
+    color: var(--color-off-white);
+    margin: 22px 0 0;
+    text-wrap: balance;
+  }
+  .k-prose-fade {
+    font-family: var(--font-accent);
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--color-silver);
+    margin: 0 0 32px;
+    max-width: 480px;
+  }
+  .k-prose-fade strong { color: var(--color-off-white); font-weight: 400; }
+
+  .expertise__cards {
+    display: grid;
+    gap: 16px;
+  }
+  .ecard {
+    background: var(--color-charcoal);
+    border-radius: var(--radius-card);
+    padding: 32px;
+    border: 1px solid transparent;
+    height: 140px;
+    overflow: hidden;
+    transition: height 400ms var(--ease-reveal), border-color 300ms linear;
+    cursor: pointer;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    gap: 24px;
+  }
+  .ecard__head {
+    display: grid;
+    grid-template-columns: 64px 1fr auto;
+    align-items: center;
+    gap: 24px;
+  }
+  .ecard__num {
+    font-family: var(--font-mono-xl);
+    font-weight: 400;
+    font-size: 32px;
+    color: var(--color-silver);
+    transition: color 300ms linear;
+    letter-spacing: var(--tracking-loose);
+  }
+  .ecard__title {
+    font-family: var(--font-accent);
+    font-weight: 700;
+    font-size: 20px;
+    color: var(--color-off-white);
+    letter-spacing: -0.01em;
+    margin: 0;
+  }
+  .ecard__plus {
+    width: 28px; height: 28px;
+    border: 1px solid var(--color-arsenic);
+    display: grid; place-items: center;
+    color: var(--color-silver);
+    font-family: var(--font-accent);
+    font-size: 16px;
+    transition: border-color 300ms linear, color 300ms linear, transform 300ms linear;
+  }
+  .ecard__body {
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 300ms linear 100ms, transform 300ms var(--ease-reveal) 100ms;
+    display: grid;
+    align-content: end;
+    gap: 16px;
+  }
+  .ecard__desc {
+    font-family: var(--font-accent);
+    font-size: 14px;
+    color: var(--color-silver);
+    line-height: 1.55;
+    margin: 0;
+    max-width: 560px;
+  }
+  .ecard:hover {
+    height: 240px;
+    border-color: var(--color-yellow);
+    border-width: 2px;
+    padding: 31px;
+  }
+  .ecard:hover .ecard__num { color: var(--color-yellow); }
+  .ecard:hover .ecard__plus { border-color: var(--color-yellow); color: var(--color-yellow); transform: rotate(45deg); }
+  .ecard:hover .ecard__body { opacity: 1; transform: translateY(0); }
+
+  /* ============ METHODOLOGIE ============ */
+  .method {
+    background: var(--color-black);
+    padding: 120px var(--grid-margin);
+  }
+  .method__head {
+    max-width: 800px;
+    margin: 0 auto 80px;
+    text-align: center;
+  }
+  .method__title {
+    font-family: var(--font-accent);
+    font-weight: 400;
+    font-size: clamp(48px, 5.5vw, 72px);
+    letter-spacing: var(--tracking-tight);
+    line-height: 1.05;
+    color: var(--color-off-white);
+    margin: 22px 0 0;
+    text-wrap: balance;
+  }
+  .method__steps {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 24px;
+  }
+  .method__steps::before {
+    content: "";
+    position: absolute;
+    top: 11px;
+    left: 4%;
+    right: 4%;
+    height: 1px;
+    background-image: linear-gradient(to right, var(--color-arsenic) 50%, transparent 50%);
+    background-size: 8px 1px;
+    background-repeat: repeat-x;
+    transform-origin: left;
+    transform: scaleX(0);
+    transition: transform 800ms linear;
+  }
+  .method__steps.is-visible::before { transform: scaleX(1); }
+  .step {
+    display: grid;
+    gap: 14px;
+    align-content: start;
+  }
+  .step__num {
+    font-family: var(--font-mono-xl);
+    font-weight: 400;
+    font-size: 14px;
+    color: var(--color-yellow);
+    letter-spacing: var(--tracking-loose);
+    background: var(--color-black);
+    padding-right: 12px;
+    width: fit-content;
+  }
+  .step__bar {
+    width: 1px; height: 40px;
+    background: var(--color-arsenic);
+  }
+  .step__title {
+    font-family: var(--font-accent);
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--color-off-white);
+    letter-spacing: -0.01em;
+    margin: 0;
+  }
+  .step__desc {
+    font-family: var(--font-accent);
+    font-size: 13px;
+    color: var(--color-silver);
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  /* ============ ETUDES (light) ============ */
+  .etudes {
+    background: var(--color-off-white);
+    color: #000;
+    padding: 120px var(--grid-margin);
+  }
+  .etudes__head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 40px;
+    margin-bottom: 64px;
+    flex-wrap: wrap;
+  }
+  .etudes__title {
+    font-family: var(--font-accent);
+    font-weight: 400;
+    font-size: clamp(48px, 5.5vw, 72px);
+    letter-spacing: var(--tracking-tight);
+    line-height: 1;
+    color: #000;
+    margin: 22px 0 0;
+  }
+  .etudes__head .k-tertiary { color: #000; }
+  .etudes__head .k-tertiary:hover { color: var(--color-yellow-secondary); }
+
+  .etudes__grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+  .ecard2 {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 0;
+    padding: 0;
+    transition: transform 400ms var(--ease-reveal), border-color 300ms linear;
+    cursor: pointer;
+  }
+  .ecard2:hover { transform: translateY(-4px); }
+  .ecard2__media {
+    aspect-ratio: 4 / 3;
+    border-radius: 9px;
+    overflow: hidden;
+    position: relative;
+    background: #1a1a1a;
+  }
+  /* topographic placeholders */
+  .topo-1 {
+    background:
+      radial-gradient(circle at 30% 60%, rgba(255,243,19,0.06) 0 80px, transparent 80px),
+      repeating-radial-gradient(circle at 30% 60%, transparent 0 30px, rgba(175,175,175,0.18) 30px 31px),
+      repeating-radial-gradient(circle at 75% 35%, transparent 0 22px, rgba(175,175,175,0.12) 22px 23px),
+      linear-gradient(135deg, #1f1f1f, #050505);
+  }
+  .topo-2 {
+    background:
+      repeating-linear-gradient(85deg, transparent 0 40px, rgba(175,175,175,0.12) 40px 41px),
+      repeating-radial-gradient(circle at 60% 50%, transparent 0 26px, rgba(255,243,19,0.08) 26px 27px),
+      linear-gradient(160deg, #2a2a2a, #050505);
+  }
+  .topo-3 {
+    background:
+      repeating-linear-gradient(0deg, rgba(175,175,175,0.10) 0 1px, transparent 1px 32px),
+      repeating-linear-gradient(90deg, rgba(175,175,175,0.10) 0 1px, transparent 1px 32px),
+      radial-gradient(circle at 40% 60%, rgba(255,243,19,0.10) 0 60px, transparent 80px),
+      linear-gradient(155deg, #232323, #060606);
+  }
+  .ecard2__media::after {
+    /* dot-matrix dashed border overlay */
+    content: "";
+    position: absolute;
+    inset: 8px;
+    border-radius: 4px;
+    border: 1px dashed rgba(238,238,238,0.25);
+    pointer-events: none;
+  }
+  .ecard2__body { padding: 20px 4px 4px; display: grid; gap: 12px; }
+  .pill {
+    align-self: start;
+    font-family: var(--font-mono-xl);
+    font-size: 11px;
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: #000;
+    border: 1px solid #000;
+    border-radius: 16px;
+    padding: 3px 12px;
+    width: fit-content;
+  }
+  .ecard2__title {
+    font-family: var(--font-accent);
+    font-weight: 700;
+    font-size: 20px;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    color: #000;
+    margin: 0;
+  }
+  .ecard2__desc {
+    font-family: var(--font-accent);
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--color-arsenic);
+    margin: 0;
+  }
+  .ecard2__foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 8px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(0,0,0,0.12);
+  }
+  .ecard2__date {
+    font-family: var(--font-mono-xl);
+    font-size: 11px;
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-silver);
+  }
+  .ecard2__link {
+    font-family: var(--font-accent);
+    font-size: 13px;
+    color: #000;
+    display: inline-flex; align-items: center; gap: 6px;
+    transition: color 200ms linear;
+  }
+  .ecard2__link:hover { color: var(--color-yellow-secondary); }
+  .ecard2:hover { border-color: var(--color-arsenic); }
+
+  /* ============ FOOTER ============ */
+  .kfoot {
+    position: relative;
+    background: var(--color-yellow);
+    color: #000;
+    padding: clamp(80px, 10vw, 140px) var(--grid-margin) clamp(40px, 5vw, 80px);
+    overflow: hidden;
+  }
+  .kfoot__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 60px;
+    position: relative;
+    z-index: 2;
+  }
+  .kfoot__title {
+    font-family: var(--font-accent);
+    font-weight: 400;
+    font-size: clamp(40px, 4vw, 64px);
+    letter-spacing: var(--tracking-tight);
+    line-height: 1;
+    color: #000;
+    margin: 0 0 32px;
+    max-width: 14ch;
+    text-wrap: balance;
+  }
+  .kfoot__links {
+    list-style: none;
+    padding: 0; margin: 0;
+    display: grid;
+    gap: 4px;
+  }
+  .kfoot__links a {
+    font-family: var(--font-accent);
+    font-weight: 400;
+    font-size: clamp(24px, 2.5vw, 36px);
+    letter-spacing: -0.02em;
+    color: #000;
+    transition: opacity 200ms linear;
+  }
+  .kfoot__links a:hover { opacity: 0.55; }
+  .kfoot__social {
+    margin-top: 24px;
+    display: flex;
+    gap: 24px;
+  }
+  .kfoot__social a {
+    font-family: var(--font-accent);
+    font-size: 14px;
+    color: #000;
+    border-bottom: 1px solid #000;
+    padding-bottom: 2px;
+    transition: opacity 200ms linear;
+  }
+  .kfoot__social a:hover { opacity: 0.55; }
+
+  .kfoot__monogram {
+    position: absolute;
+    bottom: -5vw;
+    left: -2vw;
+    height: 30vw;
+    width: auto;
+    pointer-events: none;
+    z-index: 1;
+    user-select: none;
+  }
+  .kfoot__meta {
+    margin-top: clamp(60px, 8vw, 120px);
+    display: flex;
+    gap: 32px;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+    z-index: 2;
+    border-top: 1px solid rgba(0,0,0,0.18);
+    padding-top: 24px;
+    flex-wrap: wrap;
+  }
+  .kfoot__meta span {
+    font-family: var(--font-mono-xl);
+    font-size: 11px;
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: #000;
+  }
+
+  .kfoot-band {
+    height: 80px;
+    background:
+      radial-gradient(circle at 50% 50%, var(--color-arsenic) 1px, transparent 1.5px)
+      0 0 / 14px 14px,
+      var(--color-black);
+  }
+
+  /* ============ EXPERTISE FIVE-CARD GRID ============ */
+  .expertise__head {
+    text-align: center;
+    max-width: 900px;
+    margin: 0 auto 64px;
+    display: grid;
+    justify-items: center;
+    gap: 18px;
+  }
+  .expertise__head .expertise__title { margin: 0; }
+  .expertise__head .k-rule { margin: 8px 0 0; }
+  .expertise__cards--five {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+  }
+  .expertise__cards--five .ecard5 {
+    background: var(--color-charcoal-dark);
+    border-radius: 9px;
+    border: 1px solid var(--color-arsenic);
+    padding: 36px;
+    display: grid;
+    align-content: start;
+    gap: 20px;
+    transition: border-color 300ms linear, border-width 0ms linear;
+  }
+  .expertise__cards--five .ecard5--wide { grid-column: 1 / -1; }
+  .ecard5__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .ecard5__num {
+    font-family: var(--font-mono-xl);
+    font-size: 12px;
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-silver);
+    transition: color 300ms linear;
+  }
+  .ecard5__title {
+    font-family: var(--font-accent);
+    font-weight: 700;
+    font-size: 22px;
+    letter-spacing: -0.01em;
+    color: var(--color-off-white);
+    margin: 0;
+  }
+  .ecard5__list {
+    list-style: none;
+    padding: 0; margin: 0;
+    display: grid;
+    gap: 10px;
+  }
+  .ecard5__list li {
+    font-family: var(--font-accent);
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--color-silver);
+    padding-left: 22px;
+    position: relative;
+  }
+  .ecard5__list li::before {
+    content: "\2014";
+    position: absolute;
+    left: 0; top: 0;
+    color: var(--color-arsenic);
+  }
+  .ecard5__foot {
+    margin-top: 8px;
+    padding-top: 16px;
+    border-top: 1px solid var(--color-arsenic);
+    display: flex;
+  }
+  .ecard5:hover {
+    border-color: var(--color-yellow);
+  }
+  .ecard5:hover .ecard5__num { color: var(--color-yellow); }
+  .expertise__head .k-section-label { justify-content: center; }
+
+  /* ============ STATS (3 metrics, no flap) ============ */
+  .stats__row--three { grid-template-columns: repeat(3, 1fr); }
+  .stat__label { display: inline-flex; align-items: center; gap: 12px; }
+  .stat__label-dot { width: 6px; height: 6px; background: var(--color-yellow); border-radius: 50%; }
+  .stats__row .stat--reveal { opacity: 0; transform: translateY(12px); transition: opacity 600ms var(--ease-reveal), transform 600ms var(--ease-reveal); }
+  .stats__row.is-visible .stat--reveal { opacity: 1; transform: translateY(0); }
+  .stats__row.is-visible .stat--reveal:nth-child(2) { transition-delay: 80ms; }
+  .stats__row.is-visible .stat--reveal:nth-child(3) { transition-delay: 160ms; }
+
+  /* ============ SOURCES STRIP ============ */
+  .sources {
+    background: var(--color-black);
+    padding: 60px var(--grid-margin);
+    text-align: center;
+  }
+  .sources__list {
+    margin: 24px auto 0;
+    max-width: 1100px;
+    font-family: var(--font-mono-xl);
+    font-size: 14px;
+    color: var(--color-silver);
+    letter-spacing: var(--tracking-loose);
+    line-height: 2.2;
+  }
+  .sources__list a {
+    color: var(--color-silver);
+    transition: color 200ms linear;
+  }
+  .sources__list a:hover { color: var(--color-off-white); }
+  .sources__sep {
+    color: var(--color-arsenic);
+    margin: 0 14px;
+    user-select: none;
+  }
+
+  /* ============ ABOUT ============ */
+  .about {
+    background: var(--color-black);
+    padding: 120px var(--grid-margin);
+  }
+  .about__grid {
+    display: grid;
+    grid-template-columns: 7fr 5fr;
+    gap: clamp(40px, 6vw, 96px);
+    align-items: start;
+  }
+  .about__title {
+    font-family: var(--font-accent);
+    font-weight: 400;
+    font-size: clamp(48px, 5.5vw, 72px);
+    letter-spacing: var(--tracking-tight);
+    line-height: 1;
+    color: var(--color-off-white);
+    margin: 22px 0 0;
+    text-wrap: balance;
+  }
+  .about__body {
+    font-family: "Inter", -apple-system, system-ui, sans-serif;
+    font-weight: 400;
+    font-size: 17px;
+    line-height: 1.65;
+    color: var(--color-silver);
+    margin: 32px 0;
+    max-width: 56ch;
+  }
+  .about__map {
+    aspect-ratio: 1 / 1;
+    background: var(--color-charcoal-dark);
+    border: 1px solid var(--color-arsenic);
+    border-radius: 9px;
+    position: relative;
+    background-image: radial-gradient(circle at center, var(--color-arsenic) 1px, transparent 1.5px);
+    background-size: 14px 14px;
+  }
+  .about__map-pin {
+    position: absolute;
+    top: 56%; left: 38%;
+    width: 10px; height: 10px;
+    background: var(--color-yellow);
+    border-radius: 50%;
+    box-shadow: 0 0 0 4px rgba(255,243,19,0.18);
+  }
+  .about__map-pin::after {
+    content: "";
+    position: absolute;
+    inset: -16px;
+    border: 1px dashed var(--color-yellow);
+    border-radius: 50%;
+    opacity: 0.4;
+  }
+  .about__caption {
+    margin-top: 14px;
+    font-family: var(--font-mono-xl);
+    font-size: 11px;
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-silver);
+  }
+
+  /* ============ CTA FINAL ============ */
+  .ctafinal {
+    background: var(--color-black);
+    padding: 200px var(--grid-margin);
+    text-align: center;
+  }
+  .ctafinal__inner {
+    max-width: 900px;
+    margin: 0 auto;
+    display: grid;
+    justify-items: center;
+    gap: 22px;
+  }
+  .ctafinal__title {
+    font-family: var(--font-accent);
+    font-weight: 400;
+    font-size: clamp(48px, 6vw, 80px);
+    letter-spacing: var(--tracking-tight);
+    line-height: 1;
+    color: var(--color-off-white);
+    margin: 0;
+    text-wrap: balance;
+  }
+  .ctafinal__title em { color: var(--color-yellow); font-style: normal; }
+  .ctafinal__sub {
+    font-family: var(--font-accent);
+    font-size: 18px;
+    color: var(--color-silver);
+    margin: 0;
+  }
+  .ctafinal__cta { margin-top: 38px; display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+
+  /* ============ FOOTER LAST LINE ============ */
+  .kfoot__legal {
+    margin-top: clamp(48px, 6vw, 96px);
+    padding-top: 24px;
+    border-top: 1px solid rgba(0,0,0,0.08);
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+    position: relative;
+    z-index: 2;
+  }
+  .kfoot__legal span {
+    font-family: var(--font-mono-xl);
+    font-size: 10px;
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: #000;
+  }
+
+  /* hero accent yellow word */
+  .hero__headline em { color: var(--color-yellow); font-style: normal; }
+
+  /* responsive */
+  @media (max-width: 1100px) {
+    .stats__row--three { grid-template-columns: 1fr; }
+    .expertise__cards--five { grid-template-columns: 1fr; }
+    .expertise__cards--five .ecard5--wide { grid-column: auto; }
+    .about__grid { grid-template-columns: 1fr; }
+    .kmenu__inner { grid-template-columns: repeat(2, 1fr); height: auto; }
+    .kmenu.is-open { height: auto; }
+  }
+  @media (max-width: 833px) {
+    .sources__list { font-size: 12px; }
+  }
+
+  /* ============ RESPONSIVE ============ */
+  @media (max-width: 1100px) {
+    .stats__row { grid-template-columns: repeat(2, 1fr); gap: 24px 0; }
+    .stat:nth-child(2) { border-right: 0; }
+    .stat:nth-child(3) { padding-left: 0; }
+    .method__steps { grid-template-columns: repeat(3, 1fr); }
+    .method__steps::before { display: none; }
+    .etudes__grid { grid-template-columns: repeat(2, 1fr); }
+    .expertise__grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 833px) {
+    .kh__nav { display: none; }
+    .kh__cta { display: none; }
+    .kh.is-menu-open .kh__close { display: none; }
+    .kh__burger { display: inline-flex; }
+    .kmenu { width: calc(100% - 32px); }
+    .hero__meta-bl, .hero__scroll { position: static; margin-top: 60px; }
+    .hero__scroll { flex-direction: row; }
+    .hero__scroll-line { width: 40px; height: 1px; }
+    .stats__row { grid-template-columns: 1fr; }
+    .stat { border-right: 0; padding-left: 0; padding-right: 0; min-height: auto; padding-bottom: 24px; border-bottom: 1px solid var(--color-arsenic); }
+    .stat:last-child { border-bottom: 0; }
+    .method__steps { grid-template-columns: 1fr; }
+    .etudes__grid { grid-template-columns: 1fr; }
+    .kfoot__grid { grid-template-columns: 1fr; }
+    .kmenu.is-open { height: auto; }
+    .kmenu__inner { grid-template-columns: 1fr; height: auto; padding: 40px 24px; gap: 40px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="kh" id="kh">
+  <div class="kh__inner">
+    <a href="#" class="kh__lockup" aria-label="Kerelia accueil">
+      <img src="assets/kerelia_K_dark.png" alt="Kerelia" />
+      <span class="kh__word">kerelia</span>
+    </a>
+    <nav class="kh__nav" aria-label="Navigation principale">
+      <button class="kh__nav-item" id="exp-trigger" aria-expanded="false">Expertise</button>
+      <span class="kh__nav-sep" aria-hidden="true">|</span>
+      <a class="kh__nav-item" href="#methodologie">Méthodologie</a>
+      <span class="kh__nav-sep" aria-hidden="true">|</span>
+      <a class="kh__nav-item" href="#apropos">Équipe</a>
+      <span class="kh__nav-sep" aria-hidden="true">|</span>
+      <a class="kh__nav-item" href="#etudes">Projets</a>
+    </nav>
+    <a class="kh__cta" href="#login">Identification</a>
+    <button class="kh__close" id="exp-close" aria-label="Fermer">
+      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13" stroke="currentColor" stroke-width="1.25" stroke-linecap="square"/></svg>
+    </button>
+    <button class="kh__burger" aria-label="Menu">
+      <svg viewBox="0 0 16 12" fill="none" aria-hidden="true"><path d="M0 1 H16 M0 6 H16 M0 11 H16" stroke="currentColor" stroke-width="1"/></svg>
+    </button>
+  </div>
+</header>
+
+<!-- MEGA-MENU -->
+<div class="kmenu" id="kmenu" aria-hidden="true">
+  <div class="kmenu__inner">
+    <div>
+      <div class="kmenu__col-label">
+        <span class="k-section-label k-section-label--yellow">
+          <span class="k-section-label__dot"></span>01 — URBANISME RÉGLEMENTAIRE
+        </span>
+      </div>
+      <h3 class="kmenu__col-title">Documents d'urbanisme</h3>
+      <p class="kmenu__col-desc">Certificats d'urbanisme analytiques, cartes d'identité foncières, cartographie réglementaire 2D/3D, veille réglementaire automatisée.</p>
+      <ul class="kmenu__sublinks">
+        <li><a href="#expertise">Certificats d'Urbanisme (CUa)</a></li>
+        <li><a href="#expertise">Cartes d'Identité Foncières</a></li>
+        <li><a href="#expertise">LiDAR et topographie 3D</a></li>
+        <li><a href="#expertise">Veille réglementaire</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="kmenu__col-label">
+        <span class="k-section-label k-section-label--yellow">
+          <span class="k-section-label__dot"></span>02 — ÉTUDES ENVIRONNEMENTALES
+        </span>
+      </div>
+      <h3 class="kmenu__col-title">Pré-études et compensation</h3>
+      <p class="kmenu__col-desc">Pré-études foncières, compensation écologique avec SIMETHIS et Eco Compensation, suivi par imagerie satellitaire.</p>
+      <ul class="kmenu__sublinks">
+        <li><a href="#expertise">Pré-études foncières</a></li>
+        <li><a href="#expertise">Compensation écologique</a></li>
+        <li><a href="#expertise">Hydrologie et bassins versants</a></li>
+        <li><a href="#expertise">Suivi satellitaire</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="kmenu__col-label">
+        <span class="k-section-label k-section-label--yellow">
+          <span class="k-section-label__dot"></span>03 — LOGICIELS MÉTIER
+        </span>
+      </div>
+      <h3 class="kmenu__col-title">Bancarisation ERC</h3>
+      <p class="kmenu__col-desc">Plateforme de suivi technique et financier des engagements ERC, module DREAL, API géospatiales.</p>
+      <ul class="kmenu__sublinks">
+        <li><a href="#expertise">Plateforme ERC</a></li>
+        <li><a href="#expertise">Module supervision DREAL</a></li>
+        <li><a href="#expertise">API géospatiales</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="kmenu__col-label">
+        <span class="k-section-label k-section-label--yellow">
+          <span class="k-section-label__dot"></span>04 — IA &amp; DONNÉES
+        </span>
+      </div>
+      <h3 class="kmenu__col-title">Pipelines et modèles</h3>
+      <p class="kmenu__col-desc">Pipelines de traitement géospatial, fine-tuning de modèles de vision, croisement multi-sources, développements sur mesure.</p>
+      <ul class="kmenu__sublinks">
+        <li><a href="#expertise">Pipelines géospatiaux</a></li>
+        <li><a href="#expertise">Vision par ordinateur</a></li>
+        <li><a href="#expertise">Croisement multi-sources</a></li>
+        <li><a href="#expertise">Développements sur mesure</a></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<main id="main">
+
+  <!-- 01 — HERO -->
+  <section class="hero" data-bg="dark" data-screen-label="01 Hero" style="padding: 160px 26.424999px 140px; align-items: center">
+    <span class="k-section-label hero__sublabel">
+</span>
+    <h1 class="hero__headline" style="text-align: left; font-family: &quot;Space Mono&quot;; line-height: 1; height: 240px; font-size: 50px; padding: 0px 500px 0px 0px">Bureau d'études en données géospatiales.</h1>
+    <p class="hero__sub" style="align-self: flex-start; margin: 0; text-align: left; max-width: 520px; padding: 100px 0px 0px;">Urbanisme réglementaire, Études environnementales, logiciels métier et IA appliquée aux référentiels publics.</p>
+    <div class="hero__cta">
+      <a class="k-btn-primary" href="#expertise" style="padding: 0px 17px">Voir les expertises →</a>
+      <a class="k-btn-ghost" href="#methodologie">Méthodologie</a>
+    </div>
+    <div class="hero__meta-bl">
+      <span>BORDEAUX 44.836 N 0.578 W</span>
+      <span>TECHNOWEST — INCUBATEUR</span>
+    </div>
+    <div class="hero__scroll">
+      <div class="hero__scroll-line"></div>
+      <span class="hero__scroll-label">DÉFILER</span>
+    </div>
+  </section>
+
+  <!-- 02 — CHIFFRES CLÉS -->
+  <section class="stats" data-bg="dark" data-screen-label="02 Chiffres" id="statsSection">
+    <div class="stats__row stats__row--three">
+      <div class="stat stat--reveal">
+        <span class="stat__label">
+          <span class="stat__label-dot"></span>
+          <span class="k-section-label" style="padding:0;">COUVERTURE</span>
+        </span>
+        <span class="stat__num">12</span>
+        <span class="stat__desc">Départements de Nouvelle-Aquitaine</span>
+      </div>
+      <div class="stat stat--reveal">
+        <span class="stat__label">
+          <span class="stat__label-dot"></span>
+          <span class="k-section-label" style="padding:0;">RÉFÉRENTIELS</span>
+        </span>
+        <span class="stat__num stat__num--yellow">20+</span>
+        <span class="stat__desc">Sources publiques et privées intégrées</span>
+      </div>
+      <div class="stat stat--reveal">
+        <span class="stat__label">
+          <span class="stat__label-dot"></span>
+          <span class="k-section-label" style="padding:0;">STATUT</span>
+        </span>
+        <span class="stat__num">2025</span>
+        <span class="stat__desc">Année de fondation — Technowest Bordeaux</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 — EXPERTISES -->
+  <section class="expertise" id="expertise" data-bg="dark" data-screen-label="03 Expertises">
+    <div class="expertise__head">
+      <span class="k-section-label">
+        <span class="k-section-label__dot"></span>EXPERTISES
+      </span>
+      <h2 class="expertise__title">Cinq domaines d'intervention, un même socle technique.</h2>
+      <div class="k-rule k-rule--center"></div>
+    </div>
+
+    <div class="expertise__cards--five">
+      <article class="ecard5">
+        <div class="ecard5__head">
+          <span class="ecard5__num">
+            <span class="k-section-label__dot" style="display:inline-block;width:6px;height:6px;background:var(--color-yellow);border-radius:50%;margin-right:8px;vertical-align:middle;"></span>URBANISME RÉGLEMENTAIRE
+          </span>
+        </div>
+        <h3 class="ecard5__title">Documents d'urbanisme et veille réglementaire</h3>
+        <ul class="ecard5__list">
+          <li>Génération automatisée de Certificats d'Urbanisme analytiques (CUa) avec analyse exhaustive des servitudes, zonages PLU/PLUi, contraintes paysagères et environnementales. Solution déployée pour la commune de Latresne.</li>
+          <li>Cartes d'Identité Foncières équivalentes aux CUa sur le plan documentaire, sans portée juridique, pour études de faisabilité.</li>
+          <li>Cartographie réglementaire 2D superposée, intégrée aux CUa et disponible sur abonnement avec les CIF.</li>
+          <li>Analyse de nuages de points LiDAR et modèles topographiques 3D intégrés aux livrables, pour caractérisation du relief, des pentes et des contraintes physiques.</li>
+          <li>Veille réglementaire automatisée sur Journal Officiel et recueils des actes administratifs préfectoraux et communaux. Pipeline quotidien, restitution sous forme de newsletter classée par pertinence.</li>
+          <li>Cartographies pour mise à jour des PLU et PLUi à la demande.</li>
+        </ul>
+        <div class="ecard5__foot"><a class="k-tertiary" href="#">En savoir plus →</a></div>
+      </article>
+
+      <article class="ecard5">
+        <div class="ecard5__head">
+          <span class="ecard5__num">
+            <span class="k-section-label__dot" style="display:inline-block;width:6px;height:6px;background:var(--color-yellow);border-radius:50%;margin-right:8px;vertical-align:middle;"></span>ÉTUDES ENVIRONNEMENTALES
+          </span>
+        </div>
+        <h3 class="ecard5__title">Pré-études et compensation écologique</h3>
+        <ul class="ecard5__list">
+          <li>Pré-études préalables à l'acquisition foncière : inventaires faune-flore, caractérisation des habitats, analyse hydrologique et bassins versants (dimensionnement préliminaire des ouvrages de rétention, évaluation du ruissellement), contexte géologique et hydrogéologique, recensement des sources potentielles de pollution.</li>
+          <li>Estimation préliminaire des coûts associés aux mesures de mise en conformité environnementale.</li>
+          <li>Animation foncière pour compensation écologique en partenariat avec SIMETHIS et Eco Compensation. Identification de parcelles compatibles avec les prescriptions DREAL en matière d'évitement, réduction et compensation. Le suivi terrain et la maîtrise d'œuvre écologique sont assurés par les partenaires.</li>
+          <li>Suivi temporel par analyse d'imagerie satellitaire pour le contrôle des engagements environnementaux.</li>
+        </ul>
+        <div class="ecard5__foot"><a class="k-tertiary" href="#">En savoir plus →</a></div>
+      </article>
+
+      <article class="ecard5">
+        <div class="ecard5__head">
+          <span class="ecard5__num">
+            <span class="k-section-label__dot" style="display:inline-block;width:6px;height:6px;background:var(--color-yellow);border-radius:50%;margin-right:8px;vertical-align:middle;"></span>LOGICIELS MÉTIER
+          </span>
+        </div>
+        <h3 class="ecard5__title">Bancarisation et supervision ERC</h3>
+        <ul class="ecard5__list">
+          <li>Plateforme de bancarisation et de suivi technique et financier des engagements ERC (Évitement, Réduction, Compensation) pour promoteurs et aménageurs. Intégration des prestataires, suivi des plannings, état d'avancement des mesures, traçabilité documentaire.</li>
+          <li>Module de supervision à destination des services DREAL pour le suivi consolidé des dossiers ERC dans le temps. En cours de développement.</li>
+          <li>API géospatiales pour intégration des flux Kerelia dans les systèmes d'information existants.</li>
+        </ul>
+        <div class="ecard5__foot"><a class="k-tertiary" href="#">En savoir plus →</a></div>
+      </article>
+
+      <article class="ecard5">
+        <div class="ecard5__head">
+          <span class="ecard5__num">
+            <span class="k-section-label__dot" style="display:inline-block;width:6px;height:6px;background:var(--color-yellow);border-radius:50%;margin-right:8px;vertical-align:middle;"></span>IA &amp; DONNÉES GÉOSPATIALES
+          </span>
+        </div>
+        <h3 class="ecard5__title">Pipelines, modèles et croisement</h3>
+        <ul class="ecard5__list">
+          <li>Pipelines de traitement de données géospatiales hétérogènes : extraction, nettoyage, croisement, géo-référencement.</li>
+          <li>Fine-tuning de modèles de vision par ordinateur pour interprétation de documents cartographiques et analyse de textes réglementaires géoréférencés.</li>
+          <li>Croisement multi-sources de référentiels publics et privés.</li>
+          <li>Développements sur mesure pour cas d'usage spécifiques.</li>
+        </ul>
+        <div class="ecard5__foot"><a class="k-tertiary" href="#">En savoir plus →</a></div>
+      </article>
+
+      <article class="ecard5 ecard5--wide">
+        <div class="ecard5__head">
+          <span class="ecard5__num">
+            <span class="k-section-label__dot" style="display:inline-block;width:6px;height:6px;background:var(--color-yellow);border-radius:50%;margin-right:8px;vertical-align:middle;"></span>CONSEIL &amp; EXPERTISE
+          </span>
+        </div>
+        <h3 class="ecard5__title">Audits, accompagnement et formation</h3>
+        <ul class="ecard5__list">
+          <li>Audits ponctuels de sites et de dossiers : vérification de conformité, second avis sur des contraintes complexes, analyse de risques avant acquisition.</li>
+          <li>Accompagnement méthodologique des bureaux d'études et collectivités sur des problématiques de croisement de données géospatiales.</li>
+          <li>Formation aux outils Kerelia pour les équipes internes des clients abonnés.</li>
+        </ul>
+        <div class="ecard5__foot"><a class="k-tertiary" href="#">En savoir plus →</a></div>
+      </article>
+    </div>
+  </section>
+
+  <!-- 04 — MÉTHODOLOGIE -->
+  <section class="method" id="methodologie" data-bg="dark" data-screen-label="04 Méthodologie">
+    <div class="method__head">
+      <span class="k-section-label k-section-label--yellow" style="justify-content:center;">
+        <span class="k-section-label__dot"></span>MÉTHODOLOGIE
+      </span>
+      <h2 class="method__title">Sources primaires et traçabilité documentaire.</h2>
+      <div class="k-rule k-rule--center"></div>
+    </div>
+    <div class="method__steps" id="methodSteps">
+      <div class="step">
+        <span class="step__num">01</span>
+        <div class="step__bar"></div>
+        <h3 class="step__title">Cadrage</h3>
+        <p class="step__desc">Définition du périmètre, identification des sources réglementaires et techniques pertinentes pour le dossier.</p>
+      </div>
+      <div class="step">
+        <span class="step__num">02</span>
+        <div class="step__bar"></div>
+        <h3 class="step__title">Sourcing primaire</h3>
+        <p class="step__desc">Extraction depuis les référentiels officiels (IGN, BRGM, INPN, Cadastre, Géoportail de l'Urbanisme, Pléiades, Copernicus, SANDRE, ARS, INRAE, observatoires régionaux).</p>
+      </div>
+      <div class="step">
+        <span class="step__num">03</span>
+        <div class="step__bar"></div>
+        <h3 class="step__title">Croisement &amp; analyse</h3>
+        <p class="step__desc">Géo-référencement, superposition multi-couches, détection d'incohérences, génération de livrables techniques.</p>
+      </div>
+      <div class="step">
+        <span class="step__num">04</span>
+        <div class="step__bar"></div>
+        <h3 class="step__title">Validation</h3>
+        <p class="step__desc">Conformité réglementaire vérifiée, croisement avec les prescriptions DREAL et les arrêtés préfectoraux applicables.</p>
+      </div>
+      <div class="step">
+        <span class="step__num">05</span>
+        <div class="step__bar"></div>
+        <h3 class="step__title">Livrable horodaté</h3>
+        <p class="step__desc">Documents PDF, cartographies 2D/3D, exports SIG, données structurées. Traçabilité complète des sources et des dates de millésime.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 — SOURCES & RÉFÉRENTIELS -->
+  <!-- Liste à compléter avec les autres sources utilisées. Ce bandeau sera enrichi de logos vectoriels au moment de leur fourniture. -->
+  <section class="sources" data-bg="dark" data-screen-label="05 Sources">
+    <span class="k-section-label">
+      <span class="k-section-label__dot"></span>RÉFÉRENTIELS PUBLICS
+    </span>
+    <p class="sources__list">
+      <a href="#">IGN</a><span class="sources__sep">|</span><a href="#">BRGM</a><span class="sources__sep">|</span><a href="#">INPN</a><span class="sources__sep">|</span><a href="#">CADASTRE</a><span class="sources__sep">|</span><a href="#">GÉOPORTAIL DE L'URBANISME</a><span class="sources__sep">|</span><a href="#">PLÉIADES</a><span class="sources__sep">|</span><a href="#">COPERNICUS</a><span class="sources__sep">|</span><a href="#">SANDRE</a><span class="sources__sep">|</span><a href="#">ARS</a><span class="sources__sep">|</span><a href="#">INRAE</a><span class="sources__sep">|</span><a href="#">OBSERVATOIRES RÉGIONAUX DE LA BIODIVERSITÉ</a><span class="sources__sep">|</span><a href="#">FAUNE-AQUITAINE</a>
+    </p>
+  </section>
+
+  <!-- 06 — ÉTUDES (light) -->
+  <section class="etudes" id="etudes" data-bg="light" data-screen-label="06 Études">
+    <div class="etudes__head">
+      <div>
+        <span class="k-section-label k-section-label--dark">
+          <span class="k-section-label__dot"></span>TRAVAUX EN COURS
+        </span>
+        <h2 class="etudes__title">Études récentes.</h2>
+        <div class="k-rule"></div>
+      </div>
+    </div>
+    <div class="etudes__grid">
+      <article class="ecard2">
+        <div class="ecard2__media topo-1"></div>
+        <div class="ecard2__body">
+          <span class="pill">URBANISME</span>
+          <h3 class="ecard2__title">Génération automatisée de CUa pour la commune de Latresne</h3>
+          <p class="ecard2__desc">Premier déploiement opérationnel du moteur Kerelia d'analyse réglementaire. Génération au fil de l'eau, restitution PDF avec annexes cartographiques.</p>
+          <div class="ecard2__foot">
+            <span class="ecard2__date">EN PRODUCTION — 2025</span>
+          </div>
+        </div>
+      </article>
+      <article class="ecard2">
+        <div class="ecard2__media topo-2"></div>
+        <div class="ecard2__body">
+          <span class="pill">ENVIRONNEMENT</span>
+          <h3 class="ecard2__title">Animation foncière pour compensation écologique</h3>
+          <p class="ecard2__desc">Identification de parcelles compatibles avec les prescriptions DREAL pour des projets d'aménagement en Nouvelle-Aquitaine. Travail conduit en partenariat avec SIMETHIS et Eco Compensation.</p>
+          <div class="ecard2__foot">
+            <span class="ecard2__date">EN COURS — 2025</span>
+          </div>
+        </div>
+      </article>
+      <article class="ecard2">
+        <div class="ecard2__media topo-3"></div>
+        <div class="ecard2__body">
+          <span class="pill">LOGICIEL MÉTIER</span>
+          <h3 class="ecard2__title">Plateforme de bancarisation ERC</h3>
+          <p class="ecard2__desc">Développement de la plateforme de suivi technique et financier des engagements ERC. Intégration des prestataires, plannings, traçabilité documentaire.</p>
+          <div class="ecard2__foot">
+            <span class="ecard2__date">EN DÉVELOPPEMENT — 2025-2026</span>
+          </div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- 07 — À PROPOS -->
+  <section class="about" id="apropos" data-bg="dark" data-screen-label="07 À propos">
+    <div class="about__grid">
+      <div>
+        <span class="k-section-label">
+          <span class="k-section-label__dot"></span>KERELIA
+        </span>
+        <h2 class="about__title">Cabinet d'expertise géospatiale ancré en Nouvelle-Aquitaine.</h2>
+        <div class="k-rule"></div>
+        <p class="about__body">Kerelia est une SAS fondée en 2025, incubée à Technowest Bordeaux. L'activité couvre l'urbanisme réglementaire, les études environnementales préalables et le développement de logiciels métier pour la gestion des engagements ERC. La rigueur sur les sources primaires, la traçabilité documentaire et la conformité aux prescriptions DREAL Nouvelle-Aquitaine constituent le socle méthodologique. Les développements logiciels et les modèles d'IA sont conçus en interne, avec une attention particulière à l'intégration dans les workflows existants des collectivités, bureaux d'études et aménageurs.</p>
+        <a class="k-tertiary" href="#">Voir l'équipe →</a>
+      </div>
+      <div>
+        <div class="about__map">
+          <span class="about__map-pin" aria-hidden="true"></span>
+        </div>
+        <div class="about__caption">FIG.01 — ZONE D'INTERVENTION | NOUVELLE-AQUITAINE</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 08 — CTA FINAL -->
+  <section class="ctafinal" id="contact" data-bg="dark" data-screen-label="08 Contact">
+    <div class="ctafinal__inner">
+      <span class="k-section-label">
+        <span class="k-section-label__dot"></span>CONTACT
+      </span>
+      <h2 class="ctafinal__title">Discutons de votre <em>projet</em>.</h2>
+      <p class="ctafinal__sub">Réponse sous 48 heures ouvrées.</p>
+      <div class="ctafinal__cta">
+        <a class="k-btn-primary" href="mailto:contact@kerelia.fr">Demander un devis →</a>
+        <a class="k-btn-ghost" href="mailto:contact@kerelia.fr">contact@kerelia.fr</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="kfoot" data-bg="yellow" data-screen-label="09 Footer">
+    <div class="kfoot__grid">
+      <div>
+        <h2 class="kfoot__title">L'expertise géospatiale, sources primaires, traçabilité.</h2>
+        <a class="k-btn-dark" href="mailto:contact@kerelia.fr">Demander un devis →</a>
+      </div>
+      <div>
+        <ul class="kfoot__links">
+          <li><a href="#expertise">Expertises</a></li>
+          <li><a href="#methodologie">Méthodologie</a></li>
+          <li><a href="#etudes">Études</a></li>
+          <li><a href="#apropos">À propos</a></li>
+          <li><a href="#login">Identification</a></li>
+        </ul>
+        <div class="kfoot__social">
+          <a href="#">LINKEDIN</a>
+          <a href="mailto:contact@kerelia.fr">contact@kerelia.fr</a>
+        </div>
+      </div>
+    </div>
+    <div class="kfoot__legal">
+      <span>© 2026 KERELIA — SAS AU CAPITAL DE [MONTANT] — SIRET [À RENSEIGNER] — CODE APE 7112B</span>
+      <span>V1.0.0 | LAST UPDATE MAI 2026</span>
+    </div>
+    <img src="assets/kerelia_K_dark.png" class="kfoot__monogram" alt="" aria-hidden="true" />
+  </footer>
+  <div class="kfoot-band" aria-hidden="true"></div>
+
+</main>
+
+<script>
+  // ============ MEGA-MENU push-content ============
+  const kh = document.getElementById('kh');
+  const main = document.getElementById('main');
+  const kmenu = document.getElementById('kmenu');
+  const trigger = document.getElementById('exp-trigger');
+  const closeBtn = document.getElementById('exp-close');
+
+  function openMenu() {
+    kmenu.classList.add('is-open');
+    main.classList.add('is-pushed');
+    kh.classList.add('is-menu-open');
+    trigger.setAttribute('aria-expanded', 'true');
+    kmenu.setAttribute('aria-hidden', 'false');
+  }
+  function closeMenu() {
+    kmenu.classList.remove('is-open');
+    main.classList.remove('is-pushed');
+    kh.classList.remove('is-menu-open');
+    trigger.setAttribute('aria-expanded', 'false');
+    kmenu.setAttribute('aria-hidden', 'true');
+  }
+  trigger.addEventListener('click', () => {
+    if (kmenu.classList.contains('is-open')) closeMenu();
+    else openMenu();
+  });
+  closeBtn.addEventListener('click', closeMenu);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeMenu();
+  });
+
+  // ============ HEADER SCROLL STATE ============
+  function updateHeaderScroll() {
+    if (window.scrollY > 80) kh.classList.add('is-scrolled');
+    else kh.classList.remove('is-scrolled');
+  }
+  window.addEventListener('scroll', updateHeaderScroll, { passive: true });
+  window.addEventListener('load', updateHeaderScroll);
+  updateHeaderScroll();
+
+  // ============ STATS REVEAL ============
+  const statsSection = document.getElementById('statsSection');
+  if (statsSection) {
+    const sObs = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.querySelector('.stats__row').classList.add('is-visible');
+          sObs.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.3 });
+    sObs.observe(statsSection);
+  }
+
+  // ============ METHOD STEPS LINE REVEAL ============
+  const stepsEl = document.getElementById('methodSteps');
+  if (stepsEl) {
+    const stepsObs = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          stepsEl.classList.add('is-visible');
+          stepsObs.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.3 });
+    stepsObs.observe(stepsEl);
+  }
+</script>
+
+<script>
+(function() {
+  const header = document.querySelector('.kh');
+  if (!header) return;
+  
+  // Detecter toutes les sections de la page
+  const sections = document.querySelectorAll('section, footer');
+  if (!sections.length) return;
+  
+  function updateHeaderMode() {
+    // Position de detection : juste sous le header
+    const detectionY = 60;
+    let isLight = false;
+    
+    sections.forEach(section => {
+      const rect = section.getBoundingClientRect();
+      // Section qui croise la zone juste sous le header
+      if (rect.top <= detectionY && rect.bottom >= detectionY) {
+        // Verifier si la section a un fond clair via data-bg ou classe
+        const bg = section.getAttribute('data-bg');
+        const hasLight = section.classList.contains('etudes') ||
+                        section.classList.contains('section-light') ||
+                        section.tagName === 'FOOTER' ||
+                        bg === 'light' ||
+                        bg === 'yellow';
+        if (hasLight) isLight = true;
+      }
+    });
+    
+    header.classList.toggle('kh--light', isLight);
+  }
+  
+  // Lancer au scroll et au chargement
+  updateHeaderMode();
+  window.addEventListener('scroll', updateHeaderMode, { passive: true });
+  window.addEventListener('resize', updateHeaderMode, { passive: true });
+})();
+</script>
+
+</body>
+</html>

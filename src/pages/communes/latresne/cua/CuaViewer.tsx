@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Editor } from "@tinymce/tinymce-react";
 
 export default function CuaViewer() {
+  const [initialHtml, setInitialHtml] = useState<string>("");
   const [html, setHtml] = useState<string>("");
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -29,6 +30,7 @@ export default function CuaViewer() {
         if (typeof data?.html !== "string") {
           throw new Error("Réponse invalide: HTML manquant");
         }
+        setInitialHtml(data.html);
         setHtml(data.html);
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Impossible de charger le document.";
@@ -76,9 +78,9 @@ export default function CuaViewer() {
   }
 
   return (
-    <div style={{ padding: 20, width: "100%", maxWidth: "100vw", margin: "0 auto" }}>
+    <div style={{ padding: 20, maxWidth: 900, margin: "0 auto" }}>
       <h1 style={{ textAlign: "center", fontWeight: 700, marginBottom: 20 }}>
-        Patron de Certificat d’Urbanisme — Kerelia
+        Patronne de Certificat d’Urbanisme — Kerelia
       </h1>
 
       {/* Bouton sauvegarde */}
@@ -101,11 +103,10 @@ export default function CuaViewer() {
       <Editor
         tinymceScriptSrc="/tinymce/tinymce.min.js"
         licenseKey="gpl" // Obligatoire pour self-hosted
-        initialValue={html}
+        initialValue={initialHtml}
         onEditorChange={(content) => setHtml(content)}
         init={{
           height: 1000,
-          width: "100%",
           menubar: false,
           branding: false,
           plugins: "link lists table code preview",
@@ -120,17 +121,10 @@ export default function CuaViewer() {
               line-height: 1.6;
               color: #1a1a1a;
               padding: 20px;
-              margin: 0;
-              max-width: 100%;
-              overflow-x: hidden;
-              box-sizing: border-box;
             }
             h1,h2,h3 { font-weight: 600; }
-            table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+            table { border-collapse: collapse; width: 100%; }
             table, th, td { border: 1px solid #ccc; padding: 6px; }
-            img, table, pre, iframe {
-              max-width: 100%;
-            }
           `,
         }}
       />
