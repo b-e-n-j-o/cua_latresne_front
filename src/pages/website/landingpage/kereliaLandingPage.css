@@ -558,7 +558,7 @@ section[id] {
     text-align: left;
     overflow: hidden;
     color: #fff;
-    /* Couches du bas vers le haut : base graphite → halos doux → filets type carto → profondeur */
+    /* Couches du haut vers le bas (CSS) : filets / halos / gradient principal / voile gauche sur carte / carte */
     background-color: #030303;
     background-image:
       repeating-linear-gradient(
@@ -593,7 +593,25 @@ section[id] {
         #0c2218 62%,
         #10301f 82%,
         color-mix(in srgb, var(--kerelia-accent) 26%, #07160f) 100%
-      );
+      ),
+      linear-gradient(
+        90deg,
+        rgba(3, 3, 3, 0.94) 0%,
+        rgba(3, 3, 3, 0.55) 22%,
+        rgba(3, 3, 3, 0.18) 48%,
+        transparent 76%
+      ),
+      url("/map-intro.png");
+    background-repeat: repeat, repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat;
+    background-size: auto, auto, auto, auto, auto, auto, cover;
+    background-position:
+      0 0,
+      0 0,
+      0 0,
+      0 0,
+      0 0,
+      0 0,
+      92% 42%;
   }
 
   /* Halos verts diffus (sous le grain) — style studio / AI product */

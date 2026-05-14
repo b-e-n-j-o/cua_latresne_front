@@ -237,7 +237,7 @@ export const contactCopy = {
 } as const;
 
 export const footerCopy = {
-  title: "L'expertise géospatiale, sources primaires, traçabilité.",
+  title: "De la donnée à vos décisions projet.",
   primaryCta: "Demander un devis →",
   nav: [
     { href: "#expertise", label: "Expertises" },
