@@ -196,6 +196,20 @@ section[id] {
     gap: 24px;
   }
 
+  /* Logo (carré header_final) + mot KERELIA à sa droite — hors du carré pour éviter le crop 44×44 */
+  .kh__brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    color: inherit;
+    flex-shrink: 0;
+    min-width: 0;
+  }
+  .kh__brand:hover .kh__word {
+    color: var(--kerelia-accent);
+  }
+
   /* --- Logo pill --- */
   .kh__lockup {
     display: inline-flex;
@@ -210,10 +224,17 @@ section[id] {
   .kh__lockup img { height: 20px; width: auto; }
   .kh__word {
     font-family: var(--font-kerelia);
-    font-weight: var(--kerelia-w-semibold);
-    font-size: 13px;
-    letter-spacing: -0.01em;
-    color: #000;
+    font-weight: var(--kerelia-w-extrabold);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    color: rgba(238, 238, 238, 0.88);
+    transition: color 200ms linear;
+  }
+  .kh--dark .kh__word {
+    color: rgba(0, 0, 0, 0.88);
+  }
+  .kh--dark .kh__brand:hover .kh__word {
+    color: var(--kerelia-accent-hover);
   }
 
   /* --- Nav (no container) --- */
@@ -309,7 +330,8 @@ section[id] {
   .kerelia-landing .kh__lockup {
     background: var(--kerelia-accent) !important;
   }
-  .kerelia-landing .kh__lockup:hover {
+  .kerelia-landing .kh__lockup:hover,
+  .kerelia-landing .kh__brand:hover .kh__lockup {
     background: var(--kerelia-accent-hover) !important;
   }
   .kerelia-landing .kh__cta {
@@ -627,7 +649,7 @@ section[id] {
   }
   .hero__headline {
     font-family: var(--font-hero);
-    font-weight: var(--kerelia-w-extrabold);
+    font-weight: var(--kerelia-w-bold);
     font-size: clamp(36px, 4.2vw, 56px);
     letter-spacing: -0.02em;
     line-height: 1.08;
@@ -672,7 +694,7 @@ section[id] {
     font-weight: var(--kerelia-w-light);
     font-size: clamp(13px, 1.05vw, 15px);
     line-height: 1.5;
-    color: rgba(175, 175, 175, 0.92);
+    color: rgba(253, 252, 252, 0.92);
     margin: 0;
     flex: 1 1 auto;
     min-width: 0;
@@ -718,6 +740,52 @@ section[id] {
     color: rgba(175, 175, 175, 0.75);
     z-index: 2;
     max-width: min(40vw, 280px);
+  }
+
+  /* Hero entrance — une keyframe, déclenchée au mount via .is-ready (requestAnimationFrame) */
+  .hero__core,
+  .hero__rail-bottom {
+    --delay: 0s;
+  }
+
+  @keyframes kerelia-reveal {
+    from {
+      opacity: 0;
+      filter: blur(12px);
+      transform: translateX(-24px);
+    }
+    to {
+      opacity: 1;
+      filter: blur(0);
+      transform: translateX(0);
+    }
+  }
+
+  .hero .animate-in {
+    opacity: 0;
+    animation: kerelia-reveal 0.9s cubic-bezier(0.22, 1, 0.36, 1) var(--delay) both;
+  }
+
+  .hero:not(.is-ready) .hero__headline,
+  .hero:not(.is-ready) .hero__cta,
+  .hero:not(.is-ready) .hero__sub,
+  .hero:not(.is-ready) .hero__meta-bl {
+    opacity: 0;
+    filter: blur(12px);
+    transform: translateX(-24px);
+  }
+
+  .hero.is-ready .hero__headline {
+    animation: kerelia-reveal 1s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
+  }
+  .hero.is-ready .hero__cta {
+    animation: kerelia-reveal 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.45s both;
+  }
+  .hero.is-ready .hero__sub {
+    animation: kerelia-reveal 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.65s both;
+  }
+  .hero.is-ready .hero__meta-bl {
+    animation: kerelia-reveal 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.8s both;
   }
 
   /* ============ STATS ============ */
@@ -1113,7 +1181,7 @@ section[id] {
   }
   .kfoot__title {
     font-family: var(--font-kerelia);
-    font-weight: var(--kerelia-w-extrabold);
+    font-weight: var(--kerelia-w-regular);
     font-size: clamp(40px, 4vw, 64px);
     letter-spacing: var(--tracking-tight);
     line-height: 1;
@@ -1660,6 +1728,10 @@ section[id] {
     .kh__lockup {
       padding: 8px 12px;
       min-width: 0;
+    }
+    .kh__brand .kh__word {
+      font-size: 11px;
+      letter-spacing: 0.03em;
     }
     .kh__nav { display: none; }
     .kh__cta { display: none; }

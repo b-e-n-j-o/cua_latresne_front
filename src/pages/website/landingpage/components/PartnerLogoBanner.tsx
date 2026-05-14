@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { partnerBannerLogos, partnerLogosBasePath } from "../landingPageCopy";
+import { partnerBannerLogos, partnerLogosBasePath } from "../LandingPageContent";
 
 function usePrefersReducedMotion(): boolean {
   const [prefers, setPrefers] = useState(false);

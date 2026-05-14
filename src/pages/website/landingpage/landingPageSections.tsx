@@ -1,4 +1,4 @@
-import type { CSSProperties, RefObject } from "react";
+import { useEffect, useRef, type CSSProperties, type RefObject } from "react";
 import { ExpertiseCard, KereliaBtn, KereliaRule } from "./components/KereliaUi";
 import { PartnerLogoBanner } from "./components/PartnerLogoBanner";
 import { TeamSection } from "./components/TeamSection";
@@ -11,7 +11,7 @@ import {
   heroCopy,
   methodologyCopy,
   statsCopy,
-} from "./landingPageCopy";
+} from "./LandingPageContent";
 import { cn } from "./lib/cn";
 import {
   BORDEAUX_FRANCE_MAP_PIN,
@@ -20,8 +20,17 @@ import {
 } from "./lib/constants";
 
 export function HeroSection() {
+  const ref = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      ref.current?.classList.add("is-ready");
+    });
+    return () => cancelAnimationFrame(id);
+  }, []);
+
   return (
-    <section className="hero" data-bg="dark" data-screen-label="01 Hero">
+    <section ref={ref} className="hero" data-bg="dark" data-screen-label="01 Hero">
       <div className="hero__core">
         <h1 className="hero__headline">
           {heroCopy.headlineLines[0]}

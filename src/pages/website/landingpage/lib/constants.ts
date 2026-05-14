@@ -1,4 +1,4 @@
-export const KERELIA_LOGO_SRC = "/logo_kerelia_black.svg";
+export const KERELIA_LOGO_SRC = "/logo_kerelia_noir.png";
 
 /** `public/svgs/france.svg` — `mapsvg:geoViewBox` = ouest, nord, est, sud (WGS84). */
 export const FRANCE_OUTLINE_SVG_SRC = "/svgs/france.svg";

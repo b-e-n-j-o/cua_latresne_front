@@ -49,7 +49,7 @@ export const expertiseCopy = {
       bullets: [
         "Pré-études préalables à l'acquisition foncière : inventaires faune-flore, caractérisation des habitats, analyse hydrologique et bassins versants (dimensionnement préliminaire des ouvrages de rétention, évaluation du ruissellement), contexte géologique et hydrogéologique, recensement des sources potentielles de pollution.",
         "Estimation préliminaire des coûts associés aux mesures de mise en conformité environnementale.",
-        "Animation foncière pour compensation écologique en partenariat avec SIMETHIS et Eco Compensation. Identification de parcelles compatibles avec les prescriptions DREAL en matière d'évitement, réduction et compensation. Le suivi terrain et la maîtrise d'œuvre écologique sont assurés par les partenaires.",
+        "Recherche foncière pour compensation écologique en partenariat avec SIMETHIS et Eco Compensation. Identification de parcelles compatibles avec les prescriptions DREAL et des critères écologiuqes en matière de compensation. Le suivi terrain et la maîtrise d'œuvre écologique sont assurés par les partenaires.",
         "Suivi temporel par analyse d'imagerie satellitaire pour le contrôle des engagements environnementaux.",
       ],
     },
@@ -179,8 +179,8 @@ export const etudesCopy: EtudeCardCopy[] = [
   },
   {
     topoClass: "topo-2",
-    pill: "ENVIRONNEMENT",
-    title: "Animation foncière pour compensation écologique",
+    pill: "COMPENSATION ÉCOLOGIQUE & ENVIRONNEMENT",
+    title: "Recherche et étude écologique de foncier pour compensation écologique",
     desc: "Identification de parcelles compatibles avec les prescriptions DREAL pour des projets d'aménagement en Nouvelle-Aquitaine. Travail conduit en partenariat avec SIMETHIS et Eco Compensation.",
     date: "EN COURS — 2025",
   },

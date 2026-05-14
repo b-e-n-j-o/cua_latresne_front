@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { Mail, Linkedin } from "lucide-react";
-import { teamCopy } from "../landingPageCopy";
+import { teamCopy } from "../LandingPageContent";
 import { KereliaRule } from "./KereliaUi";
 
 export function TeamSection() {

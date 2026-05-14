@@ -61,9 +61,11 @@ export function KereliaSiteHeader({
     <>
       <header className={headerClassName} id="kh">
         <div className="kh__inner">
-          <a href="/" className="kh__lockup" aria-label="Kerelia accueil">
-            <img src={KERELIA_LOGO_SRC} alt="Kerelia" />
-            <span className="kh__word">kerelia</span>
+          <a href="/" className="kh__brand" aria-label="Kerelia accueil">
+            <span className="kh__lockup">
+              <img src={KERELIA_LOGO_SRC} alt="" />
+            </span>
+            <span className="kh__word">KERELIA</span>
           </a>
           <nav className="kh__nav" aria-label="Navigation principale">
             <button
