@@ -17,6 +17,18 @@ import ArgelesCuaPage from "./pages/communes/argeles/cua/ArgelesPage";
 import MiosCuaPage from "./pages/communes/mios/MiosPage";
 import ProjectPage from "./pages/communes/latresne/cua/ProjectPage";
 import MiosProjectPage from "./pages/communes/mios/ProjectPage";
+import DemoRequestPage from "./pages/website/DemoRequestPage";
+import {
+  CertificatsUrbanismePage,
+  CarteIdentiteFoncierePage,
+  VeilleReglementairePage,
+  ScoringCompensationPage,
+  EtudesEnvironnementalesPage,
+  BancarisationSuiviERCPage,
+  OutilsPilotageSIGPage,
+  BaseDonneesSIGPage,
+  VisualisationMNTLiDARPage,
+} from "./pages/website/websitePages";
 
 const HistoryPage = () => (
   <HistoryPanel apiBase={import.meta.env.VITE_API_BASE || ""} />
@@ -25,6 +37,7 @@ const HistoryPage = () => (
 const PUBLIC_EXACT_ROUTES = [
   "/",
   "/login",
+  "/demo",
   "/reset-password",
   "/update-password",
   "/notre-equipe",
@@ -33,6 +46,15 @@ const PUBLIC_EXACT_ROUTES = [
   "/lidar",
   "/mnt",
   "/carto",
+  "/urbanisme/certificats-durbanisme",
+  "/urbanisme/carte-didentite-fonciere",
+  "/urbanisme/veille-reglementaire",
+  "/environnement/scoring-compensation-ecologique",
+  "/environnement/etudes-environnementales",
+  "/environnement/bancarisation-suivi-erc",
+  "/outils/outils-pilotage-sig",
+  "/outils/base-de-donnees-sig",
+  "/outils/visualisation-mnt-lidar",
 ];
 const PUBLIC_PREFIX_ROUTES = ["/m/", "/cua"];
 
@@ -49,6 +71,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginForm />} />
+        <Route path="/demo" element={<DemoRequestPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/update-password" element={<UpdatePasswordPage />} />
         <Route path="/notre-equipe" element={<Navigate to={{ pathname: "/", hash: "equipe" }} replace />} />
@@ -58,6 +81,15 @@ export default function App() {
         <Route path="/lidar" element={<LidarViewerPage />} />
         <Route path="/mnt" element={<MntViewerPage />} />
         <Route path="/carto" element={<div>Page introuvable</div>} />
+        <Route path="/urbanisme/certificats-durbanisme" element={<CertificatsUrbanismePage />} />
+        <Route path="/urbanisme/carte-didentite-fonciere" element={<CarteIdentiteFoncierePage />} />
+        <Route path="/urbanisme/veille-reglementaire" element={<VeilleReglementairePage />} />
+        <Route path="/environnement/scoring-compensation-ecologique" element={<ScoringCompensationPage />} />
+        <Route path="/environnement/etudes-environnementales" element={<EtudesEnvironnementalesPage />} />
+        <Route path="/environnement/bancarisation-suivi-erc" element={<BancarisationSuiviERCPage />} />
+        <Route path="/outils/outils-pilotage-sig" element={<OutilsPilotageSIGPage />} />
+        <Route path="/outils/base-de-donnees-sig" element={<BaseDonneesSIGPage />} />
+        <Route path="/outils/visualisation-mnt-lidar" element={<VisualisationMNTLiDARPage />} />
         <Route path="/m/:slug" element={<RedirectSlugPage />} />
         <Route path="*" element={<div>Page introuvable</div>} />
       </Routes>

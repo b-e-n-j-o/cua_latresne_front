@@ -1,166 +1,297 @@
-import { SectionLabel } from "./KereliaUi";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { KERELIA_LOGO_SRC } from "../lib/constants";
 import { cn } from "../lib/cn";
 
-type MegaColumn = {
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type NavItem = {
   label: string;
-  title: string;
-  description: string;
-  links: string[];
+  href: string;
 };
 
-const MEGA_COLUMNS: MegaColumn[] = [
+type NavSection = {
+  id: string;
+  label: string;
+  sectionLabel: string;
+  items: NavItem[];
+};
+
+// ─── Données nav ──────────────────────────────────────────────────────────────
+
+const NAV_SECTIONS: NavSection[] = [
   {
-    label: "01 — URBANISME RÉGLEMENTAIRE",
-    title: "Documents d'urbanisme",
-    description:
-      "Certificats d'urbanisme analytiques, cartes d'identité foncières, cartographie réglementaire 2D/3D, veille réglementaire automatisée.",
-    links: [
-      "Certificats d'Urbanisme (CUa)",
-      "Cartes d'Identité Foncières",
-      "LiDAR et topographie 3D",
-      "Veille réglementaire",
+    id: "urbanisme",
+    label: "Urbanisme",
+    sectionLabel: "01 — URBANISME RÉGLEMENTAIRE",
+    items: [
+      { label: "Certificats d'urbanisme", href: "/urbanisme/certificats-durbanisme" },
+      { label: "Carte d'identité foncière", href: "/urbanisme/carte-didentite-fonciere" },
+      { label: "Veille réglementaire", href: "/urbanisme/veille-reglementaire" },
     ],
   },
   {
-    label: "02 — ÉTUDES ENVIRONNEMENTALES",
-    title: "Pré-études et compensation",
-    description:
-      "Pré-études foncières, compensation écologique avec SIMETHIS et Eco Compensation, suivi par imagerie satellitaire.",
-    links: ["Pré-études foncières", "Compensation écologique", "Hydrologie et bassins versants", "Suivi satellitaire"],
+    id: "environnement",
+    label: "Environnement",
+    sectionLabel: "02 — ÉTUDES ENVIRONNEMENTALES",
+    items: [
+      { label: "Scoring compensation écologique", href: "/environnement/scoring-compensation-ecologique" },
+      { label: "Études environnementales", href: "/environnement/etudes-environnementales" },
+      { label: "Bancarisation & suivi ERC", href: "/environnement/bancarisation-suivi-erc" },
+    ],
   },
   {
-    label: "03 — LOGICIELS MÉTIER",
-    title: "Bancarisation ERC",
-    description: "Plateforme de suivi technique et financier des engagements ERC, module DREAL, API géospatiales.",
-    links: ["Plateforme ERC", "Module supervision DREAL", "API géospatiales"],
-  },
-  {
-    label: "04 — IA & DONNÉES",
-    title: "Pipelines et modèles",
-    description:
-      "Pipelines de traitement géospatial, fine-tuning de modèles de vision, croisement multi-sources, développements sur mesure.",
-    links: ["Pipelines géospatiaux", "Vision par ordinateur", "Croisement multi-sources", "Développements sur mesure"],
+    id: "outils",
+    label: "Outils / Data SIG",
+    sectionLabel: "03 — OUTILS & DATA SIG",
+    items: [
+      { label: "Outils de pilotage SIG", href: "/outils/outils-pilotage-sig" },
+      { label: "Base de données SIG", href: "/outils/base-de-donnees-sig" },
+      { label: "Visualisation MNT / LiDAR", href: "/outils/visualisation-mnt-lidar" },
+    ],
   },
 ];
 
-export type KereliaSiteHeaderProps = {
-  headerClassName: string;
-  menuOpen: boolean;
-  onToggleExpertiseMenu: () => void;
-  onCloseMenu: () => void;
+// ─── Composant flèche ─────────────────────────────────────────────────────────
+
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 10 6"
+      fill="none"
+      aria-hidden="true"
+      style={{
+        width: 10,
+        height: 6,
+        marginLeft: 5,
+        transition: "transform 0.2s ease",
+        transform: open ? "rotate(180deg)" : "rotate(0deg)",
+        display: "inline-block",
+        verticalAlign: "middle",
+        flexShrink: 0,
+      }}
+    >
+      <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+// ─── Dropdown d'une rubrique ───────────────────────────────────────────────────
+
+type NavDropdownProps = {
+  section: NavSection;
+  isOpen: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  onAfterNavigate?: () => void;
 };
 
-export function KereliaSiteHeader({
-  headerClassName,
-  menuOpen,
-  onToggleExpertiseMenu,
-  onCloseMenu,
-}: KereliaSiteHeaderProps) {
+function NavDropdown({ section, isOpen, onToggle, onClose, onAfterNavigate }: NavDropdownProps) {
+  const navigate = useNavigate();
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [isOpen, onClose]);
+
+  const handleItemClick = (href: string) => {
+    onClose();
+    onAfterNavigate?.();
+    navigate(href);
+  };
+
   return (
-    <>
-      <header className={headerClassName} id="kh">
-        <div className="kh__inner">
-          <a href="/" className="kh__brand" aria-label="Kerelia accueil">
-            <span className="kh__lockup">
-              <img src={KERELIA_LOGO_SRC} alt="" />
-            </span>
-            <span className="kh__word">KERELIA</span>
+    <div className="kh__dropdown-wrap" ref={ref}>
+      <button
+        type="button"
+        className={cn("kh__nav-item kh__nav-item--dropdown", isOpen && "is-active")}
+        aria-expanded={isOpen}
+        onClick={onToggle}
+      >
+        {section.label}
+        <ChevronIcon open={isOpen} />
+      </button>
+
+      {isOpen && (
+        <div className="kh__dropdown" role="menu">
+          <ul className="kh__dropdown-list" aria-label={section.sectionLabel}>
+            {section.items.map((item) => (
+              <li key={item.href}>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="kh__dropdown-item"
+                  onClick={() => handleItemClick(item.href)}
+                >
+                  {item.label}
+                  <svg viewBox="0 0 8 8" fill="none" aria-hidden="true" className="kh__dropdown-item-arrow">
+                    <path
+                      d="M1 7L7 1M7 1H2M7 1V6"
+                      stroke="currentColor"
+                      strokeWidth="1.1"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Props header ─────────────────────────────────────────────────────────────
+
+export type KereliaSiteHeaderProps = {
+  headerClassName: string;
+};
+
+// ─── Header principal ─────────────────────────────────────────────────────────
+
+export function KereliaSiteHeader({ headerClassName }: KereliaSiteHeaderProps) {
+  const headerRef = useRef<HTMLElement>(null);
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  const closeDropdown = useCallback(() => setActiveDropdown(null), []);
+
+  const closeMobileNav = useCallback(() => {
+    setMobileNavOpen(false);
+    setActiveDropdown(null);
+  }, []);
+
+  const toggleDropdown = useCallback((id: string) => {
+    setActiveDropdown((prev) => (prev === id ? null : id));
+  }, []);
+
+  const toggleMobileNav = useCallback(() => {
+    setMobileNavOpen((open) => !open);
+  }, []);
+
+  useEffect(() => {
+    if (!mobileNavOpen) setActiveDropdown(null);
+  }, [mobileNavOpen]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      closeDropdown();
+      setMobileNavOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [closeDropdown]);
+
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (headerRef.current && !headerRef.current.contains(e.target as Node)) {
+        closeMobileNav();
+      }
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [mobileNavOpen, closeMobileNav]);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 834px)");
+    const onChange = () => {
+      if (mq.matches) closeMobileNav();
+    };
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, [closeMobileNav]);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 833px)");
+    const sync = () => {
+      if (!mq.matches || !mobileNavOpen) {
+        document.body.style.overflow = "";
+        document.documentElement.style.overflow = "";
+        return;
+      }
+      document.body.style.overflow = "hidden";
+      document.documentElement.style.overflow = "hidden";
+    };
+    sync();
+    mq.addEventListener("change", sync);
+    return () => {
+      mq.removeEventListener("change", sync);
+      document.body.style.overflow = "";
+      document.documentElement.style.overflow = "";
+    };
+  }, [mobileNavOpen]);
+
+  return (
+    <header ref={headerRef} className={cn(headerClassName, mobileNavOpen && "is-mobile-nav-open")} id="kh">
+      <div className="kh__inner">
+        <a href="/" className="kh__brand" aria-label="Kerelia accueil">
+          <span className="kh__lockup">
+            <img src={KERELIA_LOGO_SRC} alt="" />
+          </span>
+          <span className="kh__word">KERELIA</span>
+        </a>
+
+        <nav id="kh-main-nav" className="kh__nav" aria-label="Navigation principale">
+          {NAV_SECTIONS.map((section, i) => (
+            <Fragment key={section.id}>
+              {i > 0 && (
+                <span className="kh__nav-sep" aria-hidden="true">
+                  |
+                </span>
+              )}
+              <NavDropdown
+                section={section}
+                isOpen={activeDropdown === section.id}
+                onToggle={() => toggleDropdown(section.id)}
+                onClose={closeDropdown}
+                onAfterNavigate={closeMobileNav}
+              />
+            </Fragment>
+          ))}
+          <a
+            className="kh__nav-mobile-demo"
+            href="/demo"
+            onClick={closeMobileNav}
+            aria-label="Je demande une démo"
+          >
+            Je demande une démo
           </a>
-          <nav className="kh__nav" aria-label="Navigation principale">
-            <button
-              type="button"
-              className="kh__nav-item"
-              id="exp-trigger"
-              aria-expanded={menuOpen}
-              onClick={onToggleExpertiseMenu}
-            >
-              Expertise
-            </button>
-            <span className="kh__nav-sep" aria-hidden="true">
-              |
-            </span>
-            <a className="kh__nav-item" href="#methodologie" onClick={onCloseMenu}>
-              Urbanisme
-            </a>
-            <span className="kh__nav-sep" aria-hidden="true">
-              |
-            </span>
-            <a className="kh__nav-item" href="#apropos" onClick={onCloseMenu}>
-              Environnement
-            </a>
-            <span className="kh__nav-sep" aria-hidden="true">
-              |
-            </span>
-            <a className="kh__nav-item" href="#etudes" onClick={onCloseMenu}>
-              Projets
-            </a>
-          </nav>
-          <a className="kh__cta" href="/login" onClick={onCloseMenu}>
-            Identification
-          </a>
-          <button type="button" className="kh__close" id="exp-close" aria-label="Fermer" onClick={onCloseMenu}>
+        </nav>
+
+        <a className="kh__cta kh__cta--demo" href="/demo" aria-label="Je demande une démo">
+          Je demande une démo
+        </a>
+
+        <button
+          type="button"
+          className="kh__burger"
+          aria-label={mobileNavOpen ? "Fermer le menu" : "Ouvrir le menu"}
+          aria-expanded={mobileNavOpen}
+          aria-controls="kh-main-nav"
+          onClick={toggleMobileNav}
+        >
+          {mobileNavOpen ? (
             <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
               <path d="M3 3 L13 13 M13 3 L3 13" stroke="currentColor" strokeWidth="1.25" strokeLinecap="square" />
             </svg>
-          </button>
-          <button
-            type="button"
-            className="kh__burger"
-            aria-label={menuOpen ? "Fermer le menu" : "Ouvrir le menu"}
-            aria-expanded={menuOpen}
-            onClick={onToggleExpertiseMenu}
-          >
+          ) : (
             <svg viewBox="0 0 16 12" fill="none" aria-hidden="true">
               <path d="M0 1 H16 M0 6 H16 M0 11 H16" stroke="currentColor" strokeWidth="1" />
             </svg>
-          </button>
-        </div>
-      </header>
-
-      <div className={cn("kmenu", menuOpen && "is-open")} id="kmenu" aria-hidden={!menuOpen}>
-        <div className="kmenu__inner">
-          {MEGA_COLUMNS.map((col) => (
-            <div key={col.label}>
-              <div className="kmenu__col-label">
-                <SectionLabel variant="yellow">{col.label}</SectionLabel>
-              </div>
-              <h3 className="kmenu__col-title">{col.title}</h3>
-              <p className="kmenu__col-desc">{col.description}</p>
-              <ul className="kmenu__sublinks">
-                {col.links.map((linkLabel) => (
-                  <li key={linkLabel}>
-                    <a href="#expertise" onClick={onCloseMenu}>
-                      {linkLabel}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-          <nav className="kmenu__mobile-quick" aria-label="Navigation">
-            <a className="kmenu__mobile-quick-link" href="#methodologie" onClick={onCloseMenu}>
-              Méthodologie
-            </a>
-            <a className="kmenu__mobile-quick-link" href="#equipe" onClick={onCloseMenu}>
-              Équipe
-            </a>
-            <a className="kmenu__mobile-quick-link" href="#etudes" onClick={onCloseMenu}>
-              Projets
-            </a>
-            <a className="kmenu__mobile-quick-link" href="#contact" onClick={onCloseMenu}>
-              Contact
-            </a>
-            <a
-              className="kmenu__mobile-quick-link kmenu__mobile-quick-link--ident"
-              href="/login"
-              onClick={onCloseMenu}
-            >
-              Identification
-            </a>
-          </nav>
-        </div>
+          )}
+        </button>
       </div>
-    </>
+    </header>
   );
 }

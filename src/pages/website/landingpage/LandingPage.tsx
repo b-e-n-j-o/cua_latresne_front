@@ -31,7 +31,6 @@ const LANDING_LENIS_OPTIONS: LenisOptions = {
 };
 
 export default function LandingPage() {
-  const [menuOpen, setMenuOpen] = useState(false);
   const [headerScrolled, setHeaderScrolled] = useState(false);
   const [headerOverLight, setHeaderOverLight] = useState(false);
 
@@ -126,55 +125,17 @@ export default function LandingPage() {
     };
   }, []);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMenuOpen(false);
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, []);
-
-  /** Sur mobile le menu est en overlay plein largeur : on bloque le scroll arrière-plan. */
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 833px)");
-    const sync = () => {
-      if (!mq.matches || !menuOpen) {
-        document.body.style.overflow = "";
-        document.documentElement.style.overflow = "";
-        return;
-      }
-      document.body.style.overflow = "hidden";
-      document.documentElement.style.overflow = "hidden";
-    };
-    sync();
-    mq.addEventListener("change", sync);
-    return () => {
-      mq.removeEventListener("change", sync);
-      document.body.style.overflow = "";
-      document.documentElement.style.overflow = "";
-    };
-  }, [menuOpen]);
-
-  const closeMenu = () => setMenuOpen(false);
-  const toggleMenu = () => setMenuOpen((o) => !o);
-
   const headerClassName = cn(
     "kh",
-    menuOpen && "is-menu-open",
     headerScrolled && "is-scrolled",
     headerOverLight && "kh--dark"
   );
 
   return (
     <div className="kerelia-landing">
-      <KereliaSiteHeader
-        headerClassName={headerClassName}
-        menuOpen={menuOpen}
-        onToggleExpertiseMenu={toggleMenu}
-        onCloseMenu={closeMenu}
-      />
+      <KereliaSiteHeader headerClassName={headerClassName} />
 
-      <main id="main" className={menuOpen ? "is-pushed" : undefined}>
+      <main id="main">
         <HeroSection />
         <StatsSection sectionRef={statsSectionRef} statsVisible={statsVisible} />
         <SourcesStripSection />

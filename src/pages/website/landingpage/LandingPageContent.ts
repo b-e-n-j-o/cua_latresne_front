@@ -4,7 +4,7 @@ export const heroCopy = {
   headlineLines: ["La donnée territoriale", "pour guider vos projets."] as const,
   sub:
     "Kerelia transforme la donnée brute en levier opérationnel. Comprenez les contraintes d'un terrain, anticipez les enjeux environnementaux et pilotez vos projets avec des outils sur mesure.",
-  metaBl: ["BORDEAUX 44.836 N 0.578 W", "TECHNOWEST INCUBEE A TECHNOWEST"] as const,
+  metaBl: ["BORDEAUX 44.836 N 0.578 W", "INCUBEE A TECHNOWEST"] as const,
 } as const;
 
 export const statsCopy = [
@@ -117,14 +117,18 @@ export const methodologyCopy = {
 };
 
 /** Base URL Vite + dossier `public/logos-banniere` (ASCII, fiable en prod). */
-export const partnerLogosBasePath = `${import.meta.env.BASE_URL}logos-banniere`;
+const baseUrl = import.meta.env.BASE_URL || "/";
+export const partnerLogosBasePath = `${baseUrl.replace(/\/*$/, "")}/logos-banniere`;
 
 export type PartnerBannerLogo = {
   readonly file: string;
   readonly alt: string;
 };
 
-/** Logos PNG/JPG du bandeau (fichiers dans `public/logos-banniere`). */
+/**
+ * Logos du bandeau — chaque `file` doit exister dans `public/logos-banniere/`
+ * (sinon 404 et pastille de secours côté UI).
+ */
 export const partnerBannerLogos: readonly PartnerBannerLogo[] = [
   { file: "ADEME.png", alt: "ADEME" },
   { file: "ARS.png", alt: "Agence régionale de santé" },
@@ -134,29 +138,19 @@ export const partnerBannerLogos: readonly PartnerBannerLogo[] = [
   { file: "CEREMA.png", alt: "Cerema" },
   { file: "CNES.png", alt: "CNES" },
   { file: "Copernicus.png", alt: "Copernicus" },
-  { file: "DINAMIS.png", alt: "Dinamis" },
   { file: "Data_Gouv.jpg", alt: "data.gouv.fr" },
   { file: "EauFrance.png", alt: "Eau France" },
-  { file: "Faune_France.png", alt: "Faune France" },
-  { file: "GBIF.jpg", alt: "GBIF" },
+  { file: "fauna.png", alt: "Faune France" },
   { file: "Geoportail_Urbanisme.png", alt: "Géoportail de l'urbanisme" },
   { file: "Georisques.png", alt: "Géorisques" },
   { file: "HubEau.png", alt: "Hub'Eau" },
   { file: "IGN.png", alt: "IGN" },
   { file: "INPN.png", alt: "INPN" },
   { file: "INRAE.png", alt: "INRAE" },
-  { file: "InfoTerre.png", alt: "InfoTerre" },
-  { file: "LPO.png", alt: "Ligue pour la protection des oiseaux" },
-  { file: "MNHN.png", alt: "Muséum national d'histoire naturelle" },
   { file: "Meteo_France.png", alt: "Météo-France" },
-  { file: "Naiades.png", alt: "Naïades" },
   { file: "OFB.jpg", alt: "Office français de la biodiversité" },
-  { file: "PatriNat.jpg", alt: "PatriNat" },
   { file: "Sandre.png", alt: "Sandre" },
-  { file: "Sentinel.jpg", alt: "Sentinel" },
   { file: "Tela_Botanica.png", alt: "Tela Botanica" },
-  { file: "Theia.png", alt: "Theia" },
-  { file: "VigiEau.png", alt: "VigiEau" },
 ] as const;
 
 export type EtudeTopoClass = "topo-1" | "topo-2" | "topo-3";
@@ -249,7 +243,7 @@ export const footerCopy = {
     { href: "#expertise", label: "Expertises" },
     { href: "#etudes", label: "Études" },
     { href: "#apropos", label: "À propos" },
-    { href: "/login", label: "Identification" },
+    { href: "/login", label: "Mon Espace Pro" },
   ] as const,
   linkedinLabel: "LINKEDIN",
   linkedinHref: "https://www.linkedin.com/company/kerelia",
