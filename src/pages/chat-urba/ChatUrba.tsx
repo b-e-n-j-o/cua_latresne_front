@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, ArrowUp } from "lucide-react";
-import SiteHeader from "../website/landingpage/layout/SIteHeader";
 import MarkdownContent from "./components/MarkdownContent";
 import CodeSelector, { type LegalCode } from "./components/CodeSelector";
 import PLUSelector, { type Commune } from "./components/PLUSelector";
@@ -115,7 +114,6 @@ export default function ChatUrba() {
 
   return (
     <div className="h-screen flex flex-col font-sans text-[#0B131F]">
-      <SiteHeader />
       <div className="flex flex-1 overflow-hidden bg-white">
         {/* ================= SIDEBAR ================= */}
         <AnimatePresence>
@@ -125,7 +123,7 @@ export default function ChatUrba() {
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: -260, opacity: 0 }}
               transition={{ duration: 0.25 }}
-              className="w-[260px] bg-white border-r border-[#D5E1E3] pt-24 px-4 pb-4 flex flex-col"
+              className="w-[260px] bg-white border-r border-[#D5E1E3] pt-16 px-4 pb-4 flex flex-col"
             >
               <div className="flex items-center justify-between mb-4">
                 <span className="font-semibold text-sm">
@@ -145,7 +143,7 @@ export default function ChatUrba() {
           {!sidebarOpen && (
             <button
               onClick={() => setSidebarOpen(true)}
-              className="absolute top-24 left-4 z-10 bg-white border border-[#D5E1E3] rounded-lg p-2 shadow-sm hover:bg-[#F7FAFB]"
+              className="absolute top-4 left-4 z-10 bg-white border border-[#D5E1E3] rounded-lg p-2 shadow-sm hover:bg-[#F7FAFB]"
             >
               <Menu className="w-5 h-5" />
             </button>
@@ -155,14 +153,14 @@ export default function ChatUrba() {
           {!sourcesSidebarOpen && activeSources.length > 0 && (
             <button
               onClick={() => setSourcesSidebarOpen(true)}
-              className="absolute top-24 right-4 z-10 bg-white border border-[#D5E1E3] rounded-lg px-3 py-2 shadow-sm hover:bg-[#F7FAFB] text-xs"
+              className="absolute top-4 right-4 z-10 bg-white border border-[#D5E1E3] rounded-lg px-3 py-2 shadow-sm hover:bg-[#F7FAFB] text-xs"
             >
               Voir les sources
             </button>
           )}
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-6 pt-24 pb-10">
+          <div className="flex-1 overflow-y-auto px-6 pt-16 pb-10">
             <div className="max-w-3xl mx-auto space-y-8">
               {/* Message d’intro */}
               {messages.length === 0 && (
@@ -375,7 +373,7 @@ export default function ChatUrba() {
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: 360, opacity: 0 }}
               transition={{ duration: 0.25 }}
-              className="w-[360px] bg-white border-l border-[#D5E1E3] pt-24 px-4 pb-4 flex flex-col"
+              className="w-[360px] bg-white border-l border-[#D5E1E3] pt-16 px-4 pb-4 flex flex-col"
             >
               <div className="flex items-center justify-between mb-4">
                 <span className="font-semibold text-sm">

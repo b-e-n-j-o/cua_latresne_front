@@ -1612,6 +1612,7 @@ export default function LatresnePage() {
                     });
                   }
                 }}
+                dbSchema="latresne"
                 embedded={true}
               />
             ),

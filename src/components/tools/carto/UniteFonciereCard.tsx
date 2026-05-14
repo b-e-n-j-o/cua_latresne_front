@@ -58,6 +58,8 @@ type Props = {
   onPipelineCreated?: (slug: string) => void;
   onClose: () => void;
   embedded?: boolean;
+  /** Schéma PostGIS (ex. `argeles`) → `db_schema` sur les appels identité foncière. */
+  dbSchema?: string | null;
 };
 
 function mapLayerStatus(raw: string, intersected: boolean): LayerRowState["status"] {
@@ -79,6 +81,7 @@ export default function UniteFonciereCard({
   onPipelineCreated,
   onClose,
   embedded = false,
+  dbSchema,
 }: Props) {
   const [showCUA, setShowCUA] = useState(false);
   /** Visualisation terrain : MNT (1ère parcelle) ou LiDAR (toute l'UF) */
@@ -120,6 +123,11 @@ export default function UniteFonciereCard({
 
   const abortRef = useRef<AbortController | null>(null);
   const layerRowsSyncRef = useRef<LayerRowState[]>([]);
+
+  const dbSchemaPayload = useMemo(() => {
+    const s = (dbSchema ?? "").trim().toLowerCase();
+    return /^[a-z_][a-z0-9_]*$/.test(s) ? s : undefined;
+  }, [dbSchema]);
 
   const statusIcon = (s: LayerRowState["status"]) => {
     switch (s) {
@@ -172,6 +180,7 @@ export default function UniteFonciereCard({
         body.user_id = userId.trim();
         if (userEmail?.trim()) body.user_email = userEmail.trim();
       }
+      if (dbSchemaPayload) body.db_schema = dbSchemaPayload;
 
       const response = await fetch(`${apiBase}/api/identite-fonciere/publier`, {
         method: "POST",
@@ -223,10 +232,16 @@ export default function UniteFonciereCard({
     try {
       const apiBase = import.meta.env.VITE_API_BASE;
       const endpoint = `${apiBase}/api/identite-fonciere/intersect/stream`;
+      const streamBody: Record<string, unknown> = {
+        commune,
+        insee,
+        geometry: unionGeometry,
+      };
+      if (dbSchemaPayload) streamBody.db_schema = dbSchemaPayload;
       const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-        body: JSON.stringify({ commune, insee, geometry: unionGeometry }),
+        body: JSON.stringify(streamBody),
         signal: ac.signal,
       });
       if (!response.ok) {

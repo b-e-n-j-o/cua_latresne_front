@@ -46,6 +46,11 @@ type Props = {
   userEmail?: string | null;
   /** Après succès POST /publier (ex. rafraîchir l’onglet historique CIF). */
   onIdentitePublished?: () => void;
+  /**
+   * Schéma PostGIS des couches (ex. `argeles`). Envoyé au backend comme `db_schema`
+   * pour catalogue + tables `{schema}.*` (identité foncière uniquement).
+   */
+  dbSchema?: string | null;
 };
 
 function formatElement(element: Record<string, string | string[]>) {
@@ -89,6 +94,7 @@ export default function ParcelleIdentity({
   userId,
   userEmail,
   onIdentitePublished,
+  dbSchema,
 }: Props) {
   const onResultRef = useRef(onResult);
   onResultRef.current = onResult;
@@ -98,6 +104,11 @@ export default function ParcelleIdentity({
   userIdRef.current = userId ?? null;
   const userEmailRef = useRef(userEmail);
   userEmailRef.current = userEmail ?? null;
+
+  const dbSchemaPayload = useMemo(() => {
+    const s = (dbSchema ?? "").trim().toLowerCase();
+    return /^[a-z_][a-z0-9_]*$/.test(s) ? s : undefined;
+  }, [dbSchema]);
 
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<IntersectionResult[]>([]);
@@ -215,6 +226,7 @@ export default function ParcelleIdentity({
           const em = userEmailRef.current?.trim();
           if (em) body.user_email = em;
         }
+        if (dbSchemaPayload) body.db_schema = dbSchemaPayload;
 
         const response = await fetch(`${apiBase}/api/identite-fonciere/publier`, {
           method: "POST",
@@ -256,7 +268,7 @@ export default function ParcelleIdentity({
         setPublierLoading(false);
       }
     },
-    [stableGeometry, parcelle.commune, parcelle.insee, stableParcellesCadastrales]
+    [stableGeometry, parcelle.commune, parcelle.insee, stableParcellesCadastrales, dbSchemaPayload]
   );
 
   const runFetchFonciereSse = useCallback(async () => {
@@ -279,11 +291,12 @@ export default function ParcelleIdentity({
     try {
       const apiBase = import.meta.env.VITE_API_BASE;
       const endpoint = `${apiBase}/api/identite-fonciere/intersect/stream`;
-      const payload = {
+      const payload: Record<string, unknown> = {
         commune: parcelle.commune,
         insee: parcelle.insee,
         geometry: stableGeometry,
       };
+      if (dbSchemaPayload) payload.db_schema = dbSchemaPayload;
 
       const response = await fetch(endpoint, {
         method: "POST",
@@ -397,7 +410,7 @@ export default function ParcelleIdentity({
     } finally {
       setLoading(false);
     }
-  }, [stableGeometry, parcelle.commune, parcelle.insee, runPublierAfterComplete]);
+  }, [stableGeometry, parcelle.commune, parcelle.insee, runPublierAfterComplete, dbSchemaPayload]);
 
   const runFetch = useCallback(async () => {
     if (stableGeometry) {
@@ -418,7 +431,7 @@ export default function ParcelleIdentity({
     if (!autoFetch || !stableGeometry) return;
     void runFetchRef.current();
     return () => abortRef.current?.abort();
-  }, [autoFetch, geomFingerprint, stableGeometry, parcelle.commune, parcelle.insee]);
+  }, [autoFetch, geomFingerprint, stableGeometry, parcelle.commune, parcelle.insee, dbSchemaPayload]);
 
   const handleManualClick = () => {
     void runFetch();
@@ -449,6 +462,7 @@ export default function ParcelleIdentity({
           insee: parcelle.insee,
           geometry: stableGeometry,
           intersections: results,
+          ...(dbSchemaPayload ? { db_schema: dbSchemaPayload } : {}),
         }),
       });
 
@@ -470,7 +484,7 @@ export default function ParcelleIdentity({
     } finally {
       setMapLoading(false);
     }
-  }, [stableGeometry, parcelle.commune, parcelle.insee, results, storedCarteUrl]);
+  }, [stableGeometry, parcelle.commune, parcelle.insee, results, storedCarteUrl, dbSchemaPayload]);
 
   const handleDownloadPdf = useCallback(async () => {
     if (results.length === 0) return;
@@ -517,6 +531,7 @@ export default function ParcelleIdentity({
       if (storedCarteUrl) {
         body.carte_web_url = storedCarteUrl;
       }
+      if (dbSchemaPayload) body.db_schema = dbSchemaPayload;
       const response = await fetch(`${apiBase}/api/identite-fonciere/rapport`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -553,6 +568,7 @@ export default function ParcelleIdentity({
     stableParcellesCadastrales,
     storedPdfUrl,
     storedCarteUrl,
+    dbSchemaPayload,
   ]);
 
   const showManualButton = !autoFetch || !stableGeometry;

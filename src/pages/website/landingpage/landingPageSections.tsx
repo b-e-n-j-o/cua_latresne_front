@@ -1,0 +1,263 @@
+import type { CSSProperties, RefObject } from "react";
+import { ExpertiseCard, KereliaBtn, KereliaRule } from "./components/KereliaUi";
+import { PartnerLogoBanner } from "./components/PartnerLogoBanner";
+import { TeamSection } from "./components/TeamSection";
+import {
+  aboutCopy,
+  contactCopy,
+  etudesCopy,
+  expertiseCopy,
+  footerCopy,
+  heroCopy,
+  methodologyCopy,
+  statsCopy,
+} from "./landingPageCopy";
+import { cn } from "./lib/cn";
+import {
+  BORDEAUX_FRANCE_MAP_PIN,
+  FRANCE_OUTLINE_SVG_SRC,
+  KERELIA_LOGO_SRC,
+} from "./lib/constants";
+
+export function HeroSection() {
+  return (
+    <section className="hero" data-bg="dark" data-screen-label="01 Hero">
+      <div className="hero__core">
+        <h1 className="hero__headline">
+          {heroCopy.headlineLines[0]}
+          <br />
+          {heroCopy.headlineLines[1]}
+        </h1>
+        <div className="hero__cta">
+          <KereliaBtn variant="primary" href="#expertise">
+            Voir les expertises →
+          </KereliaBtn>
+          <KereliaBtn variant="ghost" href="#methodologie">
+            Méthodologie
+          </KereliaBtn>
+        </div>
+      </div>
+
+      <div className="hero__rail-bottom">
+        <p className="hero__sub">{heroCopy.sub}</p>
+        <div className="hero__meta-bl">
+          {heroCopy.metaBl.map((line) => (
+            <span key={line}>{line}</span>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+type StatsSectionProps = {
+  sectionRef: RefObject<HTMLElement | null>;
+  statsVisible: boolean;
+};
+
+export function StatsSection({ sectionRef, statsVisible }: StatsSectionProps) {
+  return (
+    <section
+      className="stats"
+      data-bg="dark"
+      data-screen-label="02 Chiffres"
+      id="statsSection"
+      ref={sectionRef}
+    >
+      <div className={cn("stats__row stats__row--three", statsVisible && "is-visible")}>
+        {statsCopy.map((s) => (
+          <div key={s.label} className="stat stat--reveal">
+            <span className="stat__label">{s.label}</span>
+            <span className={cn("stat__num", s.numVariant === "yellow" && "stat__num--yellow")}>{s.num}</span>
+            <span className="stat__desc">{s.desc}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export function ExpertiseSection() {
+  return (
+    <section className="expertise" id="expertise" data-bg="dark" data-screen-label="03 Expertises">
+      <div className="expertise__head">
+        <h2 className="expertise__title">{expertiseCopy.title}</h2>
+        <KereliaRule center />
+      </div>
+
+      <div className="expertise__cards--five">
+        {expertiseCopy.cards.map((card) => (
+          <ExpertiseCard key={card.title} card={card} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+type MethodologySectionProps = {
+  stepsRef: RefObject<HTMLDivElement | null>;
+  methodVisible: boolean;
+};
+
+export function MethodologySection({ stepsRef, methodVisible }: MethodologySectionProps) {
+  return (
+    <section className="method" id="methodologie" data-bg="dark" data-screen-label="04 Méthodologie">
+      <div className="method__head">
+        <h2 className="method__title">{methodologyCopy.title}</h2>
+        <KereliaRule center />
+      </div>
+      <div ref={stepsRef} className={cn("method__steps", methodVisible && "is-visible")} id="methodSteps">
+        {methodologyCopy.steps.map((s) => (
+          <div key={s.num} className="step">
+            <span className="step__num">{s.num}</span>
+            <div className="step__bar" />
+            <h3 className="step__title">{s.title}</h3>
+            <p className="step__desc">{s.desc}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export function SourcesStripSection() {
+  return (
+    <section className="sources" data-bg="dark" data-screen-label="05 Sources">
+      <PartnerLogoBanner />
+    </section>
+  );
+}
+
+export function EtudesSection() {
+  return (
+    <section className="etudes" id="etudes" data-bg="light" data-screen-label="06 Études">
+      <div className="etudes__head">
+        <div>
+          <h2 className="etudes__title">Notre expertise.</h2>
+          <KereliaRule />
+        </div>
+      </div>
+      <div className="etudes__grid">
+        {etudesCopy.map((e) => (
+          <article key={e.title} className="ecard2">
+            <div className={`ecard2__media ${e.topoClass}`} />
+            <div className="ecard2__body">
+              <span className="pill">{e.pill}</span>
+              <h3 className="ecard2__title">{e.title}</h3>
+              <p className="ecard2__desc">{e.desc}</p>
+              <div className="ecard2__foot">
+                <span className="ecard2__date">{e.date}</span>
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export function AboutSection() {
+  return (
+    <section className="about" id="apropos" data-bg="dark" data-screen-label="07 À propos">
+      <div className="about__grid">
+        <div>
+          <h2 className="about__title">{aboutCopy.title}</h2>
+          <KereliaRule />
+          <p className="about__body">{aboutCopy.body}</p>
+        </div>
+        <div>
+          <div
+            className="about__map"
+            style={
+              {
+                "--about-map-pin-x": `${BORDEAUX_FRANCE_MAP_PIN.leftPct}%`,
+                "--about-map-pin-y": `${BORDEAUX_FRANCE_MAP_PIN.topPct}%`,
+              } as CSSProperties
+            }
+          >
+            <div className="about__map-stage">
+              <img
+                className="about__map-svg"
+                src={FRANCE_OUTLINE_SVG_SRC}
+                alt=""
+                width={596}
+                height={585}
+                decoding="async"
+              />
+              <span
+                className="about__map-pin"
+                aria-hidden="true"
+                title="Bordeaux"
+              />
+            </div>
+          </div>
+          <div className="about__caption">{aboutCopy.mapCaption}</div>
+        </div>
+        <div className="about__team">
+          <TeamSection />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function ContactCtaSection() {
+  return (
+    <section className="ctafinal" id="contact" data-bg="dark" data-screen-label="08 Contact">
+      <div className="ctafinal__inner">
+        <h2 className="ctafinal__title">
+          {contactCopy.titleBeforeEm}
+          <em>{contactCopy.titleEm}</em>
+          {contactCopy.titleAfterEm}
+        </h2>
+        <p className="ctafinal__sub">{contactCopy.sub}</p>
+        <div className="ctafinal__cta">
+          <KereliaBtn variant="primary" href={`mailto:${contactCopy.email}`}>
+            {contactCopy.primaryCta}
+          </KereliaBtn>
+          <KereliaBtn variant="ghost" href={`mailto:${contactCopy.email}`}>
+            {contactCopy.email}
+          </KereliaBtn>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function SiteFooterSection() {
+  return (
+    <>
+      <footer className="kfoot" data-bg="yellow" data-screen-label="09 Footer">
+        <div className="kfoot__grid">
+          <div>
+            <h2 className="kfoot__title">{footerCopy.title}</h2>
+            <KereliaBtn variant="dark" href={`mailto:${contactCopy.email}`}>
+              {footerCopy.primaryCta}
+            </KereliaBtn>
+          </div>
+          <div className="kfoot__aside">
+            <ul className="kfoot__links">
+              {footerCopy.nav.map((item) => (
+                <li key={item.href}>
+                  <a href={item.href}>{item.label}</a>
+                </li>
+              ))}
+            </ul>
+            <div className="kfoot__social">
+              <a
+                href={footerCopy.linkedinHref}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {footerCopy.linkedinLabel}
+              </a>
+              <a href={`mailto:${contactCopy.email}`}>{contactCopy.email}</a>
+            </div>
+            <img src={KERELIA_LOGO_SRC} className="kfoot__monogram" alt="" aria-hidden="true" />
+          </div>
+        </div>
+      </footer>
+      <div className="kfoot-band" aria-hidden="true" />
+    </>
+  );
+}

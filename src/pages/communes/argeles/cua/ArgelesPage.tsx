@@ -1683,6 +1683,7 @@ export default function ArgelesPage() {
                     });
                   }
                 }}
+                dbSchema="argeles"
                 embedded={true}
               />
             ),

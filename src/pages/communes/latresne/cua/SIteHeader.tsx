@@ -27,7 +27,7 @@ export default function SiteHeader() {
           <a href="/#contact" className="hover:text-[#FF4F3B] transition">
             Contact
           </a>
-          <a href="/notre-equipe" className="hover:text-[#FF4F3B] transition">
+          <a href="/#equipe" className="hover:text-[#FF4F3B] transition">
             Notre équipe
           </a>
         </nav>
