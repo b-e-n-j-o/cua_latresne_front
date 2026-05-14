@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 
-  <!-- Page d'accueil -->
   <url>
     <loc>https://kerelia.fr/</loc>
     <lastmod>2026-05-14</lastmod>
@@ -9,7 +8,6 @@
     <changefreq>monthly</changefreq>
   </url>
 
-  <!-- Demande de démo -->
   <url>
     <loc>https://kerelia.fr/demo</loc>
     <lastmod>2026-05-14</lastmod>
@@ -17,19 +15,20 @@
     <changefreq>monthly</changefreq>
   </url>
 
-  <!-- Pages Urbanisme -->
   <url>
     <loc>https://kerelia.fr/urbanisme/certificats-durbanisme</loc>
     <lastmod>2026-05-14</lastmod>
     <priority>0.85</priority>
     <changefreq>monthly</changefreq>
   </url>
+
   <url>
     <loc>https://kerelia.fr/urbanisme/carte-didentite-fonciere</loc>
     <lastmod>2026-05-14</lastmod>
     <priority>0.8</priority>
     <changefreq>monthly</changefreq>
   </url>
+
   <url>
     <loc>https://kerelia.fr/urbanisme/veille-reglementaire</loc>
     <lastmod>2026-05-14</lastmod>
@@ -37,19 +36,20 @@
     <changefreq>monthly</changefreq>
   </url>
 
-  <!-- Pages Environnement -->
   <url>
     <loc>https://kerelia.fr/environnement/scoring-compensation-ecologique</loc>
     <lastmod>2026-05-14</lastmod>
     <priority>0.8</priority>
     <changefreq>monthly</changefreq>
   </url>
+
   <url>
     <loc>https://kerelia.fr/environnement/etudes-environnementales</loc>
     <lastmod>2026-05-14</lastmod>
     <priority>0.8</priority>
     <changefreq>monthly</changefreq>
   </url>
+
   <url>
     <loc>https://kerelia.fr/environnement/bancarisation-suivi-erc</loc>
     <lastmod>2026-05-14</lastmod>
@@ -57,19 +57,20 @@
     <changefreq>monthly</changefreq>
   </url>
 
-  <!-- Pages Outils -->
   <url>
     <loc>https://kerelia.fr/outils/outils-pilotage-sig</loc>
     <lastmod>2026-05-14</lastmod>
     <priority>0.75</priority>
     <changefreq>monthly</changefreq>
   </url>
+
   <url>
-    <loc>https://kerelia.fr/outils/base-de-donnees-sig</url>
+    <loc>https://kerelia.fr/outils/base-de-donnees-sig</loc>
     <lastmod>2026-05-14</lastmod>
     <priority>0.75</priority>
     <changefreq>monthly</changefreq>
   </url>
+
   <url>
     <loc>https://kerelia.fr/outils/visualisation-mnt-lidar</loc>
     <lastmod>2026-05-14</lastmod>
