@@ -13,8 +13,7 @@ import {
   HeroSection,
   MethodologySection,
   SiteFooterSection,
-  SourcesStripSection,
-  StatsSection,
+  SourcesPartnershipsSection,
 } from "./landingPageSections";
 import { KereliaSiteHeader } from "./components/KereliaSiteHeader";
 
@@ -34,7 +33,7 @@ export default function LandingPage() {
   const [headerScrolled, setHeaderScrolled] = useState(false);
   const [headerOverLight, setHeaderOverLight] = useState(false);
 
-  const { ref: statsSectionRef, visible: statsVisible } = useInViewOnce<HTMLElement>();
+  const { ref: sourcesSectionRef, visible: sourcesVisible } = useInViewOnce<HTMLElement>();
   const { ref: methodStepsRef, visible: methodVisible } = useInViewOnce<HTMLDivElement>();
 
   useEffect(() => {
@@ -137,8 +136,7 @@ export default function LandingPage() {
 
       <main id="main">
         <HeroSection />
-        <StatsSection sectionRef={statsSectionRef} statsVisible={statsVisible} />
-        <SourcesStripSection />
+        <SourcesPartnershipsSection sectionRef={sourcesSectionRef} visible={sourcesVisible} />
         <EtudesSection />
         <ExpertiseSection />
         <MethodologySection stepsRef={methodStepsRef} methodVisible={methodVisible} />

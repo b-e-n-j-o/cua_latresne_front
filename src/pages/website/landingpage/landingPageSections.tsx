@@ -10,7 +10,7 @@ import {
   footerCopy,
   heroCopy,
   methodologyCopy,
-  statsCopy,
+  sourcesPartnershipsCopy,
 } from "./LandingPageContent";
 import { cn } from "./lib/cn";
 import {
@@ -59,28 +59,51 @@ export function HeroSection() {
   );
 }
 
-type StatsSectionProps = {
+type SourcesPartnershipsSectionProps = {
   sectionRef: RefObject<HTMLElement | null>;
-  statsVisible: boolean;
+  visible: boolean;
 };
 
-export function StatsSection({ sectionRef, statsVisible }: StatsSectionProps) {
+export function SourcesPartnershipsSection({ sectionRef, visible }: SourcesPartnershipsSectionProps) {
+  const { title, intro, institutionalHeading, operationalHeading, partnerships } = sourcesPartnershipsCopy;
+
   return (
     <section
-      className="stats"
-      data-bg="dark"
-      data-screen-label="02 Chiffres"
-      id="statsSection"
       ref={sectionRef}
+      className={cn("sources-block", visible && "is-visible")}
+      id="sources"
+      data-bg="dark"
+      data-screen-label="02 Sources & Partenariats"
     >
-      <div className={cn("stats__row stats__row--three", statsVisible && "is-visible")}>
-        {statsCopy.map((s) => (
-          <div key={s.label} className="stat stat--reveal">
-            <span className="stat__label">{s.label}</span>
-            <span className={cn("stat__num", s.numVariant === "yellow" && "stat__num--yellow")}>{s.num}</span>
-            <span className="stat__desc">{s.desc}</span>
-          </div>
-        ))}
+      <header className="sources-block__head sources-block__reveal">
+        <h2 className="sources-block__title">{title}</h2>
+        <KereliaRule center />
+        <p className="sources-block__lead">{intro}</p>
+      </header>
+
+      <div className="sources-block__segment sources-block__reveal">
+        <div className="sources-block__segment-head">
+          <h3 className="sources-block__subheading">{institutionalHeading}</h3>
+          <KereliaRule center />
+        </div>
+        <div className="sources-block__ribbon">
+          <PartnerLogoBanner />
+        </div>
+      </div>
+
+      <div className="sources-block__segment sources-block__reveal">
+        <div className="sources-block__segment-head">
+          <h3 className="sources-block__subheading">{operationalHeading}</h3>
+          <KereliaRule center />
+        </div>
+        <div className="sources-block__ops">
+          {partnerships.map((p) => (
+            <article key={p.name} className="sources-block__partner">
+              <h4 className="sources-block__partner-name">{p.name}</h4>
+              <p className="sources-block__partner-body">{p.body}</p>
+            </article>
+          ))}
+        </div>
       </div>
     </section>
   );
@@ -125,14 +148,6 @@ export function MethodologySection({ stepsRef, methodVisible }: MethodologySecti
           </div>
         ))}
       </div>
-    </section>
-  );
-}
-
-export function SourcesStripSection() {
-  return (
-    <section className="sources" data-bg="dark" data-screen-label="05 Sources">
-      <PartnerLogoBanner />
     </section>
   );
 }

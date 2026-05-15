@@ -1,32 +1,31 @@
 import type { ExpertiseCardModel } from "./components/KereliaUi";
 
 export const heroCopy = {
-  headlineLines: ["La donnée territoriale", "pour guider vos projets."] as const,
+  headlineLines: ["Bureau d'études en données géospatiales."] as const,
   sub:
     "Kerelia transforme la donnée brute en levier opérationnel. Comprenez les contraintes d'un terrain, anticipez les enjeux environnementaux et pilotez vos projets avec des outils sur mesure.",
   metaBl: ["BORDEAUX 44.836 N 0.578 W", "INCUBEE A TECHNOWEST"] as const,
 } as const;
 
-export const statsCopy = [
-  {
-    label: "COUVERTURE",
-    num: "12",
-    desc: "Départements de Nouvelle-Aquitaine",
-    numVariant: "default" as const,
-  },
-  {
-    label: "RÉFÉRENTIELS",
-    num: "20+",
-    desc: "Sources publiques et privées intégrées",
-    numVariant: "yellow" as const,
-  },
-  {
-    label: "STATUT",
-    num: "2025",
-    desc: "Année de fondation — Technowest Bordeaux",
-    numVariant: "default" as const,
-  },
-] as const;
+export const sourcesPartnershipsCopy = {
+  title: "Sources & partenariats",
+  intro:
+    "Kerelia produit ses analyses à partir des référentiels publics et privés faisant autorité. Nous travaillons sans intermédiaire avec les sources de l'État, des établissements publics et des organismes scientifiques.",
+  institutionalHeading: "Références institutionnelles",
+  operationalHeading: "Partenariats opérationnels",
+  partnerships: [
+    {
+      name: "SIMETHIS & Eco-Compensation",
+      body:
+        "Co-conception du logiciel de bancarisation et de suivi des mesures ERC. SIMETHIS apporte vingt ans de pratique de terrain en écologie réglementaire ; Kerelia, l'ingénierie de données et le développement logiciel.",
+    },
+    {
+      name: "Technowest",
+      body:
+        "Incubateur technologique de Bordeaux Métropole. Kerelia est incubée à Technowest depuis 2025.",
+    },
+  ],
+} as const;
 
 export const expertiseCopy = {
   title: "Cinq domaines d'intervention, un même socle technique.",
