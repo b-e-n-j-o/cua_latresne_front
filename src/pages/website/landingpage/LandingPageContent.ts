@@ -1,4 +1,5 @@
-import type { ExpertiseCardModel } from "./components/KereliaUi";
+import type { DomaineInterventionCardModel } from "./components/KereliaUi";
+import { NOS_DOMAINES_PANEL_VIDEOS } from "./lib/constants";
 
 export const heroCopy = {
   headlineLines: ["Bureau d'études en données géospatiales."] as const,
@@ -27,7 +28,8 @@ export const sourcesPartnershipsCopy = {
   ],
 } as const;
 
-export const expertiseCopy = {
+/** Section 04 — cinq domaines d'intervention (cartes dépliables, fond sombre). */
+export const domainesInterventionCopy = {
   title: "Cinq domaines d'intervention, un même socle technique.",
   cards: [
     {
@@ -81,7 +83,7 @@ export const expertiseCopy = {
         "Formation aux outils Kerelia pour les équipes internes des clients abonnés.",
       ],
     },
-  ] satisfies ExpertiseCardModel[],
+  ] satisfies DomaineInterventionCardModel[],
 };
 
 export const methodologyCopy = {
@@ -152,44 +154,90 @@ export const partnerBannerLogos: readonly PartnerBannerLogo[] = [
   { file: "Tela_Botanica.png", alt: "Tela Botanica" },
 ] as const;
 
-export type EtudeTopoClass = "topo-1" | "topo-2" | "topo-3";
+export type EtudeTopoClass = "topo-1" | "topo-2" | "topo-3" | "topo-4";
 
-export type EtudeCardCopy = {
+/** Libellés courts — indicateur de progression (M53 / M58). */
+export const nosDomainesPinLabels = [
+  "Urbanisme réglementaire",
+  "Compensation écologique",
+  "Bancarisation ERC",
+  "Pré-études environnementales",
+] as const;
+
+export const nosDomainesSectionMeta = {
+  id: "etudes",
+  screenLabel: "03 Nos domaines",
+  skipLabel: "Passer →",
+  /** Section C — « En détail » (domaines d'intervention). */
+  skipTargetId: "domaines-intervention",
+} as const;
+
+export type NosDomainePanelModel = {
   topoClass: EtudeTopoClass;
   pill: string;
   title: string;
   desc: string;
-  date: string;
+  status: string;
+  videoSrc: string;
+  ctaLabel: string;
+  ctaHref: string;
 };
 
-export const etudesCopy: EtudeCardCopy[] = [
-  {
-    topoClass: "topo-1",
-    pill: "URBANISME",
-    title: "Certificat d'urbanisme et Carte d'Identité Foncière",
-    desc: "Génération automatisée de Certificats d'Urbanisme analytiques (CUa) avec analyse exhaustive des servitudes, zonages PLU/PLUi, contraintes réglementaires et environnementales locales.",
-    date: "EN PRODUCTION — 2025",
-  },
-  {
-    topoClass: "topo-2",
-    pill: "COMPENSATION ÉCOLOGIQUE & ENVIRONNEMENT",
-    title: "Recherche et étude écologique de foncier pour compensation écologique",
-    desc: "Identification de parcelles compatibles avec les prescriptions DREAL pour des projets d'aménagement en Nouvelle-Aquitaine. Travail conduit en partenariat avec SIMETHIS et Eco Compensation.",
-    date: "EN COURS — 2025",
-  },
-  {
-    topoClass: "topo-3",
-    pill: "OUTILS SIG SUR MESURE",
-    title: "Plateforme de bancarisation de projets de compensation ERC",
-    desc: "Développement d'une plateforme de suivi technique et financier des engagements ERC. Intégration des prestataires, plannings, traçabilité documentaire.",
-    date: "EN DÉVELOPPEMENT — 2025-2026",
-  },
-];
+/** Section 03 — Nos domaines (4 panneaux, M58). */
+export const etudesSectionCopy = {
+  title: "Nos domaines.",
+  cards: [
+    {
+      topoClass: "topo-1",
+      pill: "URBANISME RÉGLEMENTAIRE",
+      title: "Certificat d'urbanisme analytique (CUa) et Carte d'identité foncière (CIF)",
+      desc: "Production automatisée des CUa officiels pour les communes. Livraison au format Word pour relecture interne, ou signature et horodatage automatiques selon le mode retenu par la commune.",
+      status: "En production locale",
+      videoSrc: NOS_DOMAINES_PANEL_VIDEOS.urbanisme,
+      ctaLabel: "En savoir plus →",
+      ctaHref: "/urbanisme/certificats-durbanisme",
+    },
+    {
+      topoClass: "topo-2",
+      pill: "COMPENSATION ÉCOLOGIQUE",
+      title: "Animation foncière pour la compensation écologique",
+      desc: "Identification de parcelles compatibles avec les prescriptions DREAL, mise en relation avec les propriétaires fonciers et montage des dossiers de sécurisation foncière. Outil ouvert de gestion de base de données foncières.",
+      status:
+        "Co-développé avec SIMETHIS et Eco-Compensation · Exclusivité d'emploi SIMETHIS en Nouvelle-Aquitaine · Couverture nationale via réseau de bureaux d'études partenaires",
+      videoSrc: NOS_DOMAINES_PANEL_VIDEOS.compensationFoncier,
+      ctaLabel: "En savoir plus →",
+      ctaHref: "/environnement/scoring-compensation-ecologique",
+    },
+    {
+      topoClass: "topo-3",
+      pill: "BANCARISATION ERC",
+      title: "Bancarisation et suivi des mesures ERC",
+      desc: "Logiciel de bancarisation et de pilotage des mesures compensatoires : suivi technique, financier et documentaire des engagements ERC sur toute la durée des atteintes. Destiné aux bureaux d'études, opérateurs de compensation et services instructeurs de l'État.",
+      status:
+        "Bêta · Co-développé avec Eco-Compensation et SIMETHIS · selon les prescriptions de la DREAL NA · Commercialisation directe Kerelia",
+      videoSrc: NOS_DOMAINES_PANEL_VIDEOS.bancarisationErc,
+      ctaLabel: "En savoir plus →",
+      ctaHref: "/environnement/bancarisation-suivi-erc",
+    },
+    {
+      topoClass: "topo-4",
+      pill: "ENVIRONNEMENT",
+      title: "Pré-études environnementales automatisées",
+      desc: "Pré-rapport environnemental généré à partir des références cadastrales : zonages réglementaires, hydrologie, hydrogéologie, biodiversité connue, structure de la canopée, évolution historique du site. Destiné aux aménageurs, promoteurs et bureaux d'études pour cadrer les enjeux d'un site en amont d'une VNEI.",
+      status:
+        "Production Kerelia · Méthodologie consolidée avec SIMETHIS · Couverture nationale",
+      videoSrc: NOS_DOMAINES_PANEL_VIDEOS.preEtudes,
+      ctaLabel: "Voir un rapport exemple →",
+      ctaHref: "/environnement/etudes-environnementales",
+    },
+  ] satisfies readonly NosDomainePanelModel[],
+} as const;
 
 export const aboutCopy = {
   title: "Cabinet d'expertise géospatiale ancré en Nouvelle-Aquitaine.",
   body:
     "Kerelia est une SAS fondée en 2025, incubée à Technowest Bordeaux. L'activité couvre l'urbanisme réglementaire, les études environnementales préalables et le développement de logiciels métier pour la gestion des engagements ERC. La rigueur sur les sources primaires, la traçabilité documentaire et la conformité aux prescriptions DREAL Nouvelle-Aquitaine constituent le socle méthodologique. Les développements logiciels et les modèles d'IA sont conçus en interne, avec une attention particulière à l'intégration dans les workflows existants des collectivités, bureaux d'études et aménageurs.",
+  mapCaption: "FIG.01 — ZONE D'INTERVENTION | NOUVELLE-AQUITAINE",
 } as const;
 
 export type TeamMemberCopy = {
@@ -239,7 +287,7 @@ export const footerCopy = {
   title: "De la donnée à vos décisions projet.",
   primaryCta: "Demander un devis →",
   nav: [
-    { href: "#expertise", label: "Expertises" },
+    { href: "#domaines-intervention", label: "Expertises" },
     { href: "#etudes", label: "Études" },
     { href: "#apropos", label: "À propos" },
     { href: "/login", label: "Mon Espace Pro" },

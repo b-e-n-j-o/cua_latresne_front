@@ -85,18 +85,18 @@ export function ExpertiseTagDot() {
   return <span className="k-section-label__dot" style={TAG_DOT_STYLE} />;
 }
 
-export type ExpertiseCardModel = {
+export type DomaineInterventionCardModel = {
   tag: string;
   title: string;
   bullets: string[];
   wide?: boolean;
 };
 
-type ExpertiseCardProps = {
-  card: ExpertiseCardModel;
+type DomaineInterventionCardProps = {
+  card: DomaineInterventionCardModel;
 };
 
-export function ExpertiseCard({ card }: ExpertiseCardProps) {
+export function DomaineInterventionCard({ card }: DomaineInterventionCardProps) {
   return (
     <article className={cn("ecard5", card.wide && "ecard5--wide")}>
       <div className="ecard5__head">

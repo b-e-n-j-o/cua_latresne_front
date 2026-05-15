@@ -1,5 +1,15 @@
 export const KERELIA_LOGO_SRC = "/logo_kerelia_noir.png";
 
+const baseUrl = import.meta.env.BASE_URL || "/";
+
+/** Boucles vidéo panneaux « Nos domaines » (M30, M36, M42, M48) — déposer les fichiers dans `public/videos/nos-domaines/`. */
+export const NOS_DOMAINES_PANEL_VIDEOS = {
+  urbanisme: `${baseUrl}videos/nos-domaines/panel-1-cua.mp4`,
+  compensationFoncier: `${baseUrl}videos/nos-domaines/panel-2-carto-dreal.mp4`,
+  bancarisationErc: `${baseUrl}videos/nos-domaines/panel-3-erc-dashboard.mp4`,
+  preEtudes: `${baseUrl}videos/nos-domaines/panel-4-rapport-apercu.mp4`,
+} as const;
+
 /** `public/svgs/france.svg` — `mapsvg:geoViewBox` = ouest, nord, est, sud (WGS84). */
 export const FRANCE_OUTLINE_SVG_SRC = "/svgs/france.svg";
 

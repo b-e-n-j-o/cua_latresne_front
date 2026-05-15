@@ -260,17 +260,17 @@ export function KereliaSiteHeader({ headerClassName }: KereliaSiteHeaderProps) {
             </Fragment>
           ))}
           <a
-            className="kh__nav-mobile-demo"
-            href="/demo"
+            className="kh__nav-mobile-login"
+            href="/login"
             onClick={closeMobileNav}
-            aria-label="Je demande une démo"
+            aria-label="Se connecter"
           >
-            Je demande une démo
+            Se connecter
           </a>
         </nav>
 
-        <a className="kh__cta kh__cta--demo" href="/demo" aria-label="Je demande une démo">
-          Je demande une démo
+        <a className="kh__cta kh__cta--login" href="/login" aria-label="Se connecter">
+          Se connecter
         </a>
 
         <button

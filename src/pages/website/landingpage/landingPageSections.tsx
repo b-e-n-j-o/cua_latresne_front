@@ -1,17 +1,18 @@
 import { useEffect, useRef, type CSSProperties, type RefObject } from "react";
-import { ExpertiseCard, KereliaBtn, KereliaRule } from "./components/KereliaUi";
+import { DomaineInterventionCard, KereliaBtn, KereliaRule } from "./components/KereliaUi";
 import { PartnerLogoBanner } from "./components/PartnerLogoBanner";
 import { TeamSection } from "./components/TeamSection";
 import {
   aboutCopy,
   contactCopy,
-  etudesCopy,
-  expertiseCopy,
+  domainesInterventionCopy,
   footerCopy,
   heroCopy,
   methodologyCopy,
   sourcesPartnershipsCopy,
 } from "./LandingPageContent";
+import type Lenis from "lenis";
+import { NosDomainesPinnedSection } from "./components/NosDomainesPinnedSection";
 import { cn } from "./lib/cn";
 import {
   BORDEAUX_FRANCE_MAP_PIN,
@@ -38,7 +39,7 @@ export function HeroSection() {
           {heroCopy.headlineLines[1]}
         </h1>
         <div className="hero__cta">
-          <KereliaBtn variant="primary" href="#expertise">
+          <KereliaBtn variant="primary" href="#domaines-intervention">
             Voir les expertises →
           </KereliaBtn>
           <KereliaBtn variant="ghost" href="#methodologie">
@@ -109,17 +110,22 @@ export function SourcesPartnershipsSection({ sectionRef, visible }: SourcesPartn
   );
 }
 
-export function ExpertiseSection() {
+export function DomainesInterventionSection() {
   return (
-    <section className="expertise" id="expertise" data-bg="dark" data-screen-label="03 Expertises">
-      <div className="expertise__head">
-        <h2 className="expertise__title">{expertiseCopy.title}</h2>
+    <section
+      className="domaines-intervention"
+      id="domaines-intervention"
+      data-bg="dark"
+      data-screen-label="04 Domaines d'intervention"
+    >
+      <div className="domaines-intervention__head">
+        <h2 className="domaines-intervention__title">{domainesInterventionCopy.title}</h2>
         <KereliaRule center />
       </div>
 
-      <div className="expertise__cards--five">
-        {expertiseCopy.cards.map((card) => (
-          <ExpertiseCard key={card.title} card={card} />
+      <div className="domaines-intervention__cards--five">
+        {domainesInterventionCopy.cards.map((card) => (
+          <DomaineInterventionCard key={card.title} card={card} />
         ))}
       </div>
     </section>
@@ -133,7 +139,7 @@ type MethodologySectionProps = {
 
 export function MethodologySection({ stepsRef, methodVisible }: MethodologySectionProps) {
   return (
-    <section className="method" id="methodologie" data-bg="dark" data-screen-label="04 Méthodologie">
+    <section className="method" id="methodologie" data-bg="dark" data-screen-label="05 Méthodologie">
       <div className="method__head">
         <h2 className="method__title">{methodologyCopy.title}</h2>
         <KereliaRule center />
@@ -152,37 +158,18 @@ export function MethodologySection({ stepsRef, methodVisible }: MethodologySecti
   );
 }
 
-export function EtudesSection() {
-  return (
-    <section className="etudes" id="etudes" data-bg="light" data-screen-label="06 Études">
-      <div className="etudes__head">
-        <div>
-          <h2 className="etudes__title">Notre expertise.</h2>
-          <KereliaRule />
-        </div>
-      </div>
-      <div className="etudes__grid">
-        {etudesCopy.map((e) => (
-          <article key={e.title} className="ecard2">
-            <div className={`ecard2__media ${e.topoClass}`} />
-            <div className="ecard2__body">
-              <span className="pill">{e.pill}</span>
-              <h3 className="ecard2__title">{e.title}</h3>
-              <p className="ecard2__desc">{e.desc}</p>
-              <div className="ecard2__foot">
-                <span className="ecard2__date">{e.date}</span>
-              </div>
-            </div>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
+type EtudesSectionProps = {
+  lenisRef: RefObject<Lenis | null>;
+  lenis: Lenis | null;
+};
+
+export function EtudesSection({ lenis }: EtudesSectionProps) {
+  return <NosDomainesPinnedSection lenis={lenis} />;
 }
 
 export function AboutSection() {
   return (
-    <section className="about" id="apropos" data-bg="dark" data-screen-label="07 À propos">
+    <section className="about" id="apropos" data-bg="dark" data-screen-label="06 À propos">
       <div className="about__grid">
         <div>
           <h2 className="about__title">{aboutCopy.title}</h2>
@@ -227,7 +214,7 @@ export function AboutSection() {
 
 export function ContactCtaSection() {
   return (
-    <section className="ctafinal" id="contact" data-bg="dark" data-screen-label="08 Contact">
+    <section className="ctafinal" id="contact" data-bg="dark" data-screen-label="07 Contact">
       <div className="ctafinal__inner">
         <h2 className="ctafinal__title">
           {contactCopy.titleBeforeEm}
@@ -251,7 +238,7 @@ export function ContactCtaSection() {
 export function SiteFooterSection() {
   return (
     <>
-      <footer className="kfoot" data-bg="yellow" data-screen-label="09 Footer">
+      <footer className="kfoot" data-bg="yellow" data-screen-label="08 Footer">
         <div className="kfoot__grid">
           <div>
             <h2 className="kfoot__title">{footerCopy.title}</h2>

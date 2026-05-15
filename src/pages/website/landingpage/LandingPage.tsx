@@ -1,35 +1,24 @@
 import { useEffect, useState } from "react";
-import Lenis from "lenis";
-import type { LenisOptions } from "lenis";
 import "lenis/dist/lenis.css";
 import kereliaLandingCss from "./kereliaLandingPage.css?raw";
 import { useInViewOnce } from "./hooks/useInViewOnce";
+import { useLandingLenis } from "./hooks/useLandingLenis";
 import { cn } from "./lib/cn";
 import {
   AboutSection,
   ContactCtaSection,
+  DomainesInterventionSection,
   EtudesSection,
-  ExpertiseSection,
   HeroSection,
   MethodologySection,
   SiteFooterSection,
   SourcesPartnershipsSection,
 } from "./landingPageSections";
+import { FloatingDemoCta } from "./components/FloatingDemoCta";
 import { KereliaSiteHeader } from "./components/KereliaSiteHeader";
 
-/** Lenis — uniquement sur cette page : ajuste ces valeurs au feeling voulu */
-const LANDING_LENIS_OPTIONS: LenisOptions = {
-  duration: 1.2,
-  lerp: 0.1,
-  wheelMultiplier: 1,
-  touchMultiplier: 1,
-  smoothWheel: true,
-  syncTouch: false,
-  syncTouchLerp: 0.075,
-  anchors: false,
-};
-
 export default function LandingPage() {
+  const { lenisRef, lenis } = useLandingLenis();
   const [headerScrolled, setHeaderScrolled] = useState(false);
   const [headerOverLight, setHeaderOverLight] = useState(false);
 
@@ -69,20 +58,6 @@ export default function LandingPage() {
   }, []);
 
   useEffect(() => {
-    const lenis = new Lenis(LANDING_LENIS_OPTIONS);
-    let rafId = 0;
-    const raf = (time: number) => {
-      lenis.raf(time);
-      rafId = requestAnimationFrame(raf);
-    };
-    rafId = requestAnimationFrame(raf);
-    return () => {
-      cancelAnimationFrame(rafId);
-      lenis.destroy();
-    };
-  }, []);
-
-  useEffect(() => {
     let rafId = 0;
 
     const updateHeaderMode = () => {
@@ -116,13 +91,15 @@ export default function LandingPage() {
 
     window.addEventListener("scroll", scheduleHeaderMode, { passive: true });
     window.addEventListener("resize", scheduleHeaderMode, { passive: true });
+    lenis?.on("scroll", scheduleHeaderMode);
     updateHeaderMode();
     return () => {
       window.removeEventListener("scroll", scheduleHeaderMode);
       window.removeEventListener("resize", scheduleHeaderMode);
+      lenis?.off("scroll", scheduleHeaderMode);
       cancelAnimationFrame(rafId);
     };
-  }, []);
+  }, [lenis]);
 
   const headerClassName = cn(
     "kh",
@@ -133,12 +110,13 @@ export default function LandingPage() {
   return (
     <div className="kerelia-landing">
       <KereliaSiteHeader headerClassName={headerClassName} />
+      <FloatingDemoCta />
 
       <main id="main">
         <HeroSection />
         <SourcesPartnershipsSection sectionRef={sourcesSectionRef} visible={sourcesVisible} />
-        <EtudesSection />
-        <ExpertiseSection />
+        <EtudesSection lenisRef={lenisRef} lenis={lenis} />
+        <DomainesInterventionSection />
         <MethodologySection stepsRef={methodStepsRef} methodVisible={methodVisible} />
         <AboutSection />
         <ContactCtaSection />
