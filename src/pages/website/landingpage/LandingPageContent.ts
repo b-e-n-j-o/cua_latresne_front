@@ -254,12 +254,12 @@ export const teamCopy = {
   members: [
     {
       name: "Christophe Collantier",
-      title: "Fondateur & Président",
+      title: "Fondateur",
       image: "/christophe.png",
       email: "christophe.collantier@kerelia.fr",
       linkedin: "https://www.linkedin.com/in/christophe-collantier-b4290695/",
       description:
-        "Président de Kerelia — expertise réglementaire & pilotage des collectivités, au cœur des besoins terrain.",
+        "Fondateur de Kerelia. Quinze ans en développement immobilier et foncier. Pilote les sujets réglementaires et la relation avec les collectivités et les services de l'État.",
     },
     {
       name: "Benjamin Benoit",
@@ -268,7 +268,7 @@ export const teamCopy = {
       email: "benjamin.b@kerelia.fr",
       linkedin: "https://www.linkedin.com/in/benjamin-benoit-ai-ml/",
       description:
-        "Ingénieur Data SIG Full Stack — Développement d'outils SIG d'analyses règlementaires et environnementales sur mesures.",
+        "Ingénieur Data SIG. Conception et développement des chaînes de traitement géospatiales : extraction, croisement, génération automatisée de rapports. Pilote l'architecture technique et les modèles d'IA.",
     },
   ] satisfies readonly TeamMemberCopy[],
 } as const;
