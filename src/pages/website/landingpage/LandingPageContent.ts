@@ -3,7 +3,7 @@ import { NOS_DOMAINES_PANEL_VIDEOS } from "./lib/constants";
 
 /** CTA principal hero + bouton flottant (section 2+) — demande de démo / contact. */
 export const demoContactCtaCopy = {
-  label: "Demander une démo  →",
+  label: "Nous contacter →",
   href: "/demo",
 } as const;
 
