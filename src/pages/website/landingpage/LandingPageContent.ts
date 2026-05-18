@@ -231,7 +231,7 @@ export const etudesSectionCopy = {
 } as const;
 
 export const aboutCopy = {
-  title: "Cabinet d'expertise géospatiale ancré en Nouvelle-Aquitaine.",
+  title: "Bureau d'études en données géospatiales, couverture nationale.",
   body: [
     "Kerelia est une SAS fondée en 2025, basée à Bordeaux et incubée à Technowest.",
     "Notre activité couvre l'urbanisme réglementaire pour les communes, les pré-études environnementales pour les aménageurs et les bureaux d'études, et le développement de logiciels métier pour la gestion des engagements ERC.",
