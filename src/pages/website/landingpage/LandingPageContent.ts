@@ -22,7 +22,7 @@ export const sourcesPartnershipsCopy = {
   operationalHeading: "Partenariats opérationnels",
   partnerships: [
     {
-      name: "SIMETHIS & Eco-Compensation",
+      name: "SIMETHIS et Eco-Compensation",
       body:
         "Co-conception du logiciel de bancarisation et de suivi des mesures ERC. SIMETHIS apporte vingt ans de pratique de terrain en écologie réglementaire ; Kerelia, l'ingénierie de données et le développement logiciel.",
     },
@@ -36,7 +36,7 @@ export const sourcesPartnershipsCopy = {
 
 /** Section 04 — cinq domaines d'intervention (cartes dépliables, fond sombre). */
 export const domainesInterventionCopy = {
-  title: "Cinq domaines d'intervention, un même socle technique.",
+  title: "En détail",
   cards: [
     {
       tag: "URBANISME RÉGLEMENTAIRE",
@@ -137,27 +137,18 @@ export type PartnerBannerLogo = {
  * (sinon 404 et pastille de secours côté UI).
  */
 export const partnerBannerLogos: readonly PartnerBannerLogo[] = [
-  { file: "ADEME.png", alt: "ADEME" },
   { file: "ARS.png", alt: "Agence régionale de santé" },
   { file: "Airbus_Defence_Space.png", alt: "Airbus Defence and Space" },
-  { file: "BNPE.jpg", alt: "Banque nationale des procédures environnementales" },
   { file: "BRGM.png", alt: "BRGM" },
-  { file: "CEREMA.png", alt: "Cerema" },
   { file: "CNES.png", alt: "CNES" },
   { file: "Copernicus.png", alt: "Copernicus" },
-  { file: "Data_Gouv.jpg", alt: "data.gouv.fr" },
   { file: "EauFrance.png", alt: "Eau France" },
-  { file: "fauna.png", alt: "Faune France" },
-  { file: "Geoportail_Urbanisme.png", alt: "Géoportail de l'urbanisme" },
-  { file: "Georisques.png", alt: "Géorisques" },
   { file: "HubEau.png", alt: "Hub'Eau" },
   { file: "IGN.png", alt: "IGN" },
   { file: "INPN.png", alt: "INPN" },
   { file: "INRAE.png", alt: "INRAE" },
   { file: "Meteo_France.png", alt: "Météo-France" },
-  { file: "OFB.jpg", alt: "Office français de la biodiversité" },
-  { file: "Sandre.png", alt: "Sandre" },
-  { file: "Tela_Botanica.png", alt: "Tela Botanica" },
+  { file: "OFB.png", alt: "Office français de la biodiversité" },
 ] as const;
 
 export type EtudeTopoClass = "topo-1" | "topo-2" | "topo-3" | "topo-4";
@@ -284,8 +275,8 @@ export const contactCopy = {
   titleBeforeEm: "Discutons de votre ",
   titleEm: "projet",
   titleAfterEm: ".",
-  sub: "Réponse sous 48 heures ouvrées.",
-  primaryCta: "Demander un devis →",
+  primaryCta: "Nous contacter →",
+  primaryCtaHref: "/demo",
   email: "contact@kerelia.fr",
 } as const;
 

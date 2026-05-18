@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import "lenis/dist/lenis.css";
-import kereliaLandingCss from "./kereliaLandingPage.css?raw";
+import "./kereliaLandingPage.css";
 import { useInViewOnce } from "./hooks/useInViewOnce";
 import { useLandingLenis } from "./hooks/useLandingLenis";
 import { cn } from "./lib/cn";
 import {
   AboutSection,
   ContactCtaSection,
-  DomainesInterventionSection,
+  DomainesListSection,
   EtudesSection,
   HeroSection,
   MethodologySection,
@@ -26,15 +26,9 @@ export default function LandingPage() {
   const { ref: sourcesSectionRef, visible: sourcesVisible } = useInViewOnce<HTMLElement>();
   const { ref: methodStepsRef, visible: methodVisible } = useInViewOnce<HTMLDivElement>();
 
+  // Ancien CSS injecté via ?raw — retirer si encore présent après migration
   useEffect(() => {
-    const id = "kerelia-landing-injected-styles";
-    const el = document.createElement("style");
-    el.id = id;
-    el.textContent = kereliaLandingCss;
-    document.head.appendChild(el);
-    return () => {
-      document.getElementById(id)?.remove();
-    };
+    document.getElementById("kerelia-landing-injected-styles")?.remove();
   }, []);
 
   useEffect(() => {
@@ -122,7 +116,7 @@ export default function LandingPage() {
         <HeroSection />
         <SourcesPartnershipsSection sectionRef={sourcesSectionRef} visible={sourcesVisible} />
         <EtudesSection lenisRef={lenisRef} lenis={lenis} />
-        <DomainesInterventionSection />
+        <DomainesListSection lenis={lenis} />
         <MethodologySection stepsRef={methodStepsRef} methodVisible={methodVisible} />
         <AboutSection />
         <ContactCtaSection />

@@ -75,7 +75,7 @@ export default function DemoRequestPage() {
             marginBottom: 20,
           }}
         >
-          FORMULAIRE — BIENTÔT ACTIF
+          FORMULAIRE DE CONTACT
         </span>
 
         <h1
@@ -90,7 +90,7 @@ export default function DemoRequestPage() {
           Demander une démonstration
         </h1>
         <p style={{ fontSize: 15, color: "rgba(255,255,255,0.5)", lineHeight: 1.65, margin: "0 0 36px" }}>
-          Décrivez votre besoin : nous reviendrons vers vous sous 48 h ouvrées. Les champs ci-dessous préfigurent le formulaire définitif.
+          Décrivez votre besoin : dites-nous qui vous êtes et ce que vous recherchez, nous reviendrons vers vous rapidement.
         </p>
 
         <form onSubmit={onSubmit} style={{ display: "flex", flexDirection: "column", gap: 22 }}>

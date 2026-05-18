@@ -1,12 +1,11 @@
-import { useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
-import { DomaineInterventionCard, KereliaBtn, KereliaRule } from "./components/KereliaUi";
+import { lazy, Suspense, useEffect, useRef, useState, type RefObject } from "react";
+import { KereliaBtn, KereliaRule } from "./components/KereliaUi";
 import { PartnerLogoBanner } from "./components/PartnerLogoBanner";
 import { TeamSection } from "./components/TeamSection";
 import {
   aboutCopy,
   contactCopy,
   demoContactCtaCopy,
-  domainesInterventionCopy,
   footerCopy,
   heroCopy,
   methodologyCopy,
@@ -15,12 +14,9 @@ import {
 import type Lenis from "lenis";
 import { NosDomainesPinnedSection } from "./components/NosDomainesPinnedSection";
 import { cn } from "./lib/cn";
-import {
-  BORDEAUX_FRANCE_MAP_PIN,
-  FRANCE_OUTLINE_SVG_SRC,
-  HERO_BACKGROUND_IMAGE_SRC,
-  KERELIA_LOGO_SRC,
-} from "./lib/constants";
+import { HERO_BACKGROUND_IMAGE_SRC, KERELIA_LOGO_SRC } from "./lib/constants";
+
+const FranceMap = lazy(() => import("./components/FranceMap"));
 
 const HERO_BG_DESKTOP_MQ = "(min-width: 834px)";
 
@@ -130,27 +126,7 @@ export function SourcesPartnershipsSection({ sectionRef, visible }: SourcesPartn
   );
 }
 
-export function DomainesInterventionSection() {
-  return (
-    <section
-      className="domaines-intervention"
-      id="domaines-intervention"
-      data-bg="dark"
-      data-screen-label="04 Domaines d'intervention"
-    >
-      <div className="domaines-intervention__head">
-        <h2 className="domaines-intervention__title">{domainesInterventionCopy.title}</h2>
-        <KereliaRule center />
-      </div>
-
-      <div className="domaines-intervention__cards--five">
-        {domainesInterventionCopy.cards.map((card) => (
-          <DomaineInterventionCard key={card.title} card={card} />
-        ))}
-      </div>
-    </section>
-  );
-}
+export { DomainesListSection } from "./components/DomainesListSection/DomainesListSection";
 
 type MethodologySectionProps = {
   stepsRef: RefObject<HTMLDivElement | null>;
@@ -197,31 +173,9 @@ export function AboutSection() {
           <p className="about__body">{aboutCopy.body}</p>
         </div>
         <div>
-          <div
-            className="about__map"
-            style={
-              {
-                "--about-map-pin-x": `${BORDEAUX_FRANCE_MAP_PIN.leftPct}%`,
-                "--about-map-pin-y": `${BORDEAUX_FRANCE_MAP_PIN.topPct}%`,
-              } as CSSProperties
-            }
-          >
-            <div className="about__map-stage">
-              <img
-                className="about__map-svg"
-                src={FRANCE_OUTLINE_SVG_SRC}
-                alt=""
-                width={596}
-                height={585}
-                decoding="async"
-              />
-              <span
-                className="about__map-pin"
-                aria-hidden="true"
-                title="Bordeaux"
-              />
-            </div>
-          </div>
+          <Suspense fallback={<div className="about__map" style={{ opacity: 0 }} />}>
+            <FranceMap />
+          </Suspense>
           <div className="about__caption">{aboutCopy.mapCaption}</div>
         </div>
         <div className="about__team">
@@ -243,7 +197,7 @@ export function ContactCtaSection() {
         </h2>
         <p className="ctafinal__sub">{contactCopy.sub}</p>
         <div className="ctafinal__cta">
-          <KereliaBtn variant="primary" href={`mailto:${contactCopy.email}`}>
+          <KereliaBtn variant="primary" href={contactCopy.primaryCtaHref}>
             {contactCopy.primaryCta}
           </KereliaBtn>
           <KereliaBtn variant="ghost" href={`mailto:${contactCopy.email}`}>
