@@ -4,6 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
 
+    <!-- Fond noir immédiat (évite le flash blanc avant React) -->
+    <style>
+      body {
+        background: #000;
+        margin: 0;
+      }
+    </style>
+
     <!-- Titre & description (affichés dans Google) — alignés avec la landing React -->
     <title>Kerelia — Bureau d'études en données géospatiales</title>
     <meta name="description" content="Kerelia transforme la donnée territoriale en levier opérationnel : urbanisme réglementaire (CUa), études environnementales, outils SIG sur mesure et pipelines géospatiaux. Bordeaux, Nouvelle-Aquitaine." />
@@ -48,12 +56,6 @@
         "sameAs": ["https://www.linkedin.com/company/kerelia/"]
       }
       </script>
-      
-
-    <!-- Tailwind (si tu tiens à la CDN ici) -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- html2pdf.js pour génération PDF côté client -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   </head>
   <body>
     <div id="root"></div>

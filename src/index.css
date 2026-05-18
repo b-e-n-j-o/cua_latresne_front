@@ -1,59 +1,46 @@
-/* === Design System Kerelia (compatible Tailwind v3) === */
+/* === Design System Kerelia (Tailwind v4) === */
 
 @import "tailwindcss";
 
-/* === Variables UI / Palette consigne === */
+/* === Déclaration des tokens v4 === */
+@theme {
+  --color-background: oklch(0.96 0.01 60);
+  --color-foreground: oklch(0.15 0.01 0);
+  --color-primary: oklch(0.55 0.25 270);
+  --color-primary-foreground: oklch(0.98 0 0);
+  --color-card: oklch(0.98 0.005 60);
+  --color-card-foreground: oklch(0.15 0.01 0);
+  --color-secondary: oklch(0.92 0.01 60);
+  --color-secondary-foreground: oklch(0.15 0.01 0);
+  --color-muted: oklch(0.94 0.01 60);
+  --color-muted-foreground: oklch(0.45 0.01 0);
+  --color-accent: oklch(0.65 0.20 160);
+  --color-accent-foreground: oklch(0.98 0 0);
+  --color-destructive: oklch(0.55 0.25 30);
+  --color-destructive-foreground: oklch(0.98 0 0);
+  --color-border: oklch(0.88 0.01 60);
+  --color-input: oklch(0.88 0.01 60);
+  --color-ring: oklch(0.55 0.25 270);
 
-:root {
-  /* Couleurs principales */
-  --primary: oklch(0.55 0.25 270);
-  --primary-foreground: oklch(0.98 0 0);
+  --color-chart-1: oklch(0.65 0.20 160);
+  --color-chart-2: oklch(0.65 0.22 25);
+  --color-chart-3: oklch(0.85 0.20 95);
+  --color-chart-4: oklch(0.65 0.25 350);
+  --color-chart-5: oklch(0.45 0.15 270);
 
-  --background: oklch(0.96 0.01 60);
-  --foreground: oklch(0.15 0.01 0);
-
-  --card: oklch(0.98 0.005 60);
-  --card-foreground: oklch(0.15 0.01 0);
-
-  --secondary: oklch(0.92 0.01 60);
-  --secondary-foreground: oklch(0.15 0.01 0);
-
-  --muted: oklch(0.94 0.01 60);
-  --muted-foreground: oklch(0.45 0.01 0);
-
-  --accent: oklch(0.65 0.20 160);
-  --accent-foreground: oklch(0.98 0 0);
-
-  --destructive: oklch(0.55 0.25 30);
-  --destructive-foreground: oklch(0.98 0 0);
-
-  --border: oklch(0.88 0.01 60);
-  --ring: oklch(0.55 0.25 270);
-
-  --input: oklch(0.88 0.01 60);
+  --color-sidebar: oklch(0.98 0.005 60);
+  --color-sidebar-foreground: oklch(0.15 0.01 0);
+  --color-sidebar-accent: oklch(0.94 0.01 60);
+  --color-sidebar-accent-foreground: oklch(0.15 0.01 0);
+  --color-sidebar-border: oklch(0.88 0.01 60);
+  --color-sidebar-primary: oklch(0.55 0.25 270);
+  --color-sidebar-primary-foreground: oklch(0.98 0 0);
+  --color-sidebar-ring: oklch(0.55 0.25 270);
 
   --radius: 1rem;
-
-  /* Couleurs graphiques */
-  --chart-1: oklch(0.65 0.20 160);
-  --chart-2: oklch(0.65 0.22 25);
-  --chart-3: oklch(0.85 0.20 95);
-  --chart-4: oklch(0.65 0.25 350);
-  --chart-5: oklch(0.45 0.15 270);
-
-  /* Sidebar (future compat) */
-  --sidebar: oklch(0.98 0.005 60);
-  --sidebar-foreground: oklch(0.15 0.01 0);
-  --sidebar-accent: oklch(0.94 0.01 60);
-  --sidebar-accent-foreground: oklch(0.15 0.01 0);
-  --sidebar-border: oklch(0.88 0.01 60);
-  --sidebar-primary: oklch(0.55 0.25 270);
-  --sidebar-primary-foreground: oklch(0.98 0 0);
-  --sidebar-ring: oklch(0.55 0.25 270);
 }
 
-/* === Base (appliqué automatiquement à tout le site) === */
-
+/* === Base === */
 @layer base {
   body {
     @apply bg-background text-foreground;

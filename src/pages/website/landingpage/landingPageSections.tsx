@@ -51,11 +51,13 @@ export function HeroSection() {
       </div>
 
       <div className="hero__rail-bottom">
-        <p className="hero__sub">{heroCopy.sub}</p>
-        <div className="hero__meta-bl">
-          {heroCopy.metaBl.map((line) => (
-            <span key={line}>{line}</span>
-          ))}
+        <div className="hero__rail-copy">
+          <p className="hero__sub">{heroCopy.sub}</p>
+          <div className="hero__meta-bl">
+            {heroCopy.metaBl.map((line) => (
+              <span key={line}>{line}</span>
+            ))}
+          </div>
         </div>
       </div>
     </section>

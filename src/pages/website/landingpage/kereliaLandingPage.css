@@ -673,10 +673,11 @@ section[id] {
     width: 100%;
     max-width: 100%;
     padding: clamp(88px, 10vh, 118px) clamp(32px, 4.5vw, 80px)
-      max(clamp(64px, 11vh, 120px), calc(env(safe-area-inset-bottom, 0px) + 32px));
+      max(clamp(72px, 10vh, 112px), calc(env(safe-area-inset-bottom, 0px) + 32px));
     display: flex;
     flex-direction: column;
     align-items: stretch;
+    justify-content: center;
     text-align: left;
     overflow: hidden;
     color: #fff;
@@ -828,17 +829,18 @@ section[id] {
     display: inline-block;
   }
   .hero__core {
-    flex: 1 1 auto;
+    /* Ne pas étirer : le paragraphe suit le CTA au lieu d’être collé au bas du viewport */
+    flex: 0 0 auto;
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: flex-start;
     align-items: stretch;
     width: 100%;
     max-width: 100%;
     min-width: 0;
-    min-height: 0;
-    /* Padding bas asymétrique : remonte titre + CTA dans la zone centrale */
-    padding: clamp(8px, 1.5vh, 20px) 0 clamp(52px, 11vh, 128px);
+    margin-top: 0;
+    padding: 0 0 clamp(28px, 4vh, 48px);
+    transform: translateY(clamp(12px, 2.5vh, 32px));
   }
   .hero__headline {
     font-family: var(--font-hero);
@@ -860,26 +862,23 @@ section[id] {
   }
   .hero__rail-bottom {
     flex: 0 0 auto;
-    display: flex;
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: clamp(20px, 3vw, 48px);
     width: 100%;
     max-width: 100%;
     min-width: 0;
-    padding-bottom: clamp(4px, 1vh, 12px);
-    transform: translateY(clamp(-10px, -2.5vh, -28px));
+    margin-top: 0;
+    padding-bottom: 0;
+    transform: translateY(clamp(12px, 2.5vh, 32px));
+  }
+  .hero__rail-copy {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: clamp(18px, 2.5vh, 28px);
+    max-width: min(42ch, 52vw);
+    min-width: 0;
   }
   @media (max-width: 833px) {
-    .hero__rail-bottom {
-      flex-direction: column;
-      align-items: stretch;
-      gap: 20px;
-    }
-    .hero__meta-bl {
-      align-self: stretch;
-      text-align: left;
+    .hero__rail-copy {
       max-width: 100%;
     }
   }
@@ -890,14 +889,8 @@ section[id] {
     line-height: 1.52;
     color: rgba(253, 252, 252, 0.92);
     margin: 0;
-    flex: 1 1 auto;
     min-width: 0;
-    max-width: min(42ch, 52vw);
-  }
-  @media (max-width: 833px) {
-    .hero__sub {
-      max-width: 100%;
-    }
+    max-width: 100%;
   }
   .hero__cta {
     display: flex;
@@ -920,20 +913,19 @@ section[id] {
     padding-block: 10px;
   }
   .hero__meta-bl {
-    flex: 0 0 auto;
     display: flex;
     flex-direction: column;
-    align-items: flex-end;
+    align-items: flex-start;
     gap: 4px;
     font-family: var(--font-kerelia);
     font-weight: var(--kerelia-w-extralight);
     font-size: 10px;
     letter-spacing: var(--tracking-loose);
     text-transform: uppercase;
-    text-align: right;
+    text-align: left;
     color: rgba(175, 175, 175, 0.75);
     z-index: 2;
-    max-width: min(40vw, 280px);
+    max-width: 100%;
   }
 
   /* Hero entrance — une keyframe, déclenchée au mount via .is-ready (requestAnimationFrame) */
