@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Loader2 } from "lucide-react";
 import { DropZone } from "./DropZone";
 import { ValidationView } from "./ValidationView";
 import { ManualCuaForm } from "./ManualCuaForm";
@@ -86,8 +87,13 @@ export default function CerfaTool({ onParcellesDetected, onPipelineCreated }: Pr
       )}
 
       {step === "analysing" && (
-        <div className="text-xs text-gray-600 italic animate-pulse">
-          Analyse du CERFA en cours. Cette opération peut prendre une minute...
+        <div className="flex flex-col items-center justify-center gap-3 py-6">
+          <Loader2 className="w-10 h-10 text-amber-600 animate-spin" aria-hidden="true" />
+          <p className="text-xs text-gray-600 text-center leading-relaxed">
+            Analyse du CERFA en cours…
+            <br />
+            <span className="text-gray-500">Cette opération peut prendre une minute.</span>
+          </p>
         </div>
       )}
 

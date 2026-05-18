@@ -158,7 +158,7 @@ export default function HistorySidebar({
   }, [identiteRows, searchTerm]);
 
   const groupedCua = useMemo(() => {
-    const ordered = [...matched, ...others];
+    const ordered = searchTerm.trim() ? matched : [...matched, ...others];
     const groups = new Map<string, HistoryPipeline[]>();
     for (const row of ordered) {
       const key = formatMonthGroupLabel(row.created_at);
@@ -166,7 +166,7 @@ export default function HistorySidebar({
       groups.get(key)!.push(row);
     }
     return Array.from(groups.entries()).map(([month, items]) => ({ month, items }));
-  }, [matched, others]);
+  }, [matched, others, searchTerm]);
 
   const groupedIdentite = useMemo(() => {
     const groups = new Map<string, IdentiteFonciereHistoryRow[]>();
@@ -286,6 +286,10 @@ export default function HistorySidebar({
                     </div>
                     {rows.length === 0 ? (
                       <div className="p-4 text-center text-[#0b131f]/40 text-sm">Aucun dossier</div>
+                    ) : groupedCua.length === 0 && searchTerm.trim() ? (
+                      <div className="p-4 text-center text-[#0b131f]/40 text-sm">
+                        Aucun résultat pour « {searchTerm} »
+                      </div>
                     ) : (
                       <div className="p-2">
                         {groupedCua.map((group) => (
