@@ -1,6 +1,12 @@
 import type { DomaineInterventionCardModel } from "./components/KereliaUi";
 import { NOS_DOMAINES_PANEL_VIDEOS } from "./lib/constants";
 
+/** CTA principal hero + bouton flottant (section 2+) — demande de démo / contact. */
+export const demoContactCtaCopy = {
+  label: "Demander une démo  →",
+  href: "/demo",
+} as const;
+
 export const heroCopy = {
   headlineLines: ["Bureau d'études en données géospatiales."] as const,
   sub:

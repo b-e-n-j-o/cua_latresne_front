@@ -1,10 +1,11 @@
-import { useEffect, useRef, type CSSProperties, type RefObject } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { DomaineInterventionCard, KereliaBtn, KereliaRule } from "./components/KereliaUi";
 import { PartnerLogoBanner } from "./components/PartnerLogoBanner";
 import { TeamSection } from "./components/TeamSection";
 import {
   aboutCopy,
   contactCopy,
+  demoContactCtaCopy,
   domainesInterventionCopy,
   footerCopy,
   heroCopy,
@@ -21,8 +22,13 @@ import {
   KERELIA_LOGO_SRC,
 } from "./lib/constants";
 
+const HERO_BG_DESKTOP_MQ = "(min-width: 834px)";
+
 export function HeroSection() {
   const ref = useRef<HTMLElement>(null);
+  const [showHeroBg, setShowHeroBg] = useState(
+    () => typeof window !== "undefined" && window.matchMedia(HERO_BG_DESKTOP_MQ).matches
+  );
 
   useEffect(() => {
     const id = requestAnimationFrame(() => {
@@ -31,11 +37,21 @@ export function HeroSection() {
     return () => cancelAnimationFrame(id);
   }, []);
 
+  useEffect(() => {
+    const mq = window.matchMedia(HERO_BG_DESKTOP_MQ);
+    const onChange = () => setShowHeroBg(mq.matches);
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
   return (
     <section ref={ref} className="hero" data-bg="dark" data-screen-label="01 Hero">
-      <div className="hero__bg" aria-hidden="true">
-        <img src={HERO_BACKGROUND_IMAGE_SRC} alt="" decoding="async" fetchPriority="high" />
-      </div>
+      {showHeroBg ? (
+        <div className="hero__bg" aria-hidden="true">
+          <img src={HERO_BACKGROUND_IMAGE_SRC} alt="" decoding="async" fetchPriority="high" />
+        </div>
+      ) : null}
       <div className="hero__scrim" aria-hidden="true" />
       <div className="hero__core">
         <h1 className="hero__headline">
@@ -44,8 +60,8 @@ export function HeroSection() {
           {heroCopy.headlineLines[1]}
         </h1>
         <div className="hero__cta">
-          <KereliaBtn variant="primary" href="#domaines-intervention">
-            Voir les expertises →
+          <KereliaBtn variant="primary" href={demoContactCtaCopy.href}>
+            {demoContactCtaCopy.label}
           </KereliaBtn>
         </div>
       </div>

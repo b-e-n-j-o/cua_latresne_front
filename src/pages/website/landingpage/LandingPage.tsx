@@ -21,6 +21,7 @@ export default function LandingPage() {
   const { lenisRef, lenis } = useLandingLenis();
   const [headerScrolled, setHeaderScrolled] = useState(false);
   const [headerOverLight, setHeaderOverLight] = useState(false);
+  const [floatingContactVisible, setFloatingContactVisible] = useState(false);
 
   const { ref: sourcesSectionRef, visible: sourcesVisible } = useInViewOnce<HTMLElement>();
   const { ref: methodStepsRef, visible: methodVisible } = useInViewOnce<HTMLDivElement>();
@@ -62,6 +63,11 @@ export default function LandingPage() {
 
     const updateHeaderMode = () => {
       setHeaderScrolled(window.scrollY > 80);
+      const hero = document.querySelector(".kerelia-landing .hero");
+      if (hero) {
+        const heroBottom = hero.getBoundingClientRect().bottom;
+        setFloatingContactVisible(heroBottom < 80);
+      }
       const detectionY = 60;
       let isLight = false;
       document.querySelectorAll("section, footer").forEach((section) => {
@@ -110,7 +116,7 @@ export default function LandingPage() {
   return (
     <div className="kerelia-landing">
       <KereliaSiteHeader headerClassName={headerClassName} />
-      <FloatingDemoCta />
+      <FloatingDemoCta visible={floatingContactVisible} overLight={headerOverLight} />
 
       <main id="main">
         <HeroSection />
