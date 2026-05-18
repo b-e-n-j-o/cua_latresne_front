@@ -170,7 +170,13 @@ export function AboutSection() {
         <div>
           <h2 className="about__title">{aboutCopy.title}</h2>
           <KereliaRule />
-          <p className="about__body">{aboutCopy.body}</p>
+          <div className="about__copy">
+            {aboutCopy.body.map((paragraph) => (
+              <p key={paragraph} className="about__body">
+                {paragraph}
+              </p>
+            ))}
+          </div>
         </div>
         <div>
           <Suspense fallback={<div className="about__map" style={{ opacity: 0 }} />}>

@@ -22,11 +22,11 @@ type NavSection = {
 const NAV_SECTIONS: NavSection[] = [
   {
     id: "urbanisme",
-    label: "Urbanisme",
+    label: "Urbanisme réglementaire",
     sectionLabel: "01 — URBANISME RÉGLEMENTAIRE",
     items: [
-      { label: "Certificats d'urbanisme", href: "/urbanisme/certificats-durbanisme" },
-      { label: "Carte d'identité foncière", href: "/urbanisme/carte-didentite-fonciere" },
+      { label: "Certificat d'urbanisme (CUa)", href: "/urbanisme/certificats-durbanisme" },
+      { label: "Carte d'identité foncière (CIF)", href: "/urbanisme/carte-didentite-fonciere" },
       { label: "Veille réglementaire", href: "/urbanisme/veille-reglementaire" },
     ],
   },
@@ -35,18 +35,18 @@ const NAV_SECTIONS: NavSection[] = [
     label: "Environnement",
     sectionLabel: "02 — ÉTUDES ENVIRONNEMENTALES",
     items: [
-      { label: "Scoring compensation écologique", href: "/environnement/scoring-compensation-ecologique" },
-      { label: "Études environnementales", href: "/environnement/etudes-environnementales" },
-      { label: "Bancarisation & suivi ERC", href: "/environnement/bancarisation-suivi-erc" },
+      { label: "Pré-études environnementales", href: "/environnement/etudes-environnementales" },
+      { label: "Bancarisation et suivi ERC", href: "/environnement/bancarisation-suivi-erc" },
+      { label: "Recherche foncière de compensation", href: "/environnement/scoring-compensation-ecologique" },
     ],
   },
   {
     id: "outils",
-    label: "Outils / Data SIG",
+    label: "Ingénierie SIG",
     sectionLabel: "03 — OUTILS & DATA SIG",
     items: [
-      { label: "Outils de pilotage SIG", href: "/outils/outils-pilotage-sig" },
-      { label: "Base de données SIG", href: "/outils/base-de-donnees-sig" },
+      { label: "Base de données géospatiales", href: "/outils/base-de-donnees-sig" },
+      { label: "Outils SIG", href: "/outils/outils-pilotage-sig" },
       { label: "Visualisation MNT / LiDAR", href: "/outils/visualisation-mnt-lidar" },
     ],
   },

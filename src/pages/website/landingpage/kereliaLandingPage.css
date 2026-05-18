@@ -2043,14 +2043,20 @@ section[id] {
     margin: 0;
     text-wrap: balance;
   }
+  .about__copy {
+    margin-top: 32px;
+    max-width: 56ch;
+  }
   .about__body {
     font-family: var(--font-kerelia);
     font-weight: var(--kerelia-w-light);
     font-size: 17px;
     line-height: 1.65;
     color: var(--color-silver);
-    margin: 32px 0;
-    max-width: 56ch;
+    margin: 0 0 1.25em;
+  }
+  .about__body:last-child {
+    margin-bottom: 0;
   }
   .about__map {
     max-width: 100%;

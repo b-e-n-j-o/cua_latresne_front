@@ -8,7 +8,7 @@ export default function FranceMap() {
     <div className="about__map">
       <img
         className="about__map-img"
-        src="/images/france-map.svg"
+        src="/images/france-map.png"
         alt="Zone d'intervention Kerelia — Nouvelle-Aquitaine"
         width={480}
         height={520}

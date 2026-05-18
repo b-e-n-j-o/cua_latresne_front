@@ -232,9 +232,12 @@ export const etudesSectionCopy = {
 
 export const aboutCopy = {
   title: "Cabinet d'expertise géospatiale ancré en Nouvelle-Aquitaine.",
-  body:
-    "Kerelia est une SAS fondée en 2025, incubée à Technowest Bordeaux. L'activité couvre l'urbanisme réglementaire, les études environnementales préalables et le développement de logiciels métier pour la gestion des engagements ERC. La rigueur sur les sources primaires, la traçabilité documentaire et la conformité aux prescriptions DREAL Nouvelle-Aquitaine constituent le socle méthodologique. Les développements logiciels et les modèles d'IA sont conçus en interne, avec une attention particulière à l'intégration dans les workflows existants des collectivités, bureaux d'études et aménageurs.",
-  mapCaption: "FIG.01 — ZONE D'INTERVENTION | NOUVELLE-AQUITAINE",
+  body: [
+    "Kerelia est une SAS fondée en 2025, basée à Bordeaux et incubée à Technowest.",
+    "Notre activité couvre l'urbanisme réglementaire pour les communes, les pré-études environnementales pour les aménageurs et les bureaux d'études, et le développement de logiciels métier pour la gestion des engagements ERC.",
+    "La rigueur sur les sources primaires, la traçabilité documentaire et la conformité aux prescriptions réglementaires constituent notre socle méthodologique. Logiciels et les modèles d'analyse cartographique sont conçus en interne.",
+    "Nous sommes accompagnés par l'IGN et nous co-développons nos outils environnementaux avec SIMETHIS, bureau d'études spécialisé.",
+  ],
 } as const;
 
 export type TeamMemberCopy = {
@@ -248,7 +251,6 @@ export type TeamMemberCopy = {
 
 export const teamCopy = {
   title: "Notre équipe",
-  sub: "Nous construisons Kerelia avec passion pour les territoires.",
   members: [
     {
       name: "Christophe Collantier",
