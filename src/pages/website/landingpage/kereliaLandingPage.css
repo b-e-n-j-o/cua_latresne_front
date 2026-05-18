@@ -680,8 +680,53 @@ section[id] {
     text-align: left;
     overflow: hidden;
     color: #fff;
-    /* Couches du haut vers le bas (CSS) : filets / halos / gradient principal / voile gauche sur carte / carte */
     background-color: #030303;
+    /* Zoom : --hero-bg-cover (>1 = plus zoomé) · Décalage : offset positif = image vers la droite */
+    --hero-bg-cover: 1.22;
+    --hero-bg-offset-x: 9vw;
+    --hero-bg-offset-y: 0px;
+  }
+
+  /* Photo Bordeaux Métropole — calque de base */
+  .hero__bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+    background-color: #030303;
+  }
+
+  .hero__bg img {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    display: block;
+    width: calc(100% * var(--hero-bg-cover));
+    height: calc(100% * var(--hero-bg-cover));
+    object-fit: cover;
+    object-position: center center;
+    transform: translate(
+      calc(-50% + var(--hero-bg-offset-x)),
+      calc(-50% + var(--hero-bg-offset-y))
+    );
+  }
+
+  @media (max-width: 768px) {
+    .hero {
+      --hero-bg-cover: 0.9;
+      --hero-bg-offset-x: 5vw;
+      --hero-bg-offset-y: -2vh;
+    }
+  }
+
+  /* Filets, halos et dégradés semi-transparents (la photo reste visible à droite) */
+  .hero__scrim {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background-color: rgba(3, 3, 3, 0.12);
     background-image:
       repeating-linear-gradient(
         0deg,
@@ -709,12 +754,12 @@ section[id] {
       ),
       linear-gradient(
         98deg,
-        #050505 0%,
-        #060b08 22%,
-        #08140f 40%,
-        #0c2218 62%,
-        #10301f 82%,
-        color-mix(in srgb, var(--kerelia-accent) 26%, #07160f) 100%
+        rgba(5, 5, 5, 0.9) 0%,
+        rgba(6, 11, 8, 0.78) 22%,
+        rgba(8, 20, 15, 0.62) 40%,
+        rgba(12, 34, 24, 0.42) 62%,
+        rgba(16, 48, 31, 0.28) 82%,
+        color-mix(in srgb, var(--kerelia-accent) 22%, rgba(7, 22, 15, 0.18)) 100%
       ),
       linear-gradient(
         90deg,
@@ -722,18 +767,10 @@ section[id] {
         rgba(3, 3, 3, 0.55) 22%,
         rgba(3, 3, 3, 0.18) 48%,
         transparent 76%
-      ),
-      url("/map-intro.png");
-    background-repeat: repeat, repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat;
-    background-size: auto, auto, auto, auto, auto, auto, cover;
-    background-position:
-      0 0,
-      0 0,
-      0 0,
-      0 0,
-      0 0,
-      0 0,
-      92% 42%;
+      );
+    background-repeat: repeat, repeat, no-repeat, no-repeat, no-repeat, no-repeat;
+    background-size: auto, auto, auto, auto, auto, auto;
+    background-position: 0 0, 0 0, 0 0, 0 0, 0 0, 0 0;
   }
 
   /* Halos verts diffus (sous le grain) — style studio / AI product */
@@ -741,7 +778,7 @@ section[id] {
     content: "";
     position: absolute;
     inset: -15%;
-    z-index: 0;
+    z-index: 2;
     pointer-events: none;
     background:
       radial-gradient(
@@ -764,7 +801,7 @@ section[id] {
     content: "";
     position: absolute;
     inset: 0;
-    z-index: 1;
+    z-index: 3;
     pointer-events: none;
     background-image:
       url("https://grainy-gradients.vercel.app/noise.svg"),
@@ -776,9 +813,10 @@ section[id] {
     -webkit-mask-image: radial-gradient(ellipse 90% 75% at 42% 42%, #000 0%, transparent 78%);
   }
 
-  .hero > * {
+  .hero > .hero__core,
+  .hero > .hero__rail-bottom {
     position: relative;
-    z-index: 2;
+    z-index: 4;
   }
   .hero__rail-top {
     flex: 0 0 auto;
@@ -799,7 +837,8 @@ section[id] {
     max-width: 100%;
     min-width: 0;
     min-height: 0;
-    padding: clamp(8px, 2vh, 28px) 0 clamp(16px, 3vh, 40px);
+    /* Padding bas asymétrique : remonte titre + CTA dans la zone centrale */
+    padding: clamp(8px, 1.5vh, 20px) 0 clamp(52px, 11vh, 128px);
   }
   .hero__headline {
     font-family: var(--font-hero);
@@ -829,7 +868,8 @@ section[id] {
     width: 100%;
     max-width: 100%;
     min-width: 0;
-    padding-bottom: clamp(8px, 1.5vh, 20px);
+    padding-bottom: clamp(4px, 1vh, 12px);
+    transform: translateY(clamp(-10px, -2.5vh, -28px));
   }
   @media (max-width: 833px) {
     .hero__rail-bottom {
@@ -845,9 +885,9 @@ section[id] {
   }
   .hero__sub {
     font-family: var(--font-kerelia);
-    font-weight: var(--kerelia-w-light);
-    font-size: clamp(13px, 1.05vw, 15px);
-    line-height: 1.5;
+    font-weight: var(--kerelia-w-regular);
+    font-size: clamp(15px, 1.2vw, 17px);
+    line-height: 1.52;
     color: rgba(253, 252, 252, 0.92);
     margin: 0;
     flex: 1 1 auto;

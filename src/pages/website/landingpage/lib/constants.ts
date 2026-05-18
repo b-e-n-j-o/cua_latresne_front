@@ -1,5 +1,8 @@
 export const KERELIA_LOGO_SRC = "/logo_kerelia_noir.png";
 
+/** Photo Bordeaux Métropole — fond hero (mélangée aux dégradés dans `kereliaLandingPage.css`). */
+export const HERO_BACKGROUND_IMAGE_SRC = "/bg-bdx-mtropole.png";
+
 const baseUrl = import.meta.env.BASE_URL || "/";
 
 /** Boucles vidéo panneaux « Nos domaines » (M30, M36, M42, M48) — déposer les fichiers dans `public/videos/nos-domaines/`. */

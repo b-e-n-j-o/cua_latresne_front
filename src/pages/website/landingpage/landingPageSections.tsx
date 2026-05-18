@@ -17,6 +17,7 @@ import { cn } from "./lib/cn";
 import {
   BORDEAUX_FRANCE_MAP_PIN,
   FRANCE_OUTLINE_SVG_SRC,
+  HERO_BACKGROUND_IMAGE_SRC,
   KERELIA_LOGO_SRC,
 } from "./lib/constants";
 
@@ -32,6 +33,10 @@ export function HeroSection() {
 
   return (
     <section ref={ref} className="hero" data-bg="dark" data-screen-label="01 Hero">
+      <div className="hero__bg" aria-hidden="true">
+        <img src={HERO_BACKGROUND_IMAGE_SRC} alt="" decoding="async" fetchPriority="high" />
+      </div>
+      <div className="hero__scrim" aria-hidden="true" />
       <div className="hero__core">
         <h1 className="hero__headline">
           {heroCopy.headlineLines[0]}
@@ -41,9 +46,6 @@ export function HeroSection() {
         <div className="hero__cta">
           <KereliaBtn variant="primary" href="#domaines-intervention">
             Voir les expertises →
-          </KereliaBtn>
-          <KereliaBtn variant="ghost" href="#methodologie">
-            Méthodologie
           </KereliaBtn>
         </div>
       </div>
