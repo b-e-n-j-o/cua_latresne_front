@@ -168,7 +168,11 @@ export function AboutSection() {
     <section className="about" id="apropos" data-bg="dark" data-screen-label="06 À propos">
       <div className="about__grid">
         <div>
-          <h2 className="about__title">{aboutCopy.title}</h2>
+          <h2 className="about__title">
+            {aboutCopy.title[0]}
+            <br />
+            {aboutCopy.title[1]}
+          </h2>
           <KereliaRule />
           <div className="about__copy">
             {aboutCopy.body.map((paragraph) => (

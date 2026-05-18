@@ -197,7 +197,7 @@ export const etudesSectionCopy = {
     {
       topoClass: "topo-2",
       pill: "COMPENSATION ÉCOLOGIQUE",
-      title: "Animation foncière pour la compensation écologique",
+      title: "Recherche et animation foncière pour la compensation écologique",
       desc: "Identification de parcelles compatibles avec les prescriptions DREAL, mise en relation avec les propriétaires fonciers et montage des dossiers de sécurisation foncière. Outil ouvert de gestion de base de données foncières.",
       status:
         "Co-développé avec SIMETHIS et Eco-Compensation · Exclusivité d'emploi SIMETHIS en Nouvelle-Aquitaine · Couverture nationale via réseau de bureaux d'études partenaires",
@@ -231,7 +231,10 @@ export const etudesSectionCopy = {
 } as const;
 
 export const aboutCopy = {
-  title: "Bureau d'études en données géospatiales, couverture nationale.",
+  title: [
+    "Fondée en Nouvelle-Aquitaine,",
+    "déployée à l'échelle nationale.",
+  ] as const,
   body: [
     "Kerelia est une SAS fondée en 2025, basée à Bordeaux et incubée à Technowest.",
     "Notre activité couvre l'urbanisme réglementaire pour les communes, les pré-études environnementales pour les aménageurs et les bureaux d'études, et le développement de logiciels métier pour la gestion des engagements ERC.",
@@ -263,12 +266,12 @@ export const teamCopy = {
     },
     {
       name: "Benjamin Benoit",
-      title: "CTO - IA / Cartographie",
+      title: "CTO - Data SIG  / IA",
       image: "/benjamin.png",
       email: "benjamin.b@kerelia.fr",
       linkedin: "https://www.linkedin.com/in/benjamin-benoit-ai-ml/",
       description:
-        "Ingénieur Data SIG. Conception et développement des chaînes de traitement géospatiales : extraction, croisement, génération automatisée de rapports. Pilote l'architecture technique et les modèles d'IA.",
+        "Ingénieur Data SIG. Conception et développement des outils de traitement géospatiales : extraction, croisement, génération automatisée de rapports. Pilote l'architecture technique et les modèles d'IA.",
     },
   ] satisfies readonly TeamMemberCopy[],
 } as const;
