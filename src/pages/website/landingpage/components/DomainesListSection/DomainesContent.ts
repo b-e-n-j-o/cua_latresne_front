@@ -29,7 +29,7 @@ export interface DomaineItem {
     },
     {
       num: "02",
-      titre: "Animation foncière",
+      titre: "Compensation écologique : Animation foncière",
       sousTitre: "Recherche et sécurisation de parcelles pour la compensation écologique.",
       modal: {
         intro:
@@ -45,7 +45,7 @@ export interface DomaineItem {
     },
     {
       num: "03",
-      titre: "Bancarisation et suivi ERC",
+      titre: "Mesures compensatoires : Bancarisation et suivi ERC",
       sousTitre: "Pilotage technique, financier et documentaire des mesures compensatoires.",
       modal: {
         intro:

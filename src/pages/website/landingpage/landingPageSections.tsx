@@ -167,26 +167,25 @@ export function AboutSection() {
   return (
     <section className="about" id="apropos" data-bg="dark" data-screen-label="06 À propos">
       <div className="about__grid">
-        <div>
-          <h2 className="about__title">
-            {aboutCopy.title[0]}
-            <br />
-            {aboutCopy.title[1]}
-          </h2>
+        <div className="about__content">
+          <h2 className="about__title">{aboutCopy.title[0]}</h2>
           <KereliaRule />
-          <div className="about__copy">
-            {aboutCopy.body.map((paragraph) => (
-              <p key={paragraph} className="about__body">
-                {paragraph}
-              </p>
+          <p className="about__tagline">{aboutCopy.tagline}</p>
+          <div className="about__pillars">
+            {aboutCopy.pillars.map((pillar) => (
+              <div key={pillar.label} className="about__pillar">
+                <h3 className="about__pillar-label">{pillar.label}</h3>
+                <p className="about__pillar-desc">{pillar.desc}</p>
+              </div>
             ))}
           </div>
+          <p className="about__method-line">{aboutCopy.methodLine}</p>
+          <p className="about__partners">{aboutCopy.partners}</p>
         </div>
-        <div>
+        <div className="about__map-col">
           <Suspense fallback={<div className="about__map" style={{ opacity: 0 }} />}>
             <FranceMap />
           </Suspense>
-          <div className="about__caption">{aboutCopy.mapCaption}</div>
         </div>
         <div className="about__team">
           <TeamSection />

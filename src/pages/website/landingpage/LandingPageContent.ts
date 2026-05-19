@@ -230,17 +230,30 @@ export const etudesSectionCopy = {
   ] satisfies readonly NosDomainePanelModel[],
 } as const;
 
+export type AboutPillarCopy = {
+  readonly label: string;
+  readonly desc: string;
+};
+
 export const aboutCopy = {
   title: [
-    "Fondée en Nouvelle-Aquitaine,",
-    "déployée à l'échelle nationale.",
+    "De la Nouvelle-Aquitaine à la couverture nationale.",
   ] as const,
-  body: [
-    "Kerelia est une SAS fondée en 2025, basée à Bordeaux et incubée à Technowest.",
-    "Notre activité couvre l'urbanisme réglementaire pour les communes, les pré-études environnementales pour les aménageurs et les bureaux d'études, et le développement de logiciels métier pour la gestion des engagements ERC.",
-    "La rigueur sur les sources primaires, la traçabilité documentaire et la conformité aux prescriptions réglementaires constituent notre socle méthodologique. Logiciels et les modèles d'analyse cartographique sont conçus en interne.",
-    "Nous sommes accompagnés par l'IGN et nous co-développons nos outils environnementaux avec SIMETHIS, bureau d'études spécialisé.",
-  ],
+  tagline: "Fondée en 2025 · Bordeaux · Incubée à Technowest",
+  pillars: [
+    {
+      label: "Urbanisme réglementaire",
+      desc: "CUa, veille PLU/PLUi et contraintes foncières pour les communes.",
+    },
+    {
+      label: "Environnement & ERC",
+      desc: "Pré-études environnementales et recherche foncière pour la compensation écologique.",
+    },
+    {
+      label: "Logiciels métier",
+      desc: "Outils de bancarisation et de suivi ERC conçus en interne.",
+    },
+  ] satisfies readonly AboutPillarCopy[],
 } as const;
 
 export type TeamMemberCopy = {
