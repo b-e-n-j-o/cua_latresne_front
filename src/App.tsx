@@ -43,7 +43,6 @@ const PUBLIC_EXACT_ROUTES = [
   "/update-password",
   "/notre-equipe",
   "/chat-urba",
-  "/argeles/chat",
   "/latresne",
   "/lidar",
   "/mnt",
@@ -79,7 +78,6 @@ export default function App() {
         <Route path="/notre-equipe" element={<Navigate to={{ pathname: "/", hash: "equipe" }} replace />} />
         <Route path="/cua" element={<CuaViewer />} />
         <Route path="/chat-urba" element={<ChatUrba />} />
-        <Route path="/argeles/chat" element={<PluChat />} />
         <Route path="/latresne" element={<div>Page introuvable</div>} />
         <Route path="/lidar" element={<LidarViewerPage />} />
         <Route path="/mnt" element={<MntViewerPage />} />
@@ -107,6 +105,7 @@ export default function App() {
         <Route path="/portail/*" element={<PortailApp />} />
         <Route path="/latresne/cua" element={<LatresneCuaPage />} />
         <Route path="/argeles/cua" element={<ArgelesCuaPage />} />
+        <Route path="/argeles/chat" element={<PluChat />} />
         <Route path="/mios/cua" element={<MiosCuaPage />} />
         <Route path="/latresne/cua/projects/:slug" element={<ProjectPage />} />
         <Route path="/mios/cua/projects/:slug" element={<MiosProjectPage />} />
