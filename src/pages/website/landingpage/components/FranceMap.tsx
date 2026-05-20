@@ -1,9 +1,9 @@
 /**
  * FranceMap.tsx
- * Attend que toutes les frames soient décodées avant de démarrer l'animation.
- * Zéro saccade dès la première boucle.
+ * Lazy-load des frames déclenché par IntersectionObserver.
+ * Les images ne sont téléchargées que quand la section approche du viewport.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const TOTAL_FRAMES      = 12;
 const FRAME_DURATION_MS = 1200;
@@ -14,7 +14,6 @@ const frames = Array.from(
   (_, i) => `/images/france-map-frames/frame-${String(i).padStart(2, "0")}.png`
 );
 
-/** Précharge ET décode toutes les images, résout quand tout est prêt. */
 function preloadAll(srcs: string[]): Promise<void> {
   return Promise.all(
     srcs.map(
@@ -22,7 +21,7 @@ function preloadAll(srcs: string[]): Promise<void> {
         new Promise<void>((resolve) => {
           const img = new Image();
           img.onload  = () => img.decode().then(resolve).catch(resolve);
-          img.onerror = () => resolve(); // ne pas bloquer si une image manque
+          img.onerror = () => resolve();
           img.src = src;
         })
     )
@@ -32,14 +31,31 @@ function preloadAll(srcs: string[]): Promise<void> {
 export default function FranceMap() {
   const [currentFrame, setCurrentFrame] = useState(0);
   const [ready, setReady] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  // Précharge tout avant de démarrer
+  // Démarre le preload seulement quand la section approche du viewport
   useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
     let cancelled = false;
-    preloadAll(frames).then(() => {
-      if (!cancelled) setReady(true);
-    });
-    return () => { cancelled = true; };
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        observer.disconnect();
+        preloadAll(frames).then(() => {
+          if (!cancelled) setReady(true);
+        });
+      },
+      { rootMargin: "200px" }
+    );
+
+    observer.observe(el);
+    return () => {
+      cancelled = true;
+      observer.disconnect();
+    };
   }, []);
 
   // Animation — démarre seulement quand ready
@@ -53,12 +69,12 @@ export default function FranceMap() {
   }, [currentFrame, ready]);
 
   return (
-    <div className="about__map" style={{ position: "relative" }}>
+    <div className="about__map" ref={containerRef} style={{ position: "relative" }}>
       {frames.map((src, i) => (
         <img
           key={src}
           className="about__map-img"
-          src={src}
+          src={ready ? src : i === 0 ? src : undefined}
           alt={i === 0 ? "Expansion Kerelia — de la Nouvelle-Aquitaine à la couverture nationale" : ""}
           aria-hidden={i !== 0}
           width={480}

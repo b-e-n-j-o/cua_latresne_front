@@ -9,6 +9,7 @@ import HistoryPanel from "./HistoryPanel";
 import AdminPage from "./routes/AdminPage";
 import CuaViewer from "./routes/CuaViewer";
 import ChatUrba from "./pages/chat-urba/ChatUrba";
+import PluChat from "./pages/plu-chat/PluChat";
 import LidarViewerPage from "./pages/visualisations_de_test/lidar/LidarViewerPage";
 import MntViewerPage from "./pages/visualisations_de_test/mnt/MntViewerPage";
 import PortailApp from "./portail/PortailApp";
@@ -42,6 +43,7 @@ const PUBLIC_EXACT_ROUTES = [
   "/update-password",
   "/notre-equipe",
   "/chat-urba",
+  "/argeles/chat",
   "/latresne",
   "/lidar",
   "/mnt",
@@ -77,6 +79,7 @@ export default function App() {
         <Route path="/notre-equipe" element={<Navigate to={{ pathname: "/", hash: "equipe" }} replace />} />
         <Route path="/cua" element={<CuaViewer />} />
         <Route path="/chat-urba" element={<ChatUrba />} />
+        <Route path="/argeles/chat" element={<PluChat />} />
         <Route path="/latresne" element={<div>Page introuvable</div>} />
         <Route path="/lidar" element={<LidarViewerPage />} />
         <Route path="/mnt" element={<MntViewerPage />} />
