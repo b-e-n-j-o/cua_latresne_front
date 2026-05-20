@@ -35,8 +35,9 @@
   --plu-font: "Kerelia Sans", "Inter", -apple-system, system-ui, sans-serif;
   --plu-sidebar-w: 17.5rem;
 
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100dvh;
   display: flex;
   flex-direction: row;
   background: #ffffff;
@@ -54,11 +55,14 @@
 .plu-chat__sidebar {
   flex-shrink: 0;
   width: var(--plu-sidebar-w);
+  height: 100%;
+  max-height: 100%;
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--plu-border);
   background: var(--plu-surface);
   min-height: 0;
+  overflow: hidden;
   z-index: 20;
   transition: transform 0.22s ease, margin-left 0.22s ease;
 }
@@ -139,17 +143,96 @@
   line-height: 1.45;
 }
 
+.plu-chat__sidebar-item-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.2rem;
+  margin-bottom: 0.25rem;
+}
+
+.plu-chat__sidebar-item-row:hover .plu-chat__sidebar-item-delete {
+  opacity: 1;
+}
+
+.plu-chat__sidebar-item-row--active .plu-chat__sidebar-item-delete {
+  opacity: 1;
+}
+
 .plu-chat__sidebar-item {
+  flex: 1;
+  min-width: 0;
   width: 100%;
   text-align: left;
   border: 1px solid transparent;
   border-radius: 0.75rem;
   background: transparent;
   padding: 0.65rem 0.7rem;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0;
   cursor: pointer;
   font-family: inherit;
   transition: background 0.15s, border-color 0.15s;
+}
+
+.plu-chat__sidebar-item-delete {
+  flex-shrink: 0;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: #9a9a9a;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.plu-chat__sidebar-item-delete:hover:not(:disabled) {
+  color: #c0392b;
+  border-color: #f5c6c0;
+  background: #fff5f4;
+}
+
+.plu-chat__sidebar-item-delete:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+.plu-chat__sidebar-delete-confirm {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  align-self: center;
+}
+
+.plu-chat__sidebar-delete-confirm-btn {
+  padding: 0.2rem 0.45rem;
+  border: 1px solid var(--plu-border);
+  border-radius: 0.4rem;
+  background: #fff;
+  font-family: inherit;
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: var(--plu-text-muted);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.plu-chat__sidebar-delete-confirm-btn--yes {
+  color: #c0392b;
+  border-color: #f5c6c0;
+}
+
+.plu-chat__sidebar-delete-confirm-btn--yes:hover:not(:disabled) {
+  background: #fff5f4;
+}
+
+.plu-chat__sidebar-delete-confirm-btn:hover:not(:disabled) {
+  border-color: var(--plu-accent);
 }
 
 .plu-chat__sidebar-item:hover {
@@ -198,17 +281,61 @@
 }
 
 .plu-chat__panel {
-  flex: 1;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Carte fixe à droite : seul le fil de messages défile */
+.plu-chat--map-open .plu-map-panel--visible {
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  height: 100dvh;
+  max-height: 100dvh;
+  flex-shrink: 0;
 }
 
 .plu-chat__header-left {
   display: flex;
   align-items: center;
   gap: 0.65rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.plu-chat__map-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 0.45rem 0.8rem;
+  border: 1px solid var(--plu-border);
+  border-radius: 0.65rem;
+  background: #fff;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--plu-text);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.plu-chat__map-toggle:hover {
+  border-color: var(--plu-accent);
+  background: var(--plu-accent-soft);
+}
+
+.plu-chat__map-toggle--active {
+  border-color: var(--plu-accent);
+  background: var(--plu-accent-soft);
+  color: var(--plu-accent-hover);
 }
 
 .plu-chat__header {
@@ -554,6 +681,10 @@
 }
 
 @media (max-width: 768px) {
+  .plu-chat--map-open .plu-chat__panel {
+    display: none;
+  }
+
   .plu-chat__sidebar-backdrop {
     display: block;
     position: fixed;

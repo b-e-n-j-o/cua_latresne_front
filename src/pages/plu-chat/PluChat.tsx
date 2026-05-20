@@ -1,10 +1,35 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowUp, PanelLeftClose, PanelLeftOpen, Plus } from "lucide-react";
+import { ArrowUp, Map, PanelLeftOpen } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import "./pluChat.css";
+import PluMapPanel, { type MapData } from "./PluMapPanel";
+import PluChatSidebar, { type SessionSummary } from "./PluChatSidebar";
 
 const API_BASE = (import.meta.env.VITE_API_BASE || "http://localhost:8000").replace(/\/$/, "");
+const MAP_BUFFER_M = 100;
+
+async function fetchSessionMap(sessionId: string): Promise<MapData | null> {
+  try {
+    const res = await fetch(
+      `${API_BASE}/api/plu/argeles/session/${sessionId}/map?buffer_m=${MAP_BUFFER_M}`,
+    );
+    if (!res.ok) return null;
+    const data: MapData = await res.json();
+    return data.parcelle?.geometry ? data : null;
+  } catch {
+    return null;
+  }
+}
+
+function mapDataFromTurn(data: { map_data?: MapData | null }): MapData | null {
+  const md = data.map_data;
+  return md?.parcelle?.geometry ? md : null;
+}
+
+function turnRequestedMap(data: { tool_calls?: ToolCall[] }): boolean {
+  return data.tool_calls?.some((t) => t.name === "get_map_data") ?? false;
+}
 
 type Role = "user" | "assistant";
 
@@ -13,6 +38,7 @@ type ChatMessage = {
   role: Role;
   content: string;
   meta?: string;
+  mapData?: MapData | null;
 };
 
 type ToolCall = { name: string; result_summary: string };
@@ -22,15 +48,7 @@ type ApiTurn = {
   tool_calls?: ToolCall[];
   latency_ms?: number;
   zones_summary?: string;
-};
-
-type SessionSummary = {
-  session_id: string;
-  title: string;
-  zones_summary: string;
-  total_turns: number;
-  updated_at: string;
-  preview?: string | null;
+  map_data?: MapData | null;
 };
 
 type SessionState = {
@@ -87,17 +105,6 @@ function formatMeta(data: ApiTurn, zonesSummary?: string) {
     .join(" · ");
 }
 
-function formatSessionDate(iso: string) {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("fr-FR", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 function mapSessionMessages(raw: SessionState["messages"]): ChatMessage[] {
   return raw.map((m) => ({
     id: uid(),
@@ -124,6 +131,9 @@ export default function PluChat() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [loadingSessionId, setLoadingSessionId] = useState<string | null>(null);
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
+  const [mapVisible, setMapVisible] = useState(false);
+  const [activeMapData, setActiveMapData] = useState<MapData | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -168,6 +178,30 @@ export default function PluChat() {
     setIsLoading(false);
     setSessionId(null);
     setZonesSummary(null);
+    setMapVisible(false);
+    setActiveMapData(null);
+  };
+
+  const deleteSession = async (id: string) => {
+    if (deletingSessionId) return;
+    setDeletingSessionId(id);
+    try {
+      const res = await fetch(`${API_BASE}/api/plu/argeles/session/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const detail = await res.text();
+        throw new Error(detail || `Erreur HTTP ${res.status}`);
+      }
+      setSessions((prev) => prev.filter((s) => s.session_id !== id));
+      if (sessionId === id) {
+        resetChat();
+      }
+    } catch (err) {
+      console.error("Suppression session:", err);
+    } finally {
+      setDeletingSessionId(null);
+    }
   };
 
   const loadSession = async (id: string) => {
@@ -184,6 +218,15 @@ export default function PluChat() {
       setZonesSummary(zonesSummaryFromZones(data.zones));
       setMessages(mapSessionMessages(data.messages));
       setInput("");
+
+      const mapPayload = await fetchSessionMap(data.session_id);
+      if (mapPayload) {
+        setActiveMapData(mapPayload);
+        setMapVisible(true);
+      } else {
+        setActiveMapData(null);
+        setMapVisible(false);
+      }
     } catch (err) {
       setMessages([
         {
@@ -200,17 +243,57 @@ export default function PluChat() {
     }
   };
 
-  const appendAssistant = (data: ApiTurn, summary?: string | null) => {
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: uid(),
-        role: "assistant",
-        content: data.answer || "Aucune réponse reçue.",
-        meta: formatMeta(data, summary ?? zonesSummary ?? undefined) || undefined,
-      },
-    ]);
-  };
+  const revealMapPanel = useCallback(
+    async (
+      data: ApiTurn,
+      sid: string | null,
+      options?: { fetchIfParcelleSession?: boolean },
+    ) => {
+      const inline = mapDataFromTurn(data);
+      if (inline) {
+        setActiveMapData(inline);
+        setMapVisible(true);
+        return;
+      }
+      if (!sid) return;
+
+      const shouldFetch =
+        turnRequestedMap(data) || Boolean(options?.fetchIfParcelleSession);
+      if (!shouldFetch) return;
+
+      const fetched = await fetchSessionMap(sid);
+      if (fetched) {
+        setActiveMapData(fetched);
+        setMapVisible(true);
+      }
+    },
+    [],
+  );
+
+  const appendAssistant = useCallback(
+    async (
+      data: ApiTurn,
+      summary?: string | null,
+      sid?: string | null,
+      revealOptions?: { fetchIfParcelleSession?: boolean },
+    ) => {
+      const mapData = mapDataFromTurn(data);
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: uid(),
+          role: "assistant",
+          content: data.answer || "Aucune réponse reçue.",
+          meta: formatMeta(data, summary ?? zonesSummary ?? undefined) || undefined,
+          mapData: mapData ?? data.map_data ?? null,
+        },
+      ]);
+
+      await revealMapPanel(data, sid ?? sessionId, revealOptions);
+    },
+    [sessionId, zonesSummary, revealMapPanel],
+  );
 
   const sendMessage = async (text: string) => {
     const trimmed = text.trim();
@@ -264,7 +347,11 @@ export default function PluChat() {
         if (summary) setZonesSummary(summary);
 
         if (data.answer) {
-          appendAssistant(data, summary);
+          await appendAssistant(data, summary, data.session_id, {
+            fetchIfParcelleSession: (data.zones?.length ?? 0) > 0,
+          });
+        } else if ((data.zones?.length ?? 0) > 0) {
+          await revealMapPanel(data, data.session_id, { fetchIfParcelleSession: true });
         }
         void fetchSessions();
       } else {
@@ -280,7 +367,7 @@ export default function PluChat() {
         }
 
         const data: ApiTurn = await response.json();
-        appendAssistant(data);
+        await appendAssistant(data, undefined, sessionId);
         void fetchSessions();
       }
     } catch (err) {
@@ -344,64 +431,21 @@ export default function PluChat() {
   );
 
   return (
-    <div className={`plu-chat${sidebarOpen ? " plu-chat--sidebar-open" : ""}`}>
-      {sidebarOpen && (
-        <button
-          type="button"
-          className="plu-chat__sidebar-backdrop"
-          aria-label="Fermer l'historique"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-      <aside className="plu-chat__sidebar" aria-label="Historique des conversations">
-        <div className="plu-chat__sidebar-head">
-          <span className="plu-chat__sidebar-title">Historique</span>
-          <button
-            type="button"
-            className="plu-chat__icon-btn"
-            aria-label="Masquer l'historique"
-            onClick={() => setSidebarOpen(false)}
-          >
-            <PanelLeftClose size={18} />
-          </button>
-        </div>
-
-        <button type="button" className="plu-chat__sidebar-new" onClick={resetChat}>
-          <Plus size={16} />
-          Nouvelle conversation
-        </button>
-
-        <div className="plu-chat__sidebar-list">
-          {loadingSessions && sessions.length === 0 && (
-            <p className="plu-chat__sidebar-empty">Chargement…</p>
-          )}
-          {!loadingSessions && sessions.length === 0 && (
-            <p className="plu-chat__sidebar-empty">Aucune conversation enregistrée.</p>
-          )}
-          {sessions.map((s) => (
-            <button
-              key={s.session_id}
-              type="button"
-              className={`plu-chat__sidebar-item${sessionId === s.session_id ? " plu-chat__sidebar-item--active" : ""}`}
-              onClick={() => void loadSession(s.session_id)}
-              disabled={loadingSessionId === s.session_id}
-            >
-              <span className="plu-chat__sidebar-item-title">{s.title}</span>
-              {s.zones_summary && s.zones_summary !== "aucune zone trouvée" && (
-                <span className="plu-chat__sidebar-item-zones">{s.zones_summary}</span>
-              )}
-              {s.preview && (
-                <span className="plu-chat__sidebar-item-preview">{s.preview}</span>
-              )}
-              <span className="plu-chat__sidebar-item-date">
-                {formatSessionDate(s.updated_at)}
-                {s.total_turns > 0 ? ` · ${s.total_turns} échange${s.total_turns > 1 ? "s" : ""}` : ""}
-              </span>
-            </button>
-          ))}
-        </div>
-      </aside>
+    <div
+      className={`plu-chat${sidebarOpen ? " plu-chat--sidebar-open" : ""}${mapVisible ? " plu-chat--map-open" : ""}`}
+    >
+      <PluChatSidebar
+        isOpen={sidebarOpen}
+        sessions={sessions}
+        loadingSessions={loadingSessions}
+        loadingSessionId={loadingSessionId}
+        deletingSessionId={deletingSessionId}
+        activeSessionId={sessionId}
+        onClose={() => setSidebarOpen(false)}
+        onNewChat={resetChat}
+        onSelectSession={(id) => void loadSession(id)}
+        onDeleteSession={deleteSession}
+      />
 
       <div className="plu-chat__panel">
         <header className="plu-chat__header">
@@ -423,6 +467,19 @@ export default function PluChat() {
                 <div className="plu-chat__brand-sub">Argelès-sur-Mer · analyse réglementaire</div>
               </div>
             </div>
+            {sessionId && (
+              <button
+                type="button"
+                className={`plu-chat__map-toggle${mapVisible ? " plu-chat__map-toggle--active" : ""}`}
+                onClick={() => setMapVisible((v) => !v)}
+                title={mapVisible ? "Masquer la carte" : "Afficher la carte"}
+                aria-label={mapVisible ? "Masquer la carte PLU" : "Afficher la carte PLU"}
+                aria-pressed={mapVisible}
+              >
+                <Map size={15} strokeWidth={2.25} aria-hidden />
+                {mapVisible ? "Masquer la carte" : "Afficher la carte"}
+              </button>
+            )}
           </div>
         </header>
 
@@ -472,6 +529,14 @@ export default function PluChat() {
           )}
         </main>
       </div>
+
+      <PluMapPanel
+        sessionId={sessionId}
+        mapData={activeMapData}
+        apiBase={API_BASE}
+        isVisible={mapVisible}
+        onClose={() => setMapVisible(false)}
+      />
     </div>
   );
 }

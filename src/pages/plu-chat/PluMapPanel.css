@@ -1,0 +1,218 @@
+/* PluMapPanel.css — panneau carte MapLibre (split view à droite du chat) */
+
+.plu-map-panel {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: 0;
+    min-width: 0;
+    height: 100%;
+    max-height: 100%;
+    overflow: hidden;
+    background: var(--color-bg-secondary, #f8f8f8);
+    border-left: 1px solid var(--color-border, #e5e5e5);
+    transition: width 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+                min-width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    flex-shrink: 0;
+  }
+  
+  .plu-map-panel--visible {
+    width: 420px;
+    min-width: 320px;
+  }
+  
+  /* ── Header ── */
+  
+  .plu-map-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid var(--color-border, #e5e5e5);
+    flex-shrink: 0;
+  }
+  
+  .plu-map-panel__title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-primary, #111);
+    letter-spacing: 0.01em;
+  }
+  
+  .plu-map-panel__close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 6px;
+    color: var(--color-text-secondary, #666);
+    font-size: 14px;
+    line-height: 1;
+    transition: background 0.15s;
+  }
+  
+  .plu-map-panel__close:hover {
+    background: var(--color-bg-hover, rgba(0, 0, 0, 0.06));
+  }
+  
+  /* ── Carte ── */
+  
+  .plu-map-panel__map-wrap {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  
+  .plu-map-panel__map {
+    width: 100%;
+    height: 100%;
+  }
+  
+  /* Overlay loading / erreur */
+  
+  .plu-map-panel__overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.82);
+    font-size: 13px;
+    color: var(--color-text-secondary, #555);
+  }
+  
+  .plu-map-panel__overlay--error {
+    color: #c00;
+    background: rgba(255, 240, 240, 0.9);
+  }
+  
+  .plu-map-panel__spinner {
+    display: block;
+    width: 22px;
+    height: 22px;
+    border: 2.5px solid #ddd;
+    border-top-color: var(--color-accent, #3b82f6);
+    border-radius: 50%;
+    animation: plu-spin 0.75s linear infinite;
+  }
+  
+  @keyframes plu-spin {
+    to { transform: rotate(360deg); }
+  }
+  
+  /* ── Légende ── */
+  
+  .plu-map-panel__legend {
+    flex-shrink: 0;
+    padding: 10px 14px 12px;
+    border-bottom: 1px solid var(--color-border, #e5e5e5);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .plu-map-panel__legend-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-text-tertiary, #999);
+    margin-bottom: 4px;
+  }
+  
+  .plu-map-panel__legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.12s;
+    width: 100%;
+  }
+  
+  .plu-map-panel__legend-item:hover {
+    background: var(--color-bg-hover, rgba(0, 0, 0, 0.05));
+  }
+  
+  .plu-map-panel__legend-item--off {
+    opacity: 0.45;
+  }
+  
+  .plu-map-panel__legend-dot {
+    display: block;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    flex-shrink: 0;
+    transition: opacity 0.15s;
+  }
+  
+  .plu-map-panel__legend-code {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-primary, #111);
+    flex: 1;
+  }
+  
+  .plu-map-panel__legend-pct {
+    font-size: 12px;
+    color: var(--color-text-secondary, #666);
+    flex-shrink: 0;
+  }
+  
+  /* ── Popup MapLibre ── */
+  
+  .plu-map-popup {
+    padding: 2px 0;
+    font-family: inherit;
+  }
+  
+  .plu-map-popup__zone {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 6px;
+    letter-spacing: 0.04em;
+  }
+  
+  .plu-map-popup__title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #111;
+    margin-bottom: 4px;
+    line-height: 1.35;
+  }
+  
+  .plu-map-popup__pct {
+    font-size: 12px;
+    color: #444;
+    margin-bottom: 2px;
+  }
+  
+  .plu-map-popup__type {
+    font-size: 11px;
+    color: #888;
+  }
+  
+  /* ── Responsive : masquer la carte sous 768px ── */
+  
+  @media (max-width: 768px) {
+    .plu-map-panel--visible {
+      position: fixed;
+      inset: 0;
+      width: 100% !important;
+      min-width: 0 !important;
+      z-index: 100;
+      border-left: none;
+    }
+  }
