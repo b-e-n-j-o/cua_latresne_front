@@ -16,20 +16,30 @@ async function fetchSessionMap(sessionId: string): Promise<MapData | null> {
     );
     if (!res.ok) return null;
     const data: MapData = await res.json();
-    return data.parcelle?.geometry ? data : null;
+    return parcelleMapHasGeometry(data.parcelle) ? data : null;
   } catch {
     return null;
   }
 }
 
-function mapDataFromTurn(data: { map_data?: MapData | null }): MapData | null {
-  const md = data.map_data;
-  return md?.parcelle?.geometry ? md : null;
+function parcelleMapHasGeometry(
+  parcelle: MapData["parcelle"] | null | undefined,
+): boolean {
+  if (!parcelle) return false;
+  if (parcelle.type === "Feature") return Boolean(parcelle.geometry);
+  if (parcelle.type === "FeatureCollection") {
+    return parcelle.features.some((f) => f.geometry);
+  }
+  return false;
 }
 
-function turnRequestedMap(data: { tool_calls?: ToolCall[]; show_map?: boolean }): boolean {
-  if (data.show_map) return true;
-  return data.tool_calls?.some((t) => t.name === "get_map_data") ?? false;
+function mapDataFromTurn(data: { map_data?: MapData | null }): MapData | null {
+  const md = data.map_data;
+  return md && parcelleMapHasGeometry(md.parcelle) ? md : null;
+}
+
+function turnRequestedMap(data: { show_map?: boolean }): boolean {
+  return Boolean(data.show_map);
 }
 
 type Role = "user" | "assistant";
@@ -59,30 +69,70 @@ type SessionState = {
   messages: { role: string; content: string }[];
 };
 
+type ParcellePair = { section: string; numero: string };
+
 type ParcelRef = {
   section?: string;
   numero?: string;
   idu?: string;
+  parcelles?: ParcellePair[];
+  idus?: string[];
 };
 
 function uid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/** Extrait toutes les paires section + numéro (ex. « BD 634 et BD 518 »). */
+function extractSectionNumeroPairs(text: string): ParcellePair[] {
+  const seen = new Set<string>();
+  const pairs: ParcellePair[] = [];
+  const re = /\b([A-Za-z]{1,2})\s+(\d{1,4})\b/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    const section = m[1].toUpperCase();
+    const numero = m[2];
+    const key = `${section}:${numero.padStart(4, "0")}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    pairs.push({ section, numero });
+  }
+  return pairs;
+}
+
+/** Corps POST /session : question + refs parcellaires optionnelles (préchargement zonage). */
+function buildSessionCreateBody(question: string, ref: ParcelRef): Record<string, unknown> {
+  const body: Record<string, unknown> = { question };
+  if (ref.section) body.section = ref.section;
+  if (ref.numero) body.numero = ref.numero;
+  if (ref.idu) body.idu = ref.idu;
+  if (ref.parcelles?.length) body.parcelles = ref.parcelles;
+  if (ref.idus?.length) body.idus = ref.idus;
+  return body;
+}
+
 function parseParcelRef(text: string): ParcelRef {
-  const iduMatch = text.match(/\b(66008\d{3}[A-Z]{1,2}\d{1,4})\b/i);
-  if (iduMatch) return { idu: iduMatch[1].toUpperCase() };
+  const iduMatches = [...text.matchAll(/\b(66008\d{3}[A-Z]{1,2}\d{1,4})\b/gi)];
+  if (iduMatches.length > 1) {
+    return { idus: iduMatches.map((m) => m[1].toUpperCase()) };
+  }
+  if (iduMatches.length === 1) {
+    return { idu: iduMatches[0][1].toUpperCase() };
+  }
+
+  const pairs = extractSectionNumeroPairs(text);
+  if (pairs.length >= 2) {
+    return { parcelles: pairs };
+  }
+  if (pairs.length === 1) {
+    return { section: pairs[0].section, numero: pairs[0].numero };
+  }
 
   const sectionNum = text.match(
     /section\s+([A-Za-z]{1,2})\s+(?:n[°o]?\s*|num[ée]ro\s+)?(\d{1,4})\b/i,
   );
   if (sectionNum) {
     return { section: sectionNum[1].toUpperCase(), numero: sectionNum[2] };
-  }
-
-  const compact = text.match(/\bparcelle\s+([A-Za-z]{1,2})\s+(\d{1,4})\b/i);
-  if (compact) {
-    return { section: compact[1].toUpperCase(), numero: compact[2] };
   }
 
   return {};
@@ -312,30 +362,10 @@ export default function PluChat() {
     try {
       if (!sessionId) {
         const ref = parseParcelRef(trimmed);
-        if (!ref.section && !ref.numero && !ref.idu) {
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: uid(),
-              role: "assistant",
-              content:
-                "Pour démarrer une conversation, mentionnez une parcelle d'Argelès-sur-Mer " +
-                "(ex. « section AC numéro 45 » ou un IDU). Les questions de suivi pourront ensuite " +
-                "porter sur le PLU sans répéter la référence parcellaire.",
-            },
-          ]);
-          return;
-        }
-
         const response = await fetch(`${API_BASE}/api/plu/argeles/session`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            section: ref.section,
-            numero: ref.numero,
-            idu: ref.idu,
-            question: trimmed,
-          }),
+          body: JSON.stringify(buildSessionCreateBody(trimmed, ref)),
         });
 
         if (!response.ok) {
@@ -346,7 +376,7 @@ export default function PluChat() {
         const data = await response.json();
         setSessionId(data.session_id);
         const summary = data.zones_summary as string | undefined;
-        if (summary) setZonesSummary(summary);
+        setZonesSummary(summary || null);
 
         if (data.answer) {
           await appendAssistant(data, summary, data.session_id, {
@@ -416,7 +446,7 @@ export default function PluChat() {
             resizeTextarea();
           }}
           onKeyDown={handleKeyDown}
-          placeholder="Posez votre question sur le PLU d'Argelès-sur-Mer…"
+          placeholder="Question PLU, code de l'urbanisme, ou parcelle (ex. BD 634 et BD 518)…"
           rows={1}
           disabled={isLoading}
         />

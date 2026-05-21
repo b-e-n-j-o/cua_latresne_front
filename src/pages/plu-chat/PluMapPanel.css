@@ -144,6 +144,28 @@
   .plu-map-panel__legend-item--off {
     opacity: 0.45;
   }
+
+  .plu-map-panel__legend-item--static {
+    cursor: default;
+    font-size: 12px;
+    color: var(--color-text-secondary, #555);
+  }
+
+  .plu-map-panel__legend-item--static:hover {
+    background: transparent;
+  }
+
+  .plu-map-panel__legend-line {
+    display: block;
+    width: 16px;
+    height: 3px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  .plu-map-panel__legend--presc {
+    padding-bottom: 8px;
+  }
   
   .plu-map-panel__legend-dot {
     display: block;
