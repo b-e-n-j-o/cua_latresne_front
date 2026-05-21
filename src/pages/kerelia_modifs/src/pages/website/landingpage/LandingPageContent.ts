@@ -99,7 +99,7 @@ export const methodologyCopy = {
     {
       num: "01",
       title: "Souveraineté",
-      desc: "Hébergement OVH, intelligence artificielle Mistral. Vos données ne transitent pas hors du territoire national.",
+      desc: "Hébergement OVH (datacenters en France), intelligence artificielle Mistral (entreprise française). Vos données ne transitent pas hors du territoire national.",
     },
     {
       num: "02",
@@ -170,6 +170,7 @@ export type NosDomainePanelModel = {
   pill: string;
   title: string;
   desc: string;
+  status: string;
   videoSrc: string;
   ctaLabel: string;
   ctaHref: string;
@@ -184,6 +185,7 @@ export const etudesSectionCopy = {
       pill: "URBANISME RÉGLEMENTAIRE",
       title: "Certificat d'urbanisme analytique (CUa) et Carte d'identité foncière (CIF)",
       desc: "Production automatisée des CUa officiels pour les communes. Livraison au format Word pour relecture interne, ou signature et horodatage automatiques selon le mode retenu par la commune.",
+      status: "En production locale",
       videoSrc: NOS_DOMAINES_PANEL_VIDEOS.urbanisme,
       ctaLabel: "En savoir plus →",
       ctaHref: "/urbanisme/certificats-durbanisme",
@@ -193,6 +195,8 @@ export const etudesSectionCopy = {
       pill: "COMPENSATION ÉCOLOGIQUE",
       title: "Recherche et animation foncière pour la compensation écologique",
       desc: "Identification de parcelles compatibles avec les prescriptions DREAL, mise en relation avec les propriétaires fonciers et montage des dossiers de sécurisation foncière. Outil ouvert de gestion de base de données foncières.",
+      status:
+        "Co-développé avec SIMETHIS et Eco-Compensation · Exclusivité d'emploi SIMETHIS en Nouvelle-Aquitaine · Couverture nationale via réseau de bureaux d'études partenaires",
       videoSrc: NOS_DOMAINES_PANEL_VIDEOS.compensationFoncier,
       ctaLabel: "En savoir plus →",
       ctaHref: "/environnement/scoring-compensation-ecologique",
@@ -202,6 +206,8 @@ export const etudesSectionCopy = {
       pill: "BANCARISATION ERC",
       title: "Bancarisation et suivi des mesures ERC",
       desc: "Logiciel de bancarisation et de pilotage des mesures compensatoires : suivi technique, financier et documentaire des engagements ERC sur toute la durée des atteintes. Destiné aux bureaux d'études, opérateurs de compensation et services instructeurs de l'État.",
+      status:
+        "Bêta · Co-développé avec Eco-Compensation et SIMETHIS · selon les prescriptions de la DREAL NA · Commercialisation directe Kerelia",
       videoSrc: NOS_DOMAINES_PANEL_VIDEOS.bancarisationErc,
       ctaLabel: "En savoir plus →",
       ctaHref: "/environnement/bancarisation-suivi-erc",
@@ -211,6 +217,8 @@ export const etudesSectionCopy = {
       pill: "ENVIRONNEMENT",
       title: "Pré-études environnementales automatisées",
       desc: "Pré-rapport environnemental généré à partir des références cadastrales : zonages réglementaires, hydrologie, hydrogéologie, biodiversité connue, structure de la canopée, évolution historique du site. Destiné aux aménageurs, promoteurs et bureaux d'études pour cadrer les enjeux d'un site en amont d'une VNEI.",
+      status:
+        "Production Kerelia · Méthodologie consolidée avec SIMETHIS · Couverture nationale",
       videoSrc: NOS_DOMAINES_PANEL_VIDEOS.preEtudes,
       ctaLabel: "Voir un rapport exemple →",
       ctaHref: "/environnement/etudes-environnementales",
@@ -292,7 +300,7 @@ export const teamCopy = {
       image: "/benjamin.png",
       email: "benjamin.b@kerelia.fr",
       linkedin: "https://www.linkedin.com/in/benjamin-benoit-ai-ml/",
-      quote: "Faire fusionner l\u2019analyse de données et la géomatique pour produire des résultats concrets au service de l\u2019environnement.",
+      quote: "Faire fusionner l\u2019analyse de données et la géomatique pour produire des résultats concrets au service de l\u2019environnement, c\u2019est ce qui me motive chaque jour.",
       description:
         "Ingénieur Data SIG. Conception des pipelines géospatiaux, croisement multi-sources et génération automatisée de rapports.",
     },

@@ -21,55 +21,46 @@ const VISITOR_PROFILES: VisitorProfile[] = [
 
 // ─── Composant "Vous êtes..." ────────────────────────────────────────────────
 
-type VousEtesDropdownProps = {
-  isOpen: boolean;
-  onToggle: () => void;
-  onClose: () => void;
-  onAfterNavigate?: () => void;
-};
-
-function VousEtesDropdown({ isOpen, onToggle, onClose, onAfterNavigate }: VousEtesDropdownProps) {
+function VousEtesDropdown() {
   const navigate = useNavigate();
+  const [isOpen, setIsOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isOpen) return;
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
-        onClose();
+        setIsOpen(false);
       }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [isOpen, onClose]);
-
-  const handleItemClick = (href: string) => {
-    onClose();
-    onAfterNavigate?.();
-    navigate(href);
-  };
+  }, [isOpen]);
 
   return (
-    <div className="kh__dropdown-wrap kh__dropdown-wrap--vous-etes" ref={ref}>
+    <div className="kh__vous-etes-wrap" ref={ref}>
       <button
         type="button"
-        className={cn("kh__nav-item kh__nav-item--dropdown", isOpen && "is-active")}
+        className={cn("kh__vous-etes-btn", isOpen && "is-active")}
         aria-expanded={isOpen}
-        onClick={onToggle}
+        onClick={() => setIsOpen((o) => !o)}
       >
         Vous êtes…
         <ChevronIcon open={isOpen} />
       </button>
       {isOpen && (
-        <div className="kh__dropdown" role="menu">
-          <ul className="kh__dropdown-list" aria-label="Sélectionnez votre profil">
+        <div className="kh__vous-etes-dropdown" role="menu">
+          <ul className="kh__vous-etes-list" aria-label="Sélectionnez votre profil">
             {VISITOR_PROFILES.map((profile) => (
               <li key={profile.href}>
                 <button
                   type="button"
                   role="menuitem"
-                  className="kh__dropdown-item"
-                  onClick={() => handleItemClick(profile.href)}
+                  className="kh__vous-etes-item"
+                  onClick={() => {
+                    setIsOpen(false);
+                    navigate(profile.href);
+                  }}
                 >
                   {profile.label}
                   <svg viewBox="0 0 8 8" fill="none" aria-hidden="true" className="kh__dropdown-item-arrow">
@@ -330,40 +321,34 @@ export function KereliaSiteHeader({ headerClassName }: KereliaSiteHeaderProps) {
           <span className="kh__word">KERELIA</span>
         </a>
 
-        <div className="kh__nav-group">
-          <nav id="kh-main-nav" className="kh__nav" aria-label="Navigation principale">
-            <VousEtesDropdown
-              isOpen={activeDropdown === "vous-etes"}
-              onToggle={() => toggleDropdown("vous-etes")}
-              onClose={closeDropdown}
-              onAfterNavigate={closeMobileNav}
-            />
-            {NAV_SECTIONS.map((section, i) => (
-              <Fragment key={section.id}>
-                {i > 0 && (
-                  <span className="kh__nav-sep" aria-hidden="true">
-                    |
-                  </span>
-                )}
-                <NavDropdown
-                  section={section}
-                  isOpen={activeDropdown === section.id}
-                  onToggle={() => toggleDropdown(section.id)}
-                  onClose={closeDropdown}
-                  onAfterNavigate={closeMobileNav}
-                />
-              </Fragment>
-            ))}
-            <a
-              className="kh__nav-mobile-login"
-              href="/login"
-              onClick={closeMobileNav}
-              aria-label="Se connecter"
-            >
-              Se connecter
-            </a>
-          </nav>
-        </div>
+        <VousEtesDropdown />
+
+        <nav id="kh-main-nav" className="kh__nav" aria-label="Navigation principale">
+          {NAV_SECTIONS.map((section, i) => (
+            <Fragment key={section.id}>
+              {i > 0 && (
+                <span className="kh__nav-sep" aria-hidden="true">
+                  |
+                </span>
+              )}
+              <NavDropdown
+                section={section}
+                isOpen={activeDropdown === section.id}
+                onToggle={() => toggleDropdown(section.id)}
+                onClose={closeDropdown}
+                onAfterNavigate={closeMobileNav}
+              />
+            </Fragment>
+          ))}
+          <a
+            className="kh__nav-mobile-login"
+            href="/login"
+            onClick={closeMobileNav}
+            aria-label="Se connecter"
+          >
+            Se connecter
+          </a>
+        </nav>
 
         <a className="kh__cta kh__cta--login" href="/login" aria-label="Se connecter">
           Se connecter
@@ -378,17 +363,12 @@ export function KereliaSiteHeader({ headerClassName }: KereliaSiteHeaderProps) {
           onClick={toggleMobileNav}
         >
           {mobileNavOpen ? (
-            <svg className="kh__burger-icon" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-              <path d="M3 3 L11 11 M11 3 L3 11" stroke="currentColor" strokeWidth="1" strokeLinecap="square" />
+            <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M3 3 L13 13 M13 3 L3 13" stroke="currentColor" strokeWidth="1.25" strokeLinecap="square" />
             </svg>
           ) : (
-            <svg className="kh__burger-icon" viewBox="0 0 14 10" fill="none" aria-hidden="true">
-              <path
-                d="M2 1.5 H12 M2 5 H12 M2 8.5 H12"
-                stroke="currentColor"
-                strokeWidth="0.85"
-                strokeLinecap="round"
-              />
+            <svg viewBox="0 0 16 12" fill="none" aria-hidden="true">
+              <path d="M0 1 H16 M0 6 H16 M0 11 H16" stroke="currentColor" strokeWidth="1" />
             </svg>
           )}
         </button>

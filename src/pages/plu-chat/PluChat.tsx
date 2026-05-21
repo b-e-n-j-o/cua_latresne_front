@@ -27,7 +27,8 @@ function mapDataFromTurn(data: { map_data?: MapData | null }): MapData | null {
   return md?.parcelle?.geometry ? md : null;
 }
 
-function turnRequestedMap(data: { tool_calls?: ToolCall[] }): boolean {
+function turnRequestedMap(data: { tool_calls?: ToolCall[]; show_map?: boolean }): boolean {
+  if (data.show_map) return true;
   return data.tool_calls?.some((t) => t.name === "get_map_data") ?? false;
 }
 
@@ -49,6 +50,7 @@ type ApiTurn = {
   latency_ms?: number;
   zones_summary?: string;
   map_data?: MapData | null;
+  show_map?: boolean;
 };
 
 type SessionState = {
