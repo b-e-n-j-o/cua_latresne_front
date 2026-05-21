@@ -97,11 +97,11 @@ function zonesSummaryFromZones(zones: SessionState["zones"]) {
 }
 
 function formatMeta(data: ApiTurn, zonesSummary?: string) {
-  const tools = data.tool_calls?.map((t) => t.result_summary).filter(Boolean);
+  const tools = data.tool_calls?.map((t) => t.name);
   return [
     zonesSummary,
     data.latency_ms != null ? `${(data.latency_ms / 1000).toFixed(1)} s` : null,
-    tools?.length ? tools.join(" · ") : null,
+    tools?.length ? `🔧 ${tools.join(" · ")}` : null,
   ]
     .filter(Boolean)
     .join(" · ");
