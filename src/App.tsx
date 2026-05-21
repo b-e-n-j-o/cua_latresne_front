@@ -4,6 +4,7 @@ import LoginForm from "./auth/LoginForm";
 import ResetPasswordPage from "./auth/ResetPasswordPage";
 import UpdatePasswordPage from "./auth/UpdatePasswordPage";
 import LandingPage from "./pages/website/landingpage/LandingPage";
+import LandingPageDev from "./pages/website/landingpage_dev/LandingPage";
 import RedirectSlugPage from "./routes/RedirectSlugPage";
 import HistoryPanel from "./HistoryPanel";
 import AdminPage from "./routes/AdminPage";
@@ -37,6 +38,7 @@ const HistoryPage = () => (
 
 const PUBLIC_EXACT_ROUTES = [
   "/",
+  "/landing-dev",
   "/login",
   "/demo",
   "/reset-password",
@@ -71,6 +73,7 @@ export default function App() {
     return (
       <Routes>
         <Route path="/" element={<LandingPage />} />
+        <Route path="/landing-dev" element={<LandingPageDev />} />
         <Route path="/login" element={<LoginForm />} />
         <Route path="/demo" element={<DemoRequestPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />

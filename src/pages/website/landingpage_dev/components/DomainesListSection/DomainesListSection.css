@@ -1,0 +1,383 @@
+/* ============================================================
+   DOMAINES LIST SECTION
+   ============================================================ */
+
+   .domaines-list {
+    background: var(--color-black);
+    padding: 120px var(--grid-margin);
+  }
+  
+  .domaines-list__head {
+    max-width: 900px;
+    margin: 0 auto 64px;
+    text-align: center;
+  }
+  
+  .domaines-list__title {
+    font-family: var(--font-kerelia);
+    font-weight: var(--kerelia-w-light);
+    font-size: clamp(48px, 5.5vw, 72px);
+    letter-spacing: var(--tracking-tight);
+    line-height: 1.05;
+    color: var(--color-off-white);
+    margin: 0 0 24px;
+  }
+  
+  .domaines-list__rule {
+    width: 64px;
+    height: 1px;
+    background: var(--color-yellow);
+    margin: 0 auto;
+  }
+  
+  /* ---- Rows ---- */
+  
+  .domaines-list__rows {
+    list-style: none;
+    padding: 0 0 0 20px;
+    margin: 0;
+    max-width: 1200px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .domaines-list__rows li {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  
+  .domaines-list__row {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 56px 1fr auto;
+    align-items: center;
+    gap: 32px;
+    background: transparent;
+    border: none;
+    border-top: 1px solid var(--color-arsenic);
+    cursor: pointer;
+    text-align: left;
+    color: var(--color-off-white);
+    transition: background 200ms linear, border-color 200ms linear;
+    position: relative;
+  }
+
+  .kerelia-landing .domaines-list__row {
+    padding: 36px 0;
+  }
+  
+  /* Trait accent à gauche au hover — dans la marge, décollé du numéro */
+  .domaines-list__row::before {
+    content: "";
+    position: absolute;
+    left: -20px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--color-yellow);
+    transform: scaleY(0);
+    transform-origin: bottom;
+    transition: transform 250ms var(--ease-reveal);
+  }
+  
+  .domaines-list__row:hover::before {
+    transform: scaleY(1);
+  }
+  
+  .domaines-list__row:hover {
+    background: rgba(255, 255, 255, 0.02);
+  }
+  
+  li:last-of-type .domaines-list__row {
+    border-bottom: 1px solid var(--color-arsenic);
+  }
+  
+  /* Numéro */
+  .domaines-list__row-num {
+    font-family: var(--font-kerelia);
+    font-weight: var(--kerelia-w-semibold);
+    font-size: 12px;
+    letter-spacing: var(--tracking-loose);
+    color: var(--color-silver);
+    transition: color 200ms linear;
+    flex-shrink: 0;
+  }
+  
+  .domaines-list__row:hover .domaines-list__row-num {
+    color: var(--color-yellow);
+  }
+  
+  /* Centre : titre + sous-titre */
+  .domaines-list__row-center {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+  
+  .domaines-list__row-titre {
+    font-family: var(--font-kerelia);
+    font-weight: var(--kerelia-w-bold);
+    font-size: clamp(18px, 2vw, 26px);
+    letter-spacing: -0.01em;
+    color: var(--color-off-white);
+    line-height: 1.1;
+    transition: color 200ms linear;
+  }
+  
+  .domaines-list__row:hover .domaines-list__row-titre {
+    color: var(--color-yellow);
+  }
+  
+  .domaines-list__row-sous-titre {
+    font-family: var(--font-kerelia);
+    font-weight: var(--kerelia-w-regular);
+    font-size: 13px;
+    color: var(--color-silver);
+    line-height: 1.4;
+  }
+  
+  /* Flèche */
+  .domaines-list__row-arrow {
+    font-family: var(--font-kerelia);
+    font-weight: var(--kerelia-w-regular);
+    font-size: 20px;
+    color: var(--color-silver);
+    flex-shrink: 0;
+    transition: transform 250ms var(--ease-reveal), color 200ms linear;
+  }
+  
+  .domaines-list__row:hover .domaines-list__row-arrow {
+    transform: translateX(6px);
+    color: var(--color-yellow);
+  }
+  
+  /* ---- Séparateur capacités transversales ---- */
+  
+  .domaines-list__separator {
+    list-style: none;
+    padding: 40px 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  
+  .domaines-list__separator::before,
+  .domaines-list__separator::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--color-arsenic);
+  }
+  
+  .domaines-list__separator-label {
+    font-family: var(--font-kerelia);
+    font-weight: var(--kerelia-w-semibold);
+    font-size: 10px;
+    letter-spacing: var(--tracking-extra-loose);
+    text-transform: uppercase;
+    color: var(--color-silver);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  
+  /* ============================================================
+     DOMAINE MODAL
+     ============================================================ */
+  
+  .domaine-modal__overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 200;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    overflow: hidden;
+    overscroll-behavior: none;
+
+    animation: modal-overlay-in 200ms ease forwards;
+  }
+  
+  @keyframes modal-overlay-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  
+  .domaine-modal__panel {
+    width: 100%;
+    max-width: 100%;
+    max-height: 92vh;
+    background: #0e0e0e;
+    border-top: 1px solid var(--color-arsenic);
+    border-radius: 16px 16px 0 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: clamp(40px, 5vw, 72px) clamp(24px, 6vw, 100px) clamp(48px, 6vw, 80px);
+
+    animation: modal-panel-in 220ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  
+  @keyframes modal-panel-in {
+    from { transform: translateY(32px); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
+  }
+  
+  /* Header de la modale */
+  .domaine-modal__header {
+    margin-bottom: 48px;
+  }
+  
+  .domaine-modal__meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+  
+  .domaine-modal__num {
+    font-family: var(--font-kerelia);
+    font-weight: var(--kerelia-w-semibold);
+    font-size: 11px;
+    letter-spacing: var(--tracking-extra-loose);
+    text-transform: uppercase;
+    color: var(--color-yellow);
+  }
+  
+  .domaine-modal__close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: border-color 200ms linear, color 200ms linear;
+  }
+
+  /* Plus spécifique que .kerelia-landing button (inherit / border: 0) */
+  .kerelia-landing .domaine-modal__close {
+    background: transparent;
+    border: 1px solid var(--color-arsenic);
+    color: var(--color-off-white);
+    padding: 0;
+  }
+
+  .kerelia-landing .domaine-modal__close:hover {
+    border-color: var(--color-off-white);
+    color: var(--color-off-white);
+  }
+  
+  .domaine-modal__title {
+    font-family: var(--font-kerelia);
+    font-weight: var(--kerelia-w-light);
+    font-size: clamp(36px, 5vw, 64px);
+    letter-spacing: var(--tracking-tight);
+    line-height: 1;
+    color: var(--color-off-white);
+    margin: 0 0 16px;
+    max-width: 16ch;
+  }
+  
+  .domaine-modal__sous-titre {
+    font-family: var(--font-kerelia);
+    font-weight: var(--kerelia-w-regular);
+    font-size: 15px;
+    color: var(--color-silver);
+    margin: 0 0 32px;
+    max-width: 60ch;
+    line-height: 1.5;
+  }
+  
+  .domaine-modal__rule {
+    width: 64px;
+    height: 1px;
+    background: var(--color-yellow);
+  }
+  
+  /* Corps — 2 colonnes sur desktop */
+  .domaine-modal__body {
+    display: grid;
+    grid-template-columns: 5fr 7fr;
+    gap: clamp(32px, 5vw, 80px);
+    align-items: start;
+    margin-bottom: 56px;
+  }
+  
+  .domaine-modal__intro {
+    font-family: var(--font-kerelia);
+    font-weight: var(--kerelia-w-light);
+    font-size: clamp(17px, 1.6vw, 22px);
+    line-height: 1.5;
+    color: var(--color-off-white);
+    margin: 0;
+    position: sticky;
+    top: 24px;
+  }
+  
+  .domaine-modal__paragraphs {
+    display: grid;
+    gap: 24px;
+  }
+  
+  .domaine-modal__p {
+    font-family: var(--font-kerelia);
+    font-weight: var(--kerelia-w-regular);
+    font-size: 15px;
+    line-height: 1.65;
+    color: var(--color-silver);
+    margin: 0;
+  }
+  
+  /* Image */
+  .domaine-modal__figure {
+    margin: 0;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--color-arsenic);
+  }
+  
+  .domaine-modal__img {
+    width: 100%;
+    height: auto;
+    display: block;
+    object-fit: cover;
+    max-height: 480px;
+  }
+  
+  /* ---- Responsive ---- */
+  
+  @media (max-width: 833px) {
+    .domaines-list__rows {
+      padding-left: 16px;
+    }
+
+    .domaines-list__row::before {
+      left: -16px;
+    }
+
+    .domaines-list__row {
+      grid-template-columns: 40px 1fr auto;
+      gap: 16px;
+    }
+
+    .kerelia-landing .domaines-list__row {
+      padding: 24px 0;
+    }
+  
+    .domaine-modal__body {
+      grid-template-columns: 1fr;
+    }
+  
+    .domaine-modal__intro {
+      position: static;
+    }
+  
+    .domaine-modal__title {
+      max-width: none;
+    }
+  }

@@ -10,7 +10,7 @@ export const demoContactCtaCopy = {
 export const heroCopy = {
   headlineLines: ["Bureau d'études en données géospatiales."] as const,
   sub:
-    "Kerelia produit des analyses réglementaires, environnementales et foncières à partir des référentiels publics et propriétaires.",
+    "Kerelia produit des analyses réglementaires, environnementales et foncières à partir de référentiels publics et propriétaires.",
   metaBl: ["BORDEAUX 44.836° N 0.578° W", "INCUBÉE A TECHNOWEST"] as const,
 } as const;
 
