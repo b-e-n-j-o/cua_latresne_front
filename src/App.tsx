@@ -108,7 +108,8 @@ export default function App() {
         <Route path="/portail/*" element={<PortailApp />} />
         <Route path="/latresne/cua" element={<LatresneCuaPage />} />
         <Route path="/argeles/cua" element={<ArgelesCuaPage />} />
-        <Route path="/argeles/chat" element={<PluChat />} />
+        <Route path="/argeles/chat" element={<PluChat commune="argeles" />} />
+        <Route path="/latresne/chat" element={<PluChat commune="latresne" />} />
         <Route path="/mios/cua" element={<MiosCuaPage />} />
         <Route path="/latresne/cua/projects/:slug" element={<ProjectPage />} />
         <Route path="/mios/cua/projects/:slug" element={<MiosProjectPage />} />

@@ -90,7 +90,7 @@ export default function MntViewerPage() {
       >
         <h2 style={{ margin: "0 0 8px", fontSize: 16 }}>Visualiseur MNT 3D</h2>
         <p style={{ margin: "0 0 16px", fontSize: 12, color: "#9ca3af" }}>
-          Parcelle depuis Supabase (<code>latresne.parcelles_latresne</code>), MNT élargi aux parcelles
+          Parcelle depuis Supabase (<code>latresne.parcelles</code>), MNT élargi aux parcelles
           contiguës si activé. Contour jaune = parcelle cible.
         </p>
 

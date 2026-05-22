@@ -5,14 +5,26 @@ import remarkGfm from "remark-gfm";
 import "./pluChat.css";
 import PluMapPanel, { type MapData } from "./PluMapPanel";
 import PluChatSidebar, { type SessionSummary } from "./PluChatSidebar";
+import {
+  PLU_COMMUNE_CONFIG,
+  pluApiRoot,
+  type PluCommuneSlug,
+} from "./communeConfig";
+import { MAP_BUFFER_M } from "./map/colors";
 
 const API_BASE = (import.meta.env.VITE_API_BASE || "http://localhost:8000").replace(/\/$/, "");
-const MAP_BUFFER_M = 100;
 
-async function fetchSessionMap(sessionId: string): Promise<MapData | null> {
+type PluChatProps = {
+  commune?: PluCommuneSlug;
+};
+
+async function fetchSessionMap(
+  apiRoot: string,
+  sessionId: string,
+): Promise<MapData | null> {
   try {
     const res = await fetch(
-      `${API_BASE}/api/plu/argeles/session/${sessionId}/map?buffer_m=${MAP_BUFFER_M}`,
+      `${apiRoot}/session/${sessionId}/map?buffer_m=${MAP_BUFFER_M}`,
     );
     if (!res.ok) return null;
     const data: MapData = await res.json();
@@ -173,7 +185,9 @@ function AssistantMarkdown({ content }: { content: string }) {
   );
 }
 
-export default function PluChat() {
+export default function PluChat({ commune = "argeles" }: PluChatProps) {
+  const communeConfig = PLU_COMMUNE_CONFIG[commune];
+  const apiRoot = pluApiRoot(API_BASE, commune);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -202,7 +216,7 @@ export default function PluChat() {
   const fetchSessions = useCallback(async () => {
     setLoadingSessions(true);
     try {
-      const res = await fetch(`${API_BASE}/api/plu/argeles/sessions?limit=50`);
+      const res = await fetch(`${apiRoot}/sessions?limit=50`);
       if (!res.ok) return;
       const data = await res.json();
       setSessions(data.sessions ?? []);
@@ -211,7 +225,7 @@ export default function PluChat() {
     } finally {
       setLoadingSessions(false);
     }
-  }, []);
+  }, [apiRoot]);
 
   useEffect(() => {
     void fetchSessions();
@@ -238,7 +252,7 @@ export default function PluChat() {
     if (deletingSessionId) return;
     setDeletingSessionId(id);
     try {
-      const res = await fetch(`${API_BASE}/api/plu/argeles/session/${id}`, {
+      const res = await fetch(`${apiRoot}/session/${id}`, {
         method: "DELETE",
       });
       if (!res.ok) {
@@ -260,7 +274,7 @@ export default function PluChat() {
     if (isLoading || loadingSessionId) return;
     setLoadingSessionId(id);
     try {
-      const res = await fetch(`${API_BASE}/api/plu/argeles/session/${id}`);
+      const res = await fetch(`${apiRoot}/session/${id}`);
       if (!res.ok) {
         const detail = await res.text();
         throw new Error(detail || `Erreur HTTP ${res.status}`);
@@ -271,7 +285,7 @@ export default function PluChat() {
       setMessages(mapSessionMessages(data.messages));
       setInput("");
 
-      const mapPayload = await fetchSessionMap(data.session_id);
+      const mapPayload = await fetchSessionMap(apiRoot, data.session_id);
       if (mapPayload) {
         setActiveMapData(mapPayload);
         setMapVisible(true);
@@ -313,13 +327,13 @@ export default function PluChat() {
         turnRequestedMap(data) || Boolean(options?.fetchIfParcelleSession);
       if (!shouldFetch) return;
 
-      const fetched = await fetchSessionMap(sid);
+      const fetched = await fetchSessionMap(apiRoot, sid);
       if (fetched) {
         setActiveMapData(fetched);
         setMapVisible(true);
       }
     },
-    [],
+    [apiRoot],
   );
 
   const appendAssistant = useCallback(
@@ -362,7 +376,7 @@ export default function PluChat() {
     try {
       if (!sessionId) {
         const ref = parseParcelRef(trimmed);
-        const response = await fetch(`${API_BASE}/api/plu/argeles/session`, {
+        const response = await fetch(`${apiRoot}/session`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(buildSessionCreateBody(trimmed, ref)),
@@ -387,7 +401,7 @@ export default function PluChat() {
         }
         void fetchSessions();
       } else {
-        const response = await fetch(`${API_BASE}/api/plu/argeles/chat/${sessionId}`, {
+        const response = await fetch(`${apiRoot}/chat/${sessionId}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ message: trimmed }),
@@ -496,7 +510,7 @@ export default function PluChat() {
               <span className="plu-chat__brand-dot" aria-hidden />
               <div>
                 <div className="plu-chat__brand-title">Agent PLU</div>
-                <div className="plu-chat__brand-sub">Argelès-sur-Mer · analyse réglementaire</div>
+                <div className="plu-chat__brand-sub">{communeConfig.brandSub}</div>
               </div>
             </div>
             {sessionId && (
@@ -565,7 +579,7 @@ export default function PluChat() {
       <PluMapPanel
         sessionId={sessionId}
         mapData={activeMapData}
-        apiBase={API_BASE}
+        apiRoot={apiRoot}
         isVisible={mapVisible}
         onClose={() => setMapVisible(false)}
       />

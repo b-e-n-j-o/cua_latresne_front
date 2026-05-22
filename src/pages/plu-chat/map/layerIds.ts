@@ -1,0 +1,32 @@
+export const LAYER_IDS = [
+  "plu-zones-fill",
+  "plu-zones-outline",
+  "plu-zones-label",
+  "prescriptions-surf-fill",
+  "prescriptions-surf-outline",
+  "prescriptions-line",
+  "prescriptions-point",
+  "servitudes-fill",
+  "servitudes-outline",
+  "informations-surf-fill",
+  "informations-surf-outline",
+  "informations-line",
+  "informations-point",
+  "parcelle-union-fill",
+  "parcelle-fill",
+  "parcelle-outline",
+  "parcelle-label",
+] as const;
+
+export const SOURCE_IDS = [
+  "plu-zones",
+  "prescriptions-surf",
+  "prescriptions-line",
+  "prescriptions-point",
+  "servitudes",
+  "informations-surf",
+  "informations-line",
+  "informations-point",
+  "parcelle-union",
+  "parcelle",
+] as const;
