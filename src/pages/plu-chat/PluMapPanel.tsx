@@ -52,6 +52,22 @@ export type PrescriptionsMap = {
   ponctuelles?:  GeoJSON.FeatureCollection<GeoJSON.Geometry, PrescriptionProperties>;
 };
 
+type InformationProperties = {
+  gml_id?:    string | null;
+  libelle?:   string | null;
+  typeinf?:   string | null;
+  stypeinf?:  string | null;
+  kind?:      string | null;
+  color?:     string;
+  label?:     string | null;
+};
+
+export type InformationsMap = {
+  surfaciques?:  GeoJSON.FeatureCollection<GeoJSON.Geometry, InformationProperties>;
+  lineaires?:    GeoJSON.FeatureCollection<GeoJSON.Geometry, InformationProperties>;
+  ponctuelles?:  GeoJSON.FeatureCollection<GeoJSON.Geometry, InformationProperties>;
+};
+
 type ServitudeProperties = {
   gid?:         number | null;
   idass?:       string | null;
@@ -74,6 +90,8 @@ export type MapData = {
   prescriptions?: PrescriptionsMap;
   /** Assiettes surfaciques de servitudes SUP (sup_assiette_s). */
   servitudes?: GeoJSON.FeatureCollection<GeoJSON.Geometry, ServitudeProperties>;
+  /** Informations GPU (infos_surf / infos_lin / infos_pct). */
+  informations?: InformationsMap;
 };
 
 type Props = {
@@ -100,6 +118,10 @@ const PRESCRIPTION_POINT_COLOR  = "#FFBE0B";
 const PRESCRIPTION_SURF_OPACITY = 0.4;
 const SERVITUDES_COLOR          = "#457B9D";
 const SERVITUDES_FILL_OPACITY   = 0.35;
+const INFO_SURF_COLOR           = "#2A9D8F";
+const INFO_LINE_COLOR           = "#1D3557";
+const INFO_POINT_COLOR          = "#F4A261";
+const INFO_SURF_OPACITY         = 0.38;
 
 const LAYER_IDS = [
   "plu-zones-fill",
@@ -111,6 +133,10 @@ const LAYER_IDS = [
   "prescriptions-point",
   "servitudes-fill",
   "servitudes-outline",
+  "informations-surf-fill",
+  "informations-surf-outline",
+  "informations-line",
+  "informations-point",
   "parcelle-union-fill",
   "parcelle-fill",
   "parcelle-outline",
@@ -123,6 +149,9 @@ const SOURCE_IDS = [
   "prescriptions-line",
   "prescriptions-point",
   "servitudes",
+  "informations-surf",
+  "informations-line",
+  "informations-point",
   "parcelle-union",
   "parcelle",
 ] as const;
@@ -226,6 +255,12 @@ export default function PluMapPanel({ sessionId, mapData: propMapData, apiBase, 
     onClick?: (e: maplibregl.MapLayerMouseEvent) => void;
     onEnter?: () => void;
     onLeave?: () => void;
+  }>({});
+  const infoHandlersRef = useRef<{
+    onClick?: (e: maplibregl.MapLayerMouseEvent) => void;
+    onEnter?: () => void;
+    onLeave?: () => void;
+    layers?: string[];
   }>({});
 
   const [mapData, setMapData]   = useState<MapData | null>(propMapData);
@@ -343,6 +378,15 @@ export default function PluMapPanel({ sessionId, mapData: propMapData, apiBase, 
     if (srh.onClick) map.off("click", "servitudes-fill", srh.onClick);
     if (srh.onEnter) map.off("mouseenter", "servitudes-fill", srh.onEnter);
     if (srh.onLeave) map.off("mouseleave", "servitudes-fill", srh.onLeave);
+
+    const irh = infoHandlersRef.current;
+    if (irh.onClick && irh.layers) {
+      for (const lid of irh.layers) {
+        map.off("click", lid, irh.onClick);
+        map.off("mouseenter", lid, irh.onEnter!);
+        map.off("mouseleave", lid, irh.onLeave!);
+      }
+    }
 
     LAYER_IDS.forEach((id) => {
       if (map.getLayer(id)) map.removeLayer(id);
@@ -579,6 +623,107 @@ export default function PluMapPanel({ sessionId, mapData: propMapData, apiBase, 
       map.on("mouseleave", "servitudes-fill", onServLeave);
     }
 
+    const infos = mapData.informations;
+    const infoSurfFc = infos?.surfaciques?.features ?? [];
+    const infoLinFc = infos?.lineaires?.features ?? [];
+    const infoPctFc = infos?.ponctuelles?.features ?? [];
+
+    if (infoSurfFc.length > 0) {
+      map.addSource("informations-surf", {
+        type: "geojson",
+        data: infos!.surfaciques!,
+      });
+      map.addLayer({
+        id: "informations-surf-fill",
+        type: "fill",
+        source: "informations-surf",
+        paint: {
+          "fill-color": ["coalesce", ["get", "color"], INFO_SURF_COLOR],
+          "fill-opacity": INFO_SURF_OPACITY,
+        },
+      });
+      map.addLayer({
+        id: "informations-surf-outline",
+        type: "line",
+        source: "informations-surf",
+        paint: {
+          "line-color": ["coalesce", ["get", "color"], INFO_SURF_COLOR],
+          "line-width": 2,
+        },
+      });
+    }
+
+    if (infoLinFc.length > 0) {
+      map.addSource("informations-line", {
+        type: "geojson",
+        data: infos!.lineaires!,
+      });
+      map.addLayer({
+        id: "informations-line",
+        type: "line",
+        source: "informations-line",
+        paint: {
+          "line-color": ["coalesce", ["get", "color"], INFO_LINE_COLOR],
+          "line-width": 3,
+        },
+      });
+    }
+
+    if (infoPctFc.length > 0) {
+      map.addSource("informations-point", {
+        type: "geojson",
+        data: infos!.ponctuelles!,
+      });
+      map.addLayer({
+        id: "informations-point",
+        type: "circle",
+        source: "informations-point",
+        paint: {
+          "circle-color": ["coalesce", ["get", "color"], INFO_POINT_COLOR],
+          "circle-radius": 7,
+          "circle-stroke-color": "#1a1a1a",
+          "circle-stroke-width": 1,
+        },
+      });
+    }
+
+    const infoClickLayers = [
+      ...(infoSurfFc.length ? ["informations-surf-fill"] : []),
+      ...(infoLinFc.length ? ["informations-line"] : []),
+      ...(infoPctFc.length ? ["informations-point"] : []),
+    ];
+    if (infoClickLayers.length > 0) {
+      const onInfoClick = (e: maplibregl.MapLayerMouseEvent) => {
+        const f = e.features?.[0];
+        if (!f?.properties) return;
+        const p = f.properties as InformationProperties;
+        popupRef.current?.remove();
+        popupRef.current = new maplibregl.Popup({ closeButton: true, maxWidth: "280px" })
+          .setLngLat(e.lngLat)
+          .setHTML(`
+            <div class="plu-map-popup">
+              <div class="plu-map-popup__title">${p.libelle ?? p.label ?? "Information"}</div>
+              ${p.typeinf ? `<div class="plu-map-popup__type">Type : ${p.typeinf}${p.stypeinf ? ` / ${p.stypeinf}` : ""}</div>` : ""}
+              ${p.kind ? `<div class="plu-map-popup__pct">Nature : ${p.kind}</div>` : ""}
+            </div>
+          `)
+          .addTo(map);
+      };
+      const onInfoEnter = () => { map.getCanvas().style.cursor = "pointer"; };
+      const onInfoLeave = () => { map.getCanvas().style.cursor = ""; };
+      infoHandlersRef.current = {
+        onClick: onInfoClick,
+        onEnter: onInfoEnter,
+        onLeave: onInfoLeave,
+        layers: infoClickLayers,
+      };
+      for (const lid of infoClickLayers) {
+        map.on("click", lid, onInfoClick);
+        map.on("mouseenter", lid, onInfoEnter);
+        map.on("mouseleave", lid, onInfoLeave);
+      }
+    }
+
     if (mapData.parcelle_union?.geometry && geometryHasArea(mapData.parcelle_union.geometry)) {
       map.addSource("parcelle-union", {
         type: "geojson",
@@ -675,6 +820,9 @@ export default function PluMapPanel({ sessionId, mapData: propMapData, apiBase, 
     linFc.forEach((f) => collectAllCoordinates(f.geometry, coords));
     pctFc.forEach((f) => collectAllCoordinates(f.geometry, coords));
     servFc.forEach((f) => collectAllCoordinates(f.geometry, coords));
+    infoSurfFc.forEach((f) => collectAllCoordinates(f.geometry, coords));
+    infoLinFc.forEach((f) => collectAllCoordinates(f.geometry, coords));
+    infoPctFc.forEach((f) => collectAllCoordinates(f.geometry, coords));
 
     if (coords.length > 0) {
       const lngs = coords.map((c) => c[0]);
@@ -739,6 +887,12 @@ export default function PluMapPanel({ sessionId, mapData: propMapData, apiBase, 
   };
   const hasPresc = prescCounts.surf + prescCounts.lin + prescCounts.pct > 0;
   const servCount = mapData?.servitudes?.features?.length ?? 0;
+  const infoCounts = {
+    surf: mapData?.informations?.surfaciques?.features?.length ?? 0,
+    lin: mapData?.informations?.lineaires?.features?.length ?? 0,
+    pct: mapData?.informations?.ponctuelles?.features?.length ?? 0,
+  };
+  const hasInfo = infoCounts.surf + infoCounts.lin + infoCounts.pct > 0;
 
   return (
     <aside className={`plu-map-panel${isVisible ? " plu-map-panel--visible" : ""}`}>
@@ -763,6 +917,34 @@ export default function PluMapPanel({ sessionId, mapData: propMapData, apiBase, 
             <span className="plu-map-panel__legend-dot" style={{ background: SERVITUDES_COLOR }} />
             <span>Assiettes surfaciques ({servCount})</span>
           </div>
+        </div>
+      )}
+
+      {/* Légende informations */}
+      {hasInfo && (
+        <div className="plu-map-panel__legend plu-map-panel__legend--presc">
+          <div className="plu-map-panel__legend-title">Informations</div>
+          {infoCounts.surf > 0 && (
+            <div className="plu-map-panel__legend-item plu-map-panel__legend-item--static">
+              <span className="plu-map-panel__legend-dot" style={{ background: INFO_SURF_COLOR }} />
+              <span>Surfaciques ({infoCounts.surf})</span>
+            </div>
+          )}
+          {infoCounts.lin > 0 && (
+            <div className="plu-map-panel__legend-item plu-map-panel__legend-item--static">
+              <span
+                className="plu-map-panel__legend-line"
+                style={{ background: INFO_LINE_COLOR }}
+              />
+              <span>Linéaires ({infoCounts.lin})</span>
+            </div>
+          )}
+          {infoCounts.pct > 0 && (
+            <div className="plu-map-panel__legend-item plu-map-panel__legend-item--static">
+              <span className="plu-map-panel__legend-dot" style={{ background: INFO_POINT_COLOR }} />
+              <span>Ponctuelles ({infoCounts.pct})</span>
+            </div>
+          )}
         </div>
       )}
 
