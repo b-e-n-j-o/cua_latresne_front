@@ -20,6 +20,7 @@ import MiosCuaPage from "./pages/communes/mios/MiosPage";
 import ProjectPage from "./pages/communes/latresne/cua/ProjectPage";
 import MiosProjectPage from "./pages/communes/mios/ProjectPage";
 import DemoRequestPage from "./pages/website/DemoRequestPage";
+import MarkdownBatchPage from "./pages/tools/MarkdownBatchPage";
 import {
   CertificatsUrbanismePage,
   CarteIdentiteFoncierePage,
@@ -105,11 +106,14 @@ export default function App() {
       <Routes>
         <Route path="/history" element={<HistoryPage />} />
         <Route path="/admin" element={<AdminPage />} />
+        <Route path="/markdown" element={<MarkdownBatchPage />} />
         <Route path="/portail/*" element={<PortailApp />} />
         <Route path="/latresne/cua" element={<LatresneCuaPage />} />
         <Route path="/argeles/cua" element={<ArgelesCuaPage />} />
         <Route path="/argeles/chat" element={<PluChat commune="argeles" />} />
         <Route path="/latresne/chat" element={<PluChat commune="latresne" />} />
+        <Route path="/mios/chat" element={<PluChat commune="mios" />} />
+        <Route path="/france/chat" element={<PluChat commune="france" />} />
         <Route path="/mios/cua" element={<MiosCuaPage />} />
         <Route path="/latresne/cua/projects/:slug" element={<ProjectPage />} />
         <Route path="/mios/cua/projects/:slug" element={<MiosProjectPage />} />

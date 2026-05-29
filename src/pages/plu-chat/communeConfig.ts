@@ -14,7 +14,7 @@
  */
 
 /** Communes disposant d'un agent PLU (préfixe API /api/plu/{slug}). */
-export type PluCommuneSlug = "argeles" | "latresne";
+export type PluCommuneSlug = "argeles" | "latresne" | "mios" | "france";
 
 export type PluCommuneConfig = {
   slug: PluCommuneSlug;
@@ -34,6 +34,16 @@ export const PLU_COMMUNE_CONFIG: Record<PluCommuneSlug, PluCommuneConfig> = {
     slug: "latresne",
     label: "Latresne",
     brandSub: "Latresne · analyse réglementaire",
+  },
+  mios: {
+    slug: "mios",
+    label: "Mios",
+    brandSub: "Mios · analyse réglementaire",
+  },
+  france: {
+    slug: "france",
+    label: "France entière",
+    brandSub: "France entière · contexte urbanisme GPU live",
   },
 };
 

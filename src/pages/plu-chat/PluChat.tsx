@@ -124,7 +124,8 @@ function buildSessionCreateBody(question: string, ref: ParcelRef): Record<string
 }
 
 function parseParcelRef(text: string): ParcelRef {
-  const iduMatches = [...text.matchAll(/\b(66008\d{3}[A-Z]{1,2}\d{1,4})\b/gi)];
+  // IDU cadastral générique France: 5 chars INSEE + 5 chars section paddée + 4 chars numéro.
+  const iduMatches = [...text.matchAll(/\b([0-9A-Z]{10}\d{4})\b/gi)];
   if (iduMatches.length > 1) {
     return { idus: iduMatches.map((m) => m[1].toUpperCase()) };
   }
