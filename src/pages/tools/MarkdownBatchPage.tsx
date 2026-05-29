@@ -1,4 +1,22 @@
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useCallback, useEffect, useRef, useState } from "react";
+
+type SelectedFileInfo = {
+  name: string;
+  charCount: number | null;
+  sizeBytes: number;
+  loading: boolean;
+  error?: string;
+};
+
+function formatChars(n: number): string {
+  return n.toLocaleString("fr-FR");
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} o`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} Ko`;
+  return `${(n / (1024 * 1024)).toFixed(1)} Mo`;
+}
 
 const API = import.meta.env.VITE_API_BASE || "";
 
@@ -70,6 +88,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 export default function MarkdownBatchPage() {
   const [files, setFiles] = useState<FileList | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<SelectedFileInfo[]>([]);
   const [skipJudge, setSkipJudge] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
   const [status, setStatus] = useState<JobStatus | null>(null);
@@ -111,6 +130,50 @@ export default function MarkdownBatchPage() {
   );
 
   useEffect(() => () => stopPolling(), [stopPolling]);
+
+  const onFilesChange = async (ev: ChangeEvent<HTMLInputElement>) => {
+    const list = ev.target.files;
+    setFiles(list);
+
+    if (!list?.length) {
+      setSelectedFiles([]);
+      return;
+    }
+
+    const pending: SelectedFileInfo[] = Array.from(list).map((f) => ({
+      name: f.name,
+      charCount: null,
+      sizeBytes: f.size,
+      loading: true,
+    }));
+    setSelectedFiles(pending);
+
+    const loaded = await Promise.all(
+      Array.from(list).map(async (f): Promise<SelectedFileInfo> => {
+        try {
+          const text = await f.text();
+          return {
+            name: f.name,
+            charCount: [...text].length,
+            sizeBytes: f.size,
+            loading: false,
+          };
+        } catch {
+          return {
+            name: f.name,
+            charCount: null,
+            sizeBytes: f.size,
+            loading: false,
+            error: "Lecture impossible",
+          };
+        }
+      }),
+    );
+    setSelectedFiles(loaded);
+  };
+
+  const totalChars = selectedFiles.reduce((sum, f) => sum + (f.charCount ?? 0), 0);
+  const filesStillLoading = selectedFiles.some((f) => f.loading);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -202,10 +265,98 @@ export default function MarkdownBatchPage() {
             accept=".txt,text/plain"
             multiple
             disabled={submitting}
-            onChange={(ev) => setFiles(ev.target.files)}
+            onChange={onFilesChange}
             style={{ width: "100%", color: "#ccc" }}
           />
         </label>
+
+        {selectedFiles.length > 0 && (
+          <div
+            style={{
+              marginBottom: 20,
+              padding: 12,
+              background: "rgba(0,0,0,0.25)",
+              borderRadius: 10,
+              border: "1px solid rgba(255,255,255,0.08)",
+            }}
+          >
+            <p
+              style={{
+                margin: "0 0 10px",
+                fontSize: 12,
+                fontWeight: 600,
+                letterSpacing: "0.04em",
+                opacity: 0.75,
+                textTransform: "uppercase",
+              }}
+            >
+              Fichiers sélectionnés ({selectedFiles.length})
+            </p>
+            <ul
+              style={{
+                margin: 0,
+                padding: 0,
+                listStyle: "none",
+                maxHeight: 280,
+                overflowY: "auto",
+              }}
+            >
+              {selectedFiles.map((f) => (
+                <li
+                  key={f.name}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "baseline",
+                    gap: 12,
+                    padding: "8px 0",
+                    borderTop: "1px solid rgba(255,255,255,0.06)",
+                    fontSize: 13,
+                  }}
+                >
+                  <span
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                    title={f.name}
+                  >
+                    {f.name}
+                  </span>
+                  <span style={{ flexShrink: 0, opacity: 0.65, fontSize: 11 }}>
+                    {formatBytes(f.sizeBytes)}
+                  </span>
+                  <span style={{ flexShrink: 0, minWidth: 100, textAlign: "right", color: "#c8e6a0" }}>
+                    {f.loading && "…"}
+                    {!f.loading && f.error && (
+                      <span style={{ color: "#f87171" }}>{f.error}</span>
+                    )}
+                    {!f.loading && f.charCount != null && (
+                      <>{formatChars(f.charCount)} car.</>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {!filesStillLoading && selectedFiles.length > 1 && (
+              <p
+                style={{
+                  margin: "10px 0 0",
+                  paddingTop: 10,
+                  borderTop: "1px solid rgba(255,255,255,0.1)",
+                  fontSize: 12,
+                  opacity: 0.7,
+                  textAlign: "right",
+                }}
+              >
+                Total : <strong style={{ color: "#c8e6a0" }}>{formatChars(totalChars)}</strong> caractères
+              </p>
+            )}
+          </div>
+        )}
 
         <label
           style={{
@@ -228,7 +379,7 @@ export default function MarkdownBatchPage() {
 
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || filesStillLoading || !selectedFiles.length}
           style={{
             background: submitting ? "#444" : "#c8e6a0",
             color: "#0e0e0c",
