@@ -58,7 +58,16 @@ export default function PluMapPanel({
       const res = await fetch(
         `${apiRoot}/session/${sessionId}/map?buffer_m=${MAP_BUFFER_M}`,
       );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        let detail = `HTTP ${res.status}`;
+        try {
+          const errBody = await res.json();
+          if (typeof errBody?.detail === "string") detail = errBody.detail;
+        } catch {
+          /* corps non JSON */
+        }
+        throw new Error(detail);
+      }
       const data: MapData = await res.json();
       setMapData(data);
     } catch (e) {

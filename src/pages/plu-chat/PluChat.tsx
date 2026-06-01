@@ -27,7 +27,7 @@ async function fetchSessionMap(
       `${apiRoot}/session/${sessionId}/map?buffer_m=${MAP_BUFFER_M}`,
     );
     if (!res.ok) return null;
-    const data: MapData = await res.json();
+    const data = (await res.json()) as MapData;
     return parcelleMapHasGeometry(data.parcelle) ? data : null;
   } catch {
     return null;

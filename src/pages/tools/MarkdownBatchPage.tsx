@@ -47,7 +47,7 @@ type FileResult = {
 
 type JobStatus = {
   job_id: string;
-  status: "queued" | "running" | "done" | "failed";
+  status: "queued" | "running" | "done" | "failed" | "cancelled";
   total: number;
   processed: number;
   current_file?: string | null;
@@ -84,6 +84,7 @@ const STATUS_LABEL: Record<string, string> = {
   running: "En cours",
   done: "Terminé",
   failed: "Échec",
+  cancelled: "Annulé",
 };
 
 export default function MarkdownBatchPage() {
@@ -115,7 +116,7 @@ export default function MarkdownBatchPage() {
           }
           const data: JobStatus = await res.json();
           setStatus(data);
-          if (data.status === "done" || data.status === "failed") {
+          if (data.status === "done" || data.status === "failed" || data.status === "cancelled") {
             stopPolling();
             setSubmitting(false);
           }
@@ -211,6 +212,28 @@ export default function MarkdownBatchPage() {
   const downloadZip = () => {
     if (!jobId) return;
     window.open(`${API}/plu-txt-markdown/batch/jobs/${jobId}/download`, "_blank");
+  };
+
+  const cancelJob = async () => {
+    if (!jobId) return;
+    if (!window.confirm("Annuler le batch ? Le fichier en cours finira, les suivants seront ignorés.")) {
+      return;
+    }
+    try {
+      const res = await fetch(`${API}/plu-txt-markdown/batch/jobs/${jobId}/cancel`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.detail || res.statusText);
+      }
+      const pollRes = await fetch(`${API}/plu-txt-markdown/batch/jobs/${jobId}`);
+      if (pollRes.ok) {
+        setStatus(await pollRes.json());
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Annulation impossible");
+    }
   };
 
   const progressPct =
@@ -402,10 +425,39 @@ export default function MarkdownBatchPage() {
 
       {status && (
         <div style={{ marginTop: 32, maxWidth: 720 }}>
-          <p style={{ fontSize: 14, opacity: 0.7 }}>
-            Job <code style={{ opacity: 0.9 }}>{jobId}</code> — {STATUS_LABEL[status.status] || status.status}
-            {status.current_file ? ` — ${status.current_file}` : ""}
-          </p>
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              gap: 12,
+              fontSize: 14,
+              opacity: 0.85,
+            }}
+          >
+            <p style={{ margin: 0, flex: 1, minWidth: 200 }}>
+              Job <code style={{ opacity: 0.9 }}>{jobId}</code> —{" "}
+              {STATUS_LABEL[status.status] || status.status}
+              {status.current_file ? ` — ${status.current_file}` : ""}
+            </p>
+            {(status.status === "queued" || status.status === "running") && (
+              <button
+                type="button"
+                onClick={cancelJob}
+                style={{
+                  background: "transparent",
+                  color: "#f87171",
+                  border: "1px solid rgba(248,113,113,0.5)",
+                  borderRadius: 8,
+                  padding: "6px 14px",
+                  fontSize: 13,
+                  cursor: "pointer",
+                }}
+              >
+                Annuler le batch
+              </button>
+            )}
+          </div>
 
           <div
             style={{
@@ -493,7 +545,7 @@ export default function MarkdownBatchPage() {
             </div>
           )}
 
-          {status.download_ready && status.status === "done" && (
+          {status.download_ready && (status.status === "done" || status.status === "cancelled") && (
             <button
               type="button"
               onClick={downloadZip}
