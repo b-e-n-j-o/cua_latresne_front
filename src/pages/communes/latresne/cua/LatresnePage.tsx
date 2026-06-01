@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import * as pmtiles from "pmtiles";
 import * as turf from "@turf/turf";
 import { useNavigate } from "react-router-dom";
 import { SideBarLeft, type SideBarSection } from "./SideBarLeft";
@@ -15,6 +16,11 @@ import supabase from "../../../../supabaseClient";
 import { MapLoadingOverlay, MapTooltipOverlay, UfBuilderModeBanner } from "./LatresneMapOverlays";
 import RightHistorySidebar, { type IdentiteFonciereHistoryRow } from "./RightHistorySidebar";
 import LogoutButton from "../../../../auth/LogoutButton";
+import { CARTO_LAYERS, findOverlayBeforeId } from "./cartoLayers";
+import CartoLegendPanel from "./CartoLegendPanel";
+
+const cartoProtocol = new pmtiles.Protocol();
+maplibregl.addProtocol("pmtiles", cartoProtocol.tile);
 
 const LATRESNE_BOUNDS: [number, number, number, number] = [
   -0.533033, 44.769809, -0.459991, 44.808794
@@ -128,6 +134,9 @@ export default function LatresnePage() {
   const [selectedIdentiteProjectId, setSelectedIdentiteProjectId] = useState<string | null>(null);
   const [historyPopupPosition, setHistoryPopupPosition] = useState<{ x: number; y: number; placement: "above" | "below" } | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const [layerVisible, setLayerVisible] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(CARTO_LAYERS.map((l) => [l.id, l.defaultVisible]))
+  );
   const [showHistoryPings, setShowHistoryPings] = useState(true);
   const [isLoadingCadastre, setIsLoadingCadastre] = useState(true);
   const [ufState, setUfState] = useState<UFState | null>(null);
@@ -540,6 +549,36 @@ export default function LatresnePage() {
         });
       }
       setIsLoadingCadastre(false);
+
+      // Couches données PMTiles (sous le cadastre GeoJSON interactif, au-dessus du fond IGN)
+      const pmtilesBeforeId = findOverlayBeforeId(map);
+      for (const def of CARTO_LAYERS) {
+        if (!map.getSource(def.id)) {
+          map.addSource(def.id, {
+            type: "vector",
+            url: `pmtiles://${def.pmtilesUrl}`,
+          });
+        }
+        for (const sub of def.layers) {
+          if (map.getLayer(sub.id)) continue;
+          map.addLayer(
+            {
+              ...sub,
+              source: def.id,
+              "source-layer": def.sourceLayer,
+            } as maplibregl.LayerSpecification,
+            pmtilesBeforeId
+          );
+        }
+      }
+
+      // Cadastre GeoJSON : invisible mais cliquable (contours PMTiles + labels via légende)
+      if (map.getLayer("latresne_parcelles-fill")) {
+        map.setPaintProperty("latresne_parcelles-fill", "fill-opacity", 0);
+      }
+      if (map.getLayer("latresne_parcelles-outline")) {
+        map.setPaintProperty("latresne_parcelles-outline", "line-opacity", 0);
+      }
 
       // Sources supplémentaires
       map.addSource("parcelle-search", {
@@ -1206,6 +1245,21 @@ export default function LatresnePage() {
     };
   }, []);
 
+  // Toggle « Cadastre » : PMTiles (CartoLegendPanel) + visibilité couches GeoJSON interactives
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map?.isStyleLoaded() || !mapReady) return;
+    const on = layerVisible.parcelles !== false;
+    const vis: "visible" | "none" = on ? "visible" : "none";
+    for (const id of [
+      "latresne_parcelles-fill",
+      "latresne_parcelles-fill-hover",
+      "latresne_parcelles-outline",
+    ]) {
+      if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", vis);
+    }
+  }, [layerVisible.parcelles, mapReady]);
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady || !userId || historyPingsLoaded) return;
@@ -1707,6 +1761,16 @@ export default function LatresnePage() {
             selectedCount={selectedUfParcelles.length}
             maxCount={20}
           />
+
+          {mapReady && mapRef.current && (
+            <CartoLegendPanel
+              map={mapRef.current}
+              layerVisible={layerVisible}
+              onLayerVisibleChange={(layerId, on) =>
+                setLayerVisible((v) => ({ ...v, [layerId]: on }))
+              }
+            />
+          )}
         </div>
         
         <RightHistorySidebar

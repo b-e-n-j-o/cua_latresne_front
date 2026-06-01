@@ -76,16 +76,40 @@ export function zonageFillColor(): maplibregl.ExpressionSpecification {
   ] as maplibregl.ExpressionSpecification;
 }
 
-/** Première couche symbole du style = point d'insertion (sous les étiquettes IGN). */
-export function findBeforeSymbolsLayer(map: maplibregl.Map): string | undefined {
-  return map.getStyle()?.layers?.find((l) => l.type === "symbol")?.id;
+/** Détecte les couches « bâti » du fond IGN (PLAN.IGN / standard). */
+function isIgnBuildingLayerId(id: string): boolean {
+  const s = id.toLowerCase();
+  return s.includes("bati") || s.includes("zone batie") || s.includes("zone d'activité");
 }
 
-const PRESCRIPTION_FALLBACK = "#9D4EDD";
-const SERVITUDE_FALLBACK = "#457B9D";
+/**
+ * Point d'insertion des overlays : juste au-dessus de tous les bâtiments du fond,
+ * sous les toponymes / étiquettes IGN (le 1er symbole du style est trop bas dans la pile).
+ */
+export function findOverlayBeforeId(map: maplibregl.Map): string | undefined {
+  const layers = map.getStyle()?.layers;
+  if (!layers?.length) return undefined;
+
+  let lastBatiIdx = -1;
+  for (let i = 0; i < layers.length; i++) {
+    if (isIgnBuildingLayerId(layers[i].id)) lastBatiIdx = i;
+  }
+
+  if (lastBatiIdx >= 0 && lastBatiIdx < layers.length - 1) {
+    return layers[lastBatiIdx + 1].id;
+  }
+
+  return layers.find((l) => l.type === "symbol")?.id;
+}
+
+/** @deprecated Utiliser findOverlayBeforeId */
+export const findBeforeSymbolsLayer = findOverlayBeforeId;
+
+export const PRESCRIPTION_FALLBACK = "#9D4EDD";
+export const SERVITUDE_FALLBACK = "#457B9D";
 
 /** Palettes hex (MapLibre ne supporte pas l'expression `hsl`). */
-const PRESCRIPTION_PALETTE = [
+export const PRESCRIPTION_PALETTE = [
   "#9D4EDD",
   "#7B2CBF",
   "#5A189A",
@@ -98,7 +122,7 @@ const PRESCRIPTION_PALETTE = [
   "#3F37C9",
 ];
 
-const SERVITUDE_PALETTE = [
+export const SERVITUDE_PALETTE = [
   "#457B9D",
   "#1D3557",
   "#2A6F97",
@@ -109,6 +133,21 @@ const SERVITUDE_PALETTE = [
   "#264653",
   "#2C699A",
   "#048BA8",
+];
+
+/** Bâtiments cadastre Latresne (couleur agent PLU : #F5480A). */
+export const BATIMENT_FALLBACK = "#F5480A";
+export const BATIMENT_PALETTE = [
+  "#F5480A",
+  "#EA580C",
+  "#FB923C",
+  "#C2410C",
+  "#FDBA74",
+  "#9A3412",
+  "#F97316",
+  "#FED7AA",
+  "#7C2D12",
+  "#431407",
 ];
 
 /**
@@ -145,6 +184,53 @@ export function uppercaseField(field: string): maplibregl.ExpressionSpecificatio
   return ["upcase", ["to-string", ["coalesce", ["get", field], ""]]];
 }
 
+/** Couleurs PPRI (`nom_code`) — alignées sur section_ppri.py / identité foncière. */
+export const PPRI_NOM_CODE_COLORS: Record<string, string> = {
+  ROUGE_NON_URBA: "#DC2626",
+  ROUGE_URBA: "#B91C1C",
+  GRENAT: "#7F1D1D",
+  BLEU_CLAIR: "#38BDF8",
+  ROUGE_CENTRE: "#EF4444",
+  BLEUE: "#1D4ED8",
+};
+export const PPRI_NOM_CODE_FALLBACK = "#9CA3AF";
+
+export const PPRI_NOM_CODE_LEGEND: { key: string; label: string; color: string }[] = [
+  { key: "(NON RENSEIGNÉ)", label: "null", color: PPRI_NOM_CODE_FALLBACK },
+  { key: "ROUGE_NON_URBA", label: "ROUGE_NON_URBA", color: PPRI_NOM_CODE_COLORS.ROUGE_NON_URBA },
+  { key: "ROUGE_URBA", label: "ROUGE_URBA", color: PPRI_NOM_CODE_COLORS.ROUGE_URBA },
+  { key: "GRENAT", label: "GRENAT", color: PPRI_NOM_CODE_COLORS.GRENAT },
+  { key: "BLEU_CLAIR", label: "BLEU_CLAIR", color: PPRI_NOM_CODE_COLORS.BLEU_CLAIR },
+  { key: "ROUGE_CENTRE", label: "ROUGE_CENTRE", color: PPRI_NOM_CODE_COLORS.ROUGE_CENTRE },
+  { key: "BLEUE", label: "BLEUE", color: PPRI_NOM_CODE_COLORS.BLEUE },
+];
+
+function colorByValue(
+  field: string,
+  colors: Record<string, string>,
+  fallback: string
+): maplibregl.ExpressionSpecification {
+  const code = [
+    "upcase",
+    ["to-string", ["coalesce", ["get", field], ""]],
+  ] as maplibregl.ExpressionSpecification;
+  const expr: unknown[] = ["match", code];
+  for (const [value, color] of Object.entries(colors)) {
+    expr.push(value, color);
+  }
+  expr.push(fallback);
+  return [
+    "case",
+    ["==", code, ""],
+    fallback,
+    expr,
+  ] as maplibregl.ExpressionSpecification;
+}
+
+export function ppriNomCodeFillColor(): maplibregl.ExpressionSpecification {
+  return colorByValue("nom_code", PPRI_NOM_CODE_COLORS, PPRI_NOM_CODE_FALLBACK);
+}
+
 // ---------------------------------------------------------------------------
 // Types du catalogue
 // ---------------------------------------------------------------------------
@@ -157,8 +243,16 @@ export interface CartoLayerDef {
   defaultVisible: boolean;
   pmtilesUrl: string;    // URL complète du .pmtiles
   sourceLayer: string;   // = `-nln` du script de génération
-  /** Attribut affiché au survol (majuscules) ; couche fill du catalogue. */
+  /** Attribut affiché au survol (majuscules). */
   tooltipField?: string;
+  /** Attribut pour sous-filtres / légende (libelle, suptype…). */
+  groupField?: string;
+  filterPalette?: readonly string[];
+  filterFallback?: string;
+  /** Couleurs par clé de groupe (nom_code, etc.) — prioritaire sur la palette générique. */
+  groupColorMap?: Record<string, string>;
+  /** Légende fixe (sous-filtres) même si une valeur n'est pas dans la vue courante. */
+  staticGroupLegend?: readonly { key: string; label: string; color: string }[];
   layers: CartoSubLayer[];
 }
 
@@ -240,10 +334,13 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
   {
     id: "prescriptions-surf",
     title: "Prescriptions surfaciques",
-    defaultVisible: false,
+    defaultVisible: true,
     pmtilesUrl: `${TILES_BASE}/prescriptions_surf_latresne.pmtiles`,
     sourceLayer: "prescriptions_surf_latresne",
     tooltipField: "libelle",
+    groupField: "libelle",
+    filterPalette: PRESCRIPTION_PALETTE,
+    filterFallback: PRESCRIPTION_FALLBACK,
     layers: [
       {
         id: "prescriptions-surf-fill",
@@ -285,10 +382,13 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
   {
     id: "servitudes",
     title: "Servitudes (assiettes)",
-    defaultVisible: false,
+    defaultVisible: true,
     pmtilesUrl: `${TILES_BASE}/servitudes_latresne.pmtiles`,
     sourceLayer: "sup_assiette_s",
     tooltipField: "suptype",
+    groupField: "suptype",
+    filterPalette: SERVITUDE_PALETTE,
+    filterFallback: SERVITUDE_FALLBACK,
     layers: [
       {
         id: "servitudes-fill",
@@ -321,6 +421,53 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
         },
         paint: {
           "text-color": "#1a3a52",
+          "text-halo-color": "#ffffff",
+          "text-halo-width": 1.2,
+        },
+      },
+    ],
+  },
+  {
+    id: "ppri",
+    title: "PPRI (PM1)",
+    defaultVisible: true,
+    pmtilesUrl: `${TILES_BASE}/ppri_latresne.pmtiles`,
+    sourceLayer: "pm1_detaillee_gironde",
+    tooltipField: "nom_code",
+    groupField: "nom_code",
+    groupColorMap: { "(NON RENSEIGNÉ)": PPRI_NOM_CODE_FALLBACK, ...PPRI_NOM_CODE_COLORS },
+    staticGroupLegend: PPRI_NOM_CODE_LEGEND,
+    layers: [
+      {
+        id: "ppri-fill",
+        type: "fill",
+        paint: {
+          "fill-color": ppriNomCodeFillColor(),
+          "fill-opacity": 0.45,
+          "fill-antialias": true,
+        },
+      },
+      {
+        id: "ppri-outline",
+        type: "line",
+        paint: {
+          "line-color": ppriNomCodeFillColor(),
+          "line-width": 1,
+          "line-opacity": 0.85,
+        },
+      },
+      {
+        id: "ppri-labels",
+        type: "symbol",
+        minzoom: 15,
+        layout: {
+          "text-field": uppercaseField("nom_code"),
+          "text-size": 10,
+          "text-font": ["Noto Sans Regular"],
+          "text-allow-overlap": false,
+        },
+        paint: {
+          "text-color": "#1e3a5f",
           "text-halo-color": "#ffffff",
           "text-halo-width": 1.2,
         },

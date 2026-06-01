@@ -2,17 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import * as pmtiles from "pmtiles";
-import {
-  CARTO_LAYERS,
-  findBeforeSymbolsLayer,
-  ZONAGE_LEGEND,
-} from "./cartoLayers";
-
-// Protocole PMTiles enregistré une seule fois
+import CartoLegendPanel from "./CartoLegendPanel";
+import { CARTO_LAYERS, findOverlayBeforeId } from "./cartoLayers";
 const protocol = new pmtiles.Protocol();
 maplibregl.addProtocol("pmtiles", protocol.tile);
 
-// Fond de carte (mets ici ton style IGN v2 ou OSM)
 const STYLE_URL =
   "https://data.geopf.fr/annexes/ressources/vectorTiles/styles/PLAN.IGN/standard.json";
 
@@ -20,25 +14,12 @@ const LATRESNE_BOUNDS: [number, number, number, number] = [
   -0.533033, 44.769809, -0.459991, 44.808794,
 ];
 
-function syncLayerVisibility(
-  map: maplibregl.Map,
-  visible: Record<string, boolean>
-) {
-  if (!map.isStyleLoaded()) return;
-  for (const def of CARTO_LAYERS) {
-    const vis = visible[def.id] ? "visible" : "none";
-    for (const sub of def.layers) {
-      if (map.getLayer(sub.id)) map.setLayoutProperty(sub.id, "visibility", vis);
-    }
-  }
-}
-
 export default function LatresneTilesPage() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  const [mapReady, setMapReady] = useState(false);
 
-  // Visibilité par couche du catalogue
-  const [visible, setVisible] = useState<Record<string, boolean>>(() =>
+  const [layerVisible, setLayerVisible] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(CARTO_LAYERS.map((l) => [l.id, l.defaultVisible]))
   );
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null);
@@ -61,8 +42,7 @@ export default function LatresneTilesPage() {
     mapRef.current = map;
 
     map.on("load", () => {
-      // Sous les étiquettes IGN, au-dessus des aplats (sinon le fill peut être masqué)
-      const beforeId = findBeforeSymbolsLayer(map);
+      const beforeId = findOverlayBeforeId(map);
 
       for (const def of CARTO_LAYERS) {
         if (!map.getSource(def.id)) {
@@ -84,7 +64,7 @@ export default function LatresneTilesPage() {
         }
       }
 
-      syncLayerVisibility(map, visible);
+      setMapReady(true);
 
       const fillLayerId = (def: (typeof CARTO_LAYERS)[number]) =>
         def.layers.find((l) => l.type === "fill")?.id;
@@ -106,9 +86,10 @@ export default function LatresneTilesPage() {
             text = `${code}${lib}`;
           } else if (def.tooltipField) {
             const raw = p[def.tooltipField];
-            text = raw != null && String(raw).trim()
-              ? String(raw).trim().toUpperCase()
-              : def.title.toUpperCase();
+            text =
+              raw != null && String(raw).trim()
+                ? String(raw).trim().toUpperCase()
+                : def.title.toUpperCase();
           } else {
             text = def.title;
           }
@@ -125,51 +106,24 @@ export default function LatresneTilesPage() {
     return () => {
       map.remove();
       mapRef.current = null;
+      setMapReady(false);
     };
   }, []);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    const apply = () => syncLayerVisibility(map, visible);
-    if (map.loaded()) apply();
-    else map.once("load", apply);
-  }, [visible]);
 
   return (
     <div className="relative w-full h-screen">
       <div ref={containerRef} className="w-full h-full" />
 
-      {/* Toggles générés depuis le catalogue */}
-      <div className="absolute top-4 left-4 bg-white/95 backdrop-blur rounded-lg shadow-md p-3 text-sm space-y-2">
-        {CARTO_LAYERS.map((l) => (
-          <label key={l.id} className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={visible[l.id]}
-              onChange={(e) => setVisible((v) => ({ ...v, [l.id]: e.target.checked }))}
-            />
-            {l.title}
-          </label>
-        ))}
-      </div>
-
-      {/* Légende zonage */}
-      {visible["zonage"] && (
-        <div className="absolute bottom-4 left-4 bg-white/95 backdrop-blur rounded-lg shadow-md p-3 text-xs space-y-1">
-          {ZONAGE_LEGEND.map((l) => (
-            <div key={l.label} className="flex items-center gap-2">
-              <span
-                className="inline-block w-3 h-3 rounded-sm"
-                style={{ background: l.color }}
-              />
-              {l.label}
-            </div>
-          ))}
-        </div>
+      {mapReady && mapRef.current && (
+        <CartoLegendPanel
+          map={mapRef.current}
+          layerVisible={layerVisible}
+          onLayerVisibleChange={(layerId, on) =>
+            setLayerVisible((v) => ({ ...v, [layerId]: on }))
+          }
+        />
       )}
 
-      {/* Tooltip */}
       {tooltip && (
         <div
           className="absolute pointer-events-none z-50 px-2 py-1 rounded bg-[#0b131f] text-white text-xs shadow-lg"
