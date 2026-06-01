@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import * as pmtiles from "pmtiles";
 import * as turf from "@turf/turf";
 import { useNavigate } from "react-router-dom";
 import { SideBarLeft, type SideBarSection } from "./SideBarLeft";
@@ -15,16 +16,21 @@ import supabase from "../../../supabaseClient";
 import { MapLoadingOverlay, MapTooltipOverlay, UfBuilderModeBanner } from "./MiosMapOverlays";
 import RightHistorySidebar, { type IdentiteFonciereHistoryRow } from "./RightHistorySidebar";
 import LogoutButton from "../../../auth/LogoutButton";
+import { CARTO_LAYERS, findOverlayBeforeId } from "./cartoLayers";
+import CartoLegendPanel from "./CartoLegendPanel";
 
-const LATRESNE_BOUNDS: [number, number, number, number] = [
-  -0.961647, 44.597435, -0.901480, 44.618089
+const cartoProtocol = new pmtiles.Protocol();
+maplibregl.addProtocol("pmtiles", cartoProtocol.tile);
+
+/** Emprise initiale (vue au chargement). */
+const MIOS_BOUNDS: [number, number, number, number] = [
+  -1.097260, 44.542037, -0.721664, 44.749659,
 ];
 
 const API_BASE = import.meta.env.VITE_API_BASE;
 const MIOS_CADASTRE_API_PATH = "/communes/mios/parcelles/geojson";
-const MIOS_CADASTRE_FALLBACK_PATH = "/data/parcelles.geojson";
-const MIOS_CADASTRE_CACHE_NAME = "cua-cadastre-v1";
-const MIOS_CADASTRE_CACHE_META_KEY = "cua-cadastre:mios:last-sync";
+const MIOS_CADASTRE_CACHE_NAME = "cua-cadastre-v2";
+const MIOS_CADASTRE_CACHE_META_KEY = "cua-cadastre:mios:last-sync:v2";
 const MIOS_CADASTRE_CACHE_TTL_MS = 1000 * 60 * 60 * 12; // 12h
 let cadastreMemoryCache: GeoJSON.FeatureCollection | null = null;
 
@@ -82,11 +88,8 @@ async function fetchCadastreGeojson(): Promise<GeoJSON.FeatureCollection> {
 
   let response = await fetch(apiUrl);
   if (!response.ok) {
-    // Fallback local pour éviter un écran vide si backend indisponible.
-    response = await fetch(MIOS_CADASTRE_FALLBACK_PATH);
-  }
-  if (!response.ok) {
-    throw new Error(`Chargement cadastre impossible (${response.status})`);
+    console.warn(`Cadastre Mios API indisponible (${response.status}), pas de fallback Latresne.`);
+    throw new Error(`Chargement cadastre Mios impossible (${response.status})`);
   }
 
   const data = (await response.json()) as unknown;
@@ -208,6 +211,9 @@ export default function MiosPage() {
   const [selectedIdentiteProjectId, setSelectedIdentiteProjectId] = useState<string | null>(null);
   const [historyPopupPosition, setHistoryPopupPosition] = useState<{ x: number; y: number; placement: "above" | "below" } | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const [layerVisible, setLayerVisible] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(CARTO_LAYERS.map((l) => [l.id, l.defaultVisible]))
+  );
   const [showHistoryPings, setShowHistoryPings] = useState(true);
   const [isLoadingCadastre, setIsLoadingCadastre] = useState(true);
   const [ufState, setUfState] = useState<UFState | null>(null);
@@ -546,9 +552,9 @@ export default function MiosPage() {
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: "https://data.geopf.fr/annexes/ressources/vectorTiles/styles/PLAN.IGN/standard.json",
-      bounds: LATRESNE_BOUNDS,
+      bounds: MIOS_BOUNDS,
       fitBoundsOptions: { padding: 40 },
-      maxZoom: 22
+      maxZoom: 22,
     });
     mapRef.current = map;
 
@@ -562,21 +568,47 @@ export default function MiosPage() {
         map.setPaintProperty("building", "fill-opacity", 0.25);
       } catch {}
 
-      // Charger le cadastre depuis l'API avec cache navigateur + fallback local.
+      // Couches données PMTiles (au-dessus du fond IGN)
+      const pmtilesBeforeId = findOverlayBeforeId(map);
+      for (const def of CARTO_LAYERS) {
+        if (!def.pmtilesUrl || !def.layers.length) continue;
+        if (!map.getSource(def.id)) {
+          map.addSource(def.id, {
+            type: "vector",
+            url: `pmtiles://${def.pmtilesUrl}`,
+          });
+        }
+        for (const sub of def.layers) {
+          if (map.getLayer(sub.id)) continue;
+          map.addLayer(
+            {
+              ...sub,
+              source: def.id,
+              "source-layer": def.sourceLayer,
+            } as maplibregl.LayerSpecification,
+            pmtilesBeforeId
+          );
+        }
+      }
+
+      // Cadastre GeoJSON (Mios) — au-dessus des PMTiles, sans tuiles parcelles
       setIsLoadingCadastre(true);
       let parcellesData: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
       try {
         parcellesData = await fetchCadastreGeojson();
         cadastreDataRef.current = parcellesData;
+        if (parcellesData.features.length === 0) {
+          console.warn("Cadastre Mios : aucune parcelle retournée par l'API.");
+        }
       } catch (err) {
-        console.error("Erreur chargement cadastre:", err);
+        console.error("Erreur chargement cadastre Mios:", err);
       }
 
       if (!map.getSource("latresne_parcelles")) {
-        map.addSource("latresne_parcelles", { 
-          type: "geojson", 
+        map.addSource("latresne_parcelles", {
+          type: "geojson",
           data: parcellesData,
-          generateId: true
+          generateId: true,
         });
 
         map.addLayer({
@@ -585,8 +617,8 @@ export default function MiosPage() {
           source: "latresne_parcelles",
           paint: {
             "fill-color": "#e0e0e0",
-            "fill-opacity": 0.6
-          }
+            "fill-opacity": 0,
+          },
         });
 
         map.addLayer({
@@ -595,8 +627,8 @@ export default function MiosPage() {
           source: "latresne_parcelles",
           paint: {
             "fill-color": "#F97316",
-            "fill-opacity": ['case', ['boolean', ['feature-state', 'hover'], false], 0.35, 0]
-          }
+            "fill-opacity": ["case", ["boolean", ["feature-state", "hover"], false], 0.35, 0],
+          },
         });
 
         map.addLayer({
@@ -604,10 +636,34 @@ export default function MiosPage() {
           type: "line",
           source: "latresne_parcelles",
           paint: {
-            "line-color": "#666666",
-            "line-width": 1.2,
-            "line-opacity": 0.8
-          }
+            "line-color": "#3c4043",
+            "line-width": 1,
+            "line-opacity": 0.9,
+          },
+        });
+
+        map.addLayer({
+          id: "latresne_parcelles-labels",
+          type: "symbol",
+          source: "latresne_parcelles",
+          minzoom: 16,
+          layout: {
+            "text-field": [
+              "concat",
+              ["get", "section"],
+              " ",
+              ["get", "numero"],
+            ] as maplibregl.ExpressionSpecification,
+            "text-size": 11,
+            "text-font": ["Noto Sans Regular"],
+            "text-allow-overlap": false,
+            "text-padding": 2,
+          },
+          paint: {
+            "text-color": "#1a1a1a",
+            "text-halo-color": "#ffffff",
+            "text-halo-width": 1.4,
+          },
         });
       }
       setIsLoadingCadastre(false);
@@ -1261,6 +1317,14 @@ export default function MiosPage() {
 
       showCerfaParcellesRef.current = showCerfaParcelles;
 
+      // Contours + étiquettes cadastre au-dessus des PMTiles (fill reste en dessous pour ne pas bloquer les pings)
+      if (map.getLayer("latresne_parcelles-outline")) {
+        map.moveLayer("latresne_parcelles-outline");
+      }
+      if (map.getLayer("latresne_parcelles-labels")) {
+        map.moveLayer("latresne_parcelles-labels");
+      }
+
       map.on("zoom", () => setCurrentZoom(map.getZoom()));
       map.on("zoomend", () => {
         const zoom = map.getZoom();
@@ -1276,6 +1340,22 @@ export default function MiosPage() {
       mapRef.current = null;
     };
   }, []);
+
+  // Toggle « Cadastre » : visibilité couches GeoJSON interactives
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map?.isStyleLoaded() || !mapReady) return;
+    const on = layerVisible.parcelles !== false;
+    const vis: "visible" | "none" = on ? "visible" : "none";
+    for (const id of [
+      "latresne_parcelles-fill",
+      "latresne_parcelles-fill-hover",
+      "latresne_parcelles-outline",
+      "latresne_parcelles-labels",
+    ]) {
+      if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", vis);
+    }
+  }, [layerVisible.parcelles, mapReady]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1778,6 +1858,16 @@ export default function MiosPage() {
             selectedCount={selectedUfParcelles.length}
             maxCount={20}
           />
+
+          {mapReady && mapRef.current && (
+            <CartoLegendPanel
+              map={mapRef.current}
+              layerVisible={layerVisible}
+              onLayerVisibleChange={(layerId, on) =>
+                setLayerVisible((v) => ({ ...v, [layerId]: on }))
+              }
+            />
+          )}
         </div>
         
         <RightHistorySidebar
