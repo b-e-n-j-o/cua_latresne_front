@@ -13,6 +13,7 @@ import ChatUrba from "./pages/chat-urba/ChatUrba";
 import PluChat from "./pages/plu-chat/PluChat";
 import LidarViewerPage from "./pages/visualisations_de_test/lidar/LidarViewerPage";
 import MntViewerPage from "./pages/visualisations_de_test/mnt/MntViewerPage";
+import LatresneTilesPage from "./pages/communes/latresne/cua/LatresnePagePMTiles";
 import PortailApp from "./portail/PortailApp";
 import LatresneCuaPage from "./pages/communes/latresne/cua/LatresnePage";
 import ArgelesCuaPage from "./pages/communes/argeles/cua/ArgelesPage";
@@ -85,7 +86,7 @@ export default function App() {
         <Route path="/latresne" element={<div>Page introuvable</div>} />
         <Route path="/lidar" element={<LidarViewerPage />} />
         <Route path="/mnt" element={<MntViewerPage />} />
-        <Route path="/carto" element={<div>Page introuvable</div>} />
+        <Route path="/carto" element={<LatresneTilesPage />} />
         <Route path="/urbanisme/certificats-durbanisme" element={<CertificatsUrbanismePage />} />
         <Route path="/urbanisme/carte-didentite-fonciere" element={<CarteIdentiteFoncierePage />} />
         <Route path="/urbanisme/veille-reglementaire" element={<VeilleReglementairePage />} />
