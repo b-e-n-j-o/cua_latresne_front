@@ -267,7 +267,7 @@ export default function SearchUniteFonciere({
           <div className="grid grid-cols-12 gap-2 items-center">
             <input
               className="col-span-4 border border-gray-200 px-2 py-1.5 rounded text-xs bg-white"
-              placeholder="33234"
+              placeholder="XXXXX"
               value={draftInsee}
               onChange={(e) => setDraftInsee(e.target.value)}
             />

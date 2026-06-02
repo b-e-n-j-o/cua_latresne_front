@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type maplibregl from "maplibre-gl";
-import { CARTO_LAYERS, ZONAGE_LEGEND, type CartoLayerDef } from "./cartoLayers";
+import { CARTO_LAYERS, type CartoLayerDef } from "./cartoLayers";
 import {
   discoverGroupValues,
   mergeStaticGroupLegend,
@@ -12,17 +12,41 @@ type Props = {
   map: maplibregl.Map | null;
   layerVisible: Record<string, boolean>;
   onLayerVisibleChange: (layerId: string, on: boolean) => void;
+  /** Intégré dans RightSidebarPatch (pas de position absolue sur la carte) */
+  embedded?: boolean;
 };
+
+function LayerToggle({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: (on: boolean) => void;
+  label: string;
+}) {
+  return (
+    <label className="rsp-switch" title={label}>
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <span className="rsp-switch__track" />
+      <span className="rsp-switch__thumb" />
+    </label>
+  );
+}
 
 export default function CartoLegendPanel({
   map,
   layerVisible,
   onLayerVisibleChange,
+  embedded = false,
 }: Props) {
   const [panelOpen, setPanelOpen] = useState(true);
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(
-      CARTO_LAYERS.filter((l) => l.groupField).map((l) => [l.id, false])
+      CARTO_LAYERS.filter((l) => l.groupField || l.colorLegend?.length).map((l) => [
+        l.id,
+        false,
+      ])
     )
   );
   const [groupItems, setGroupItems] = useState<Record<string, CartoGroupItem[]>>({});
@@ -114,6 +138,46 @@ export default function CartoLegendPanel({
     }));
   };
 
+  const layerList = (
+    <>
+      {CARTO_LAYERS.map((def) => {
+        const discovered = groupItems[def.id] ?? [];
+        const items =
+          discovered.length > 0
+            ? discovered
+            : (def.staticGroupLegend?.map((s) => ({
+                key: s.key,
+                label: s.label,
+                color: s.color,
+                count: 0,
+              })) ?? []);
+        return (
+          <LayerRow
+            key={def.id}
+            def={def}
+            embedded={embedded}
+            layerOn={!!layerVisible[def.id]}
+            expanded={!!expanded[def.id]}
+            items={items}
+            activeKeys={visibleGroups[def.id]}
+            onLayerChange={(on) => onLayerVisibleChange(def.id, on)}
+            onToggleExpand={() => toggleExpanded(def.id)}
+            onToggleGroup={(key) => toggleGroup(def.id, key)}
+            onToggleAllGroups={(on) => toggleAllGroups(def.id, on, items)}
+          />
+        );
+      })}
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <div className="carto-legend-embedded">
+        <div className="carto-legend-embedded__scroll">{layerList}</div>
+      </div>
+    );
+  }
+
   return (
     <div className="absolute bottom-4 right-4 z-20 flex flex-col items-end gap-2 pointer-events-none">
       {!panelOpen && (
@@ -154,53 +218,7 @@ export default function CartoLegendPanel({
           </div>
 
           <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 min-h-0">
-            <div className="space-y-0.5">
-              {CARTO_LAYERS.map((def) => {
-                const discovered = groupItems[def.id] ?? [];
-                const items =
-                  discovered.length > 0
-                    ? discovered
-                    : (def.staticGroupLegend?.map((s) => ({
-                        key: s.key,
-                        label: s.label,
-                        color: s.color,
-                        count: 0,
-                      })) ?? []);
-                return (
-                <LayerRow
-                  key={def.id}
-                  def={def}
-                  layerOn={!!layerVisible[def.id]}
-                  expanded={!!expanded[def.id]}
-                  items={items}
-                  activeKeys={visibleGroups[def.id]}
-                  onLayerChange={(on) => onLayerVisibleChange(def.id, on)}
-                  onToggleExpand={() => toggleExpanded(def.id)}
-                  onToggleGroup={(key) => toggleGroup(def.id, key)}
-                  onToggleAllGroups={(on) => toggleAllGroups(def.id, on, items)}
-                />
-                );
-              })}
-            </div>
-
-            {layerVisible.zonage && (
-              <div className="mt-2 pt-2 border-t border-gray-200">
-                <div className="text-[10px] font-medium text-gray-500 uppercase mb-1">
-                  Zonage PLU
-                </div>
-                <div className="space-y-0.5">
-                  {ZONAGE_LEGEND.map((l) => (
-                    <div key={l.label} className="flex items-center gap-1.5">
-                      <span
-                        className="inline-block w-2.5 h-2.5 rounded-sm shrink-0"
-                        style={{ background: l.color }}
-                      />
-                      <span className="text-[11px] text-gray-700 truncate">{l.label}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            <div className="space-y-0.5">{layerList}</div>
           </div>
         </div>
       )}
@@ -210,6 +228,7 @@ export default function CartoLegendPanel({
 
 function LayerRow({
   def,
+  embedded,
   layerOn,
   expanded,
   items,
@@ -220,6 +239,7 @@ function LayerRow({
   onToggleAllGroups,
 }: {
   def: CartoLayerDef;
+  embedded: boolean;
   layerOn: boolean;
   expanded: boolean;
   items: CartoGroupItem[];
@@ -229,8 +249,80 @@ function LayerRow({
   onToggleGroup: (key: string) => void;
   onToggleAllGroups: (on: boolean) => void;
 }) {
-  const hasSub = !!def.groupField;
+  const hasSub = !!def.groupField || !!(def.colorLegend?.length);
   const groupsReady = activeKeys !== undefined || !!def.staticGroupLegend;
+  const colorLegendOnly = !!(def.colorLegend?.length) && !def.groupField;
+
+  if (embedded) {
+    return (
+      <div className="carto-legend-embedded__layer">
+        <div className="carto-legend-embedded__row">
+          {hasSub ? (
+            <button
+              type="button"
+              className="rsp-expand-btn"
+              aria-expanded={expanded}
+              onClick={onToggleExpand}
+            >
+              {expanded ? "▾" : "▸"}
+            </button>
+          ) : (
+            <span className="w-4 shrink-0" />
+          )}
+          <span
+            className={`carto-legend-embedded__label${layerOn ? "" : " carto-legend-embedded__label--off"}`}
+            title={def.title}
+          >
+            {def.title}
+          </span>
+          <LayerToggle checked={layerOn} onChange={onLayerChange} label={def.title} />
+        </div>
+
+        {hasSub && expanded && layerOn && (
+          <div className="carto-legend-embedded__sub">
+            {colorLegendOnly ? (
+              <ColorLegendItems items={def.colorLegend!} embedded />
+            ) : !groupsReady || (!def.staticGroupLegend && items.length === 0) ? (
+              <p className="text-[10px] text-slate-500 italic py-0.5">Chargement…</p>
+            ) : (
+              <>
+                <div className="rsp-sub-actions">
+                  <button type="button" onClick={() => onToggleAllGroups(true)}>
+                    Tout
+                  </button>
+                  <button type="button" onClick={() => onToggleAllGroups(false)}>
+                    Aucun
+                  </button>
+                </div>
+                {items.map((item) => {
+                  const on = activeKeys?.has(item.key) ?? true;
+                  return (
+                    <label
+                      key={item.key}
+                      className={`rsp-sub-item${on ? "" : " rsp-sub-item--off"}`}
+                    >
+                      <LayerToggle
+                        checked={on}
+                        onChange={() => onToggleGroup(item.key)}
+                        label={item.label ?? item.key}
+                      />
+                      <span className="rsp-swatch" style={{ background: item.color }} />
+                      <span className="flex-1 truncate text-[10px]" title={item.label ?? item.key}>
+                        {item.label ?? item.key}
+                      </span>
+                      <span className="text-slate-500 tabular-nums text-[10px] shrink-0">
+                        {item.count}
+                      </span>
+                    </label>
+                  );
+                })}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="border-b border-gray-100 last:border-0 pb-1 last:pb-0">
@@ -265,7 +357,9 @@ function LayerRow({
 
       {hasSub && expanded && layerOn && (
         <div className="ml-4 mt-0.5 mb-1 border-l border-gray-200 pl-1.5 max-h-32 overflow-y-auto">
-          {!groupsReady || (!def.staticGroupLegend && items.length === 0) ? (
+          {colorLegendOnly ? (
+            <ColorLegendItems items={def.colorLegend!} embedded={false} />
+          ) : !groupsReady || (!def.staticGroupLegend && items.length === 0) ? (
             <p className="text-[10px] text-gray-400 italic py-0.5">Chargement…</p>
           ) : (
             <>
@@ -310,6 +404,37 @@ function LayerRow({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function ColorLegendItems({
+  items,
+  embedded,
+}: {
+  items: readonly { label: string; color: string }[];
+  embedded: boolean;
+}) {
+  return (
+    <div className="space-y-0.5">
+      {items.map((l) => (
+        <div key={l.label} className="flex items-center gap-1.5 py-0.5 min-w-0">
+          <span
+            className={`inline-block w-2.5 h-2.5 rounded-sm shrink-0 ${embedded ? "rsp-swatch" : "border border-black/10"}`}
+            style={{ background: l.color }}
+          />
+          <span
+            className={
+              embedded
+                ? "flex-1 truncate text-[10px] text-[#0b131f]/75"
+                : "flex-1 truncate text-[10px] text-gray-700"
+            }
+            title={l.label}
+          >
+            {l.label}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }

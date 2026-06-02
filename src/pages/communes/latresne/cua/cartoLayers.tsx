@@ -106,6 +106,7 @@ export function findOverlayBeforeId(map: maplibregl.Map): string | undefined {
 export const findBeforeSymbolsLayer = findOverlayBeforeId;
 
 export const PRESCRIPTION_FALLBACK = "#9D4EDD";
+export const INFOS_SURF_FALLBACK = "#0D9488";
 export const SERVITUDE_FALLBACK = "#457B9D";
 
 /** Palettes hex (MapLibre ne supporte pas l'expression `hsl`). */
@@ -121,6 +122,34 @@ export const PRESCRIPTION_PALETTE = [
   "#480CA8",
   "#3F37C9",
 ];
+
+/** Valeurs `libelle` dans infos_surf_latresne.pmtiles */
+const INFOS_SURF_LIBELLE_VALUES = [
+  "Droit de préemption urbain",
+  "Périmètre de droit de préemption urbain",
+  "Périmètre de voisinage d'infrastructure de transport terrestre (secteur affecté par le bruit) - voie routière",
+  "Zone d'effet des canalisations de gaz",
+] as const;
+
+const INFOS_SURF_LIBELLE_PALETTE = ["#0D9488", "#059669", "#0284C7", "#6366F1"] as const;
+
+export const INFOS_SURF_LIBELLE_COLORS: Record<string, string> = Object.fromEntries(
+  INFOS_SURF_LIBELLE_VALUES.map((label, i) => [
+    label.toUpperCase(),
+    INFOS_SURF_LIBELLE_PALETTE[i % INFOS_SURF_LIBELLE_PALETTE.length],
+  ])
+);
+
+export const INFOS_SURF_LIBELLE_LEGEND: { key: string; label: string; color: string }[] =
+  INFOS_SURF_LIBELLE_VALUES.map((label, i) => ({
+    key: label.toUpperCase(),
+    label,
+    color: INFOS_SURF_LIBELLE_PALETTE[i % INFOS_SURF_LIBELLE_PALETTE.length],
+  }));
+
+export function infosSurfLibelleFillColor(): maplibregl.ExpressionSpecification {
+  return colorByValue("libelle", INFOS_SURF_LIBELLE_COLORS, INFOS_SURF_FALLBACK);
+}
 
 export const SERVITUDE_PALETTE = [
   "#457B9D",
@@ -149,6 +178,20 @@ export const BATIMENT_PALETTE = [
   "#7C2D12",
   "#431407",
 ];
+
+/** Types dans bati_latresne.pmtiles (attribut `type`). */
+export const BATIMENT_TYPE_LEGEND: { key: string; label: string; color: string }[] = [
+  { key: "BÂTIMENT EN DUR", label: "Bâtiment en dur", color: "#F5480A" },
+  { key: "CONSTRUCTION LÉGÈRE", label: "Construction légère", color: "#FB923C" },
+];
+
+export const BATIMENT_TYPE_COLORS: Record<string, string> = Object.fromEntries(
+  BATIMENT_TYPE_LEGEND.map((i) => [i.key, i.color])
+);
+
+export function batimentTypeFillColor(): maplibregl.ExpressionSpecification {
+  return colorByValue("type", BATIMENT_TYPE_COLORS, BATIMENT_FALLBACK);
+}
 
 /**
  * Couleur stable par valeur de champ via palette (longueur du libellé → bucket).
@@ -232,6 +275,78 @@ export function ppriNomCodeFillColor(): maplibregl.ExpressionSpecification {
 }
 
 // ---------------------------------------------------------------------------
+// PPRMVT — zones par codezone (latresne.pprmvt)
+// ---------------------------------------------------------------------------
+export const PPRMVT_FALLBACK = "#2A9D8F";
+
+/** Valeurs distinctes dans pprmvt_latresne.pmtiles (attribut codezone). */
+const PPRMVT_CODEZONE_VALUES = [
+  "BF",
+  "BF,BG",
+  "BF0",
+  "BF1",
+  "BF2",
+  "BF2,BG",
+  "BF2,BG,BP2",
+  "BG",
+  "BG,BP2",
+  "BP2",
+  "GF",
+  "GF,BG",
+  "RF",
+  "RF,BG",
+  "RF,RG",
+  "RF,RG,RP",
+  "RG",
+  "RG,BF2",
+  "RG,RP",
+  "RP",
+  "RP,BG",
+] as const;
+
+const PPRMVT_CODEZONE_PALETTE = [
+  "#B45309",
+  "#D97706",
+  "#F59E0B",
+  "#FBBF24",
+  "#84CC16",
+  "#65A30D",
+  "#15803D",
+  "#0D9488",
+  "#0891B2",
+  "#0284C7",
+  "#2563EB",
+  "#4F46E5",
+  "#7C3AED",
+  "#9333EA",
+  "#C026D3",
+  "#DB2777",
+  "#E11D48",
+  "#DC2626",
+  "#78716C",
+  "#57534E",
+  "#1F2937",
+] as const;
+
+export const PPRMVT_CODEZONE_COLORS: Record<string, string> = Object.fromEntries(
+  PPRMVT_CODEZONE_VALUES.map((label, i) => [
+    label.toUpperCase(),
+    PPRMVT_CODEZONE_PALETTE[i % PPRMVT_CODEZONE_PALETTE.length],
+  ])
+);
+
+export const PPRMVT_CODEZONE_LEGEND: { key: string; label: string; color: string }[] =
+  PPRMVT_CODEZONE_VALUES.map((label, i) => ({
+    key: label.toUpperCase(),
+    label,
+    color: PPRMVT_CODEZONE_PALETTE[i % PPRMVT_CODEZONE_PALETTE.length],
+  }));
+
+export function pprmvtCodezoneFillColor(): maplibregl.ExpressionSpecification {
+  return colorByValue("codezone", PPRMVT_CODEZONE_COLORS, PPRMVT_FALLBACK);
+}
+
+// ---------------------------------------------------------------------------
 // Types du catalogue
 // ---------------------------------------------------------------------------
 /** Spec de layer MapLibre sans `source`/`source-layer` (injectés au chargement). */
@@ -253,6 +368,8 @@ export interface CartoLayerDef {
   groupColorMap?: Record<string, string>;
   /** Légende fixe (sous-filtres) même si une valeur n'est pas dans la vue courante. */
   staticGroupLegend?: readonly { key: string; label: string; color: string }[];
+  /** Légende couleurs pliable (ex. catégories zonage PLU), sans sous-filtres. */
+  colorLegend?: readonly { label: string; color: string }[];
   layers: CartoSubLayer[];
 }
 
@@ -266,6 +383,8 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
     defaultVisible: true,
     pmtilesUrl: `${TILES_BASE}/latresne_zonage.pmtiles`,
     sourceLayer: "zonage",
+    tooltipField: "libelle",
+    colorLegend: ZONAGE_LEGEND,
     layers: [
       {
         id: "zonage-fill",
@@ -283,6 +402,23 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
           "line-color": "#5f6368",
           "line-width": 0.6,
           "line-opacity": 0.6,
+        },
+      },
+      {
+        id: "zonage-labels",
+        type: "symbol",
+        minzoom: 14,
+        layout: {
+          "text-field": uppercaseField("libelle"),
+          "text-size": 10,
+          "text-font": ["Noto Sans Regular"],
+          "text-allow-overlap": false,
+          "text-max-width": 14,
+        },
+        paint: {
+          "text-color": "#1a1a1a",
+          "text-halo-color": "#ffffff",
+          "text-halo-width": 1.2,
         },
       },
     ],
@@ -334,7 +470,7 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
   {
     id: "prescriptions-surf",
     title: "Prescriptions surfaciques",
-    defaultVisible: true,
+    defaultVisible: false,
     pmtilesUrl: `${TILES_BASE}/prescriptions_surf_latresne.pmtiles`,
     sourceLayer: "prescriptions_surf_latresne",
     tooltipField: "libelle",
@@ -380,9 +516,57 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
     ],
   },
   {
+    id: "infos-surf",
+    title: "Informations et préemption",
+    defaultVisible: false,
+    pmtilesUrl: `${TILES_BASE}/infos_surf_latresne.pmtiles`,
+    sourceLayer: "infos_surf",
+    tooltipField: "libelle",
+    groupField: "libelle",
+    groupColorMap: INFOS_SURF_LIBELLE_COLORS,
+    staticGroupLegend: INFOS_SURF_LIBELLE_LEGEND,
+    layers: [
+      {
+        id: "infos-surf-fill",
+        type: "fill",
+        paint: {
+          "fill-color": infosSurfLibelleFillColor(),
+          "fill-opacity": 0.4,
+          "fill-antialias": true,
+        },
+      },
+      {
+        id: "infos-surf-outline",
+        type: "line",
+        paint: {
+          "line-color": infosSurfLibelleFillColor(),
+          "line-width": 1,
+          "line-opacity": 0.85,
+        },
+      },
+      {
+        id: "infos-surf-labels",
+        type: "symbol",
+        minzoom: 16,
+        layout: {
+          "text-field": uppercaseField("libelle"),
+          "text-size": 9,
+          "text-font": ["Noto Sans Regular"],
+          "text-allow-overlap": false,
+          "text-max-width": 12,
+        },
+        paint: {
+          "text-color": "#134e4a",
+          "text-halo-color": "#ffffff",
+          "text-halo-width": 1.2,
+        },
+      },
+    ],
+  },
+  {
     id: "servitudes",
     title: "Servitudes (assiettes)",
-    defaultVisible: true,
+    defaultVisible: false,
     pmtilesUrl: `${TILES_BASE}/servitudes_latresne.pmtiles`,
     sourceLayer: "sup_assiette_s",
     tooltipField: "suptype",
@@ -430,7 +614,7 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
   {
     id: "ppri",
     title: "PPRI (PM1)",
-    defaultVisible: true,
+    defaultVisible: false,
     pmtilesUrl: `${TILES_BASE}/ppri_latresne.pmtiles`,
     sourceLayer: "pm1_detaillee_gironde",
     tooltipField: "nom_code",
@@ -459,7 +643,7 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
       {
         id: "ppri-labels",
         type: "symbol",
-        minzoom: 15,
+        minzoom: 16,
         layout: {
           "text-field": uppercaseField("nom_code"),
           "text-size": 10,
@@ -468,6 +652,87 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
         },
         paint: {
           "text-color": "#1e3a5f",
+          "text-halo-color": "#ffffff",
+          "text-halo-width": 1.2,
+        },
+      },
+    ],
+  },
+  {
+    id: "batiments",
+    title: "Bâtiments",
+    defaultVisible: true,
+    pmtilesUrl: `${TILES_BASE}/bati_latresne.pmtiles`,
+    sourceLayer: "batiments_latresne",
+    tooltipField: "type",
+    groupField: "type",
+    filterPalette: BATIMENT_PALETTE,
+    filterFallback: BATIMENT_FALLBACK,
+    groupColorMap: BATIMENT_TYPE_COLORS,
+    staticGroupLegend: BATIMENT_TYPE_LEGEND,
+    layers: [
+      {
+        id: "latresne-batiments-fill",
+        type: "fill",
+        paint: {
+          "fill-color": batimentTypeFillColor(),
+          "fill-opacity": 0.55,
+          "fill-antialias": true,
+        },
+      },
+      {
+        id: "latresne-batiments-outline",
+        type: "line",
+        paint: {
+          "line-color": batimentTypeFillColor(),
+          "line-width": 0.8,
+          "line-opacity": 0.9,
+        },
+      },
+    ],
+  },
+  {
+    id: "pprmvt",
+    title: "PPRMVT",
+    defaultVisible: false,
+    pmtilesUrl: `${TILES_BASE}/pprmvt_latresne.pmtiles`,
+    sourceLayer: "pprmvt",
+    tooltipField: "codezone",
+    groupField: "codezone",
+    groupColorMap: PPRMVT_CODEZONE_COLORS,
+    staticGroupLegend: PPRMVT_CODEZONE_LEGEND,
+    layers: [
+      {
+        id: "pprmvt-fill",
+        type: "fill",
+        paint: {
+          "fill-color": pprmvtCodezoneFillColor(),
+          "fill-opacity": 0.45,
+          "fill-antialias": true,
+        },
+      },
+      {
+        id: "pprmvt-outline",
+        type: "line",
+        paint: {
+          "line-color": pprmvtCodezoneFillColor(),
+          "line-width": 1,
+          "line-opacity": 0.85,
+        },
+      },
+      {
+        id: "pprmvt-labels",
+        type: "symbol",
+        minzoom: 15,
+        layout: {
+          "text-field": uppercaseField("codezone"),
+          "text-size": 9,
+          "text-font": ["Noto Sans Regular"],
+          "text-allow-overlap": false,
+          "text-max-width": 12,
+        },
+        paint: {
+          "text-color": "#134e4a",
           "text-halo-color": "#ffffff",
           "text-halo-width": 1.2,
         },

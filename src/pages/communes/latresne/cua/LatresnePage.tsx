@@ -4,7 +4,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import * as pmtiles from "pmtiles";
 import * as turf from "@turf/turf";
 import { useNavigate } from "react-router-dom";
-import { SideBarLeft, type SideBarSection } from "./SideBarLeft";
+import CartoLeftSidebar, { type CartoToolSection } from "../../../../components/carto/left-sidebar/CartoLeftSidebar";
 import ParcelleSearchForm from "../../../../components/tools/carto/ParcelleSearchform";
 import SearchUniteFonciere from "../../../../components/tools/carto/SearchUniteFonciere";
 import { type HistoryPipeline } from "../../../../components/tools/carto/HistoryPipelineCard";
@@ -14,9 +14,10 @@ import UniteFonciereCard from "../../../../components/tools/carto/UniteFonciereC
 import type { ParcelleInfo, ZonageInfo } from "../../../../types/parcelle";
 import supabase from "../../../../supabaseClient";
 import { MapLoadingOverlay, MapTooltipOverlay, UfBuilderModeBanner } from "./LatresneMapOverlays";
-import RightHistorySidebar, { type IdentiteFonciereHistoryRow } from "./RightHistorySidebar";
-import LogoutButton from "../../../../auth/LogoutButton";
-import { CARTO_LAYERS, findOverlayBeforeId } from "./cartoLayers";
+import type { IdentiteFonciereHistoryRow } from "../../../../components/carto/right-sidebar/CartoHistoryPanel";
+import RightSidebarPatch from "../../../../components/carto/right-sidebar/RightSidebarPatch";
+import { CARTO_LAYERS } from "./cartoLayers";
+import { syncCartoOnMap } from "./cartoFilters";
 import CartoLegendPanel from "./CartoLegendPanel";
 
 const cartoProtocol = new pmtiles.Protocol();
@@ -38,16 +39,59 @@ function normalizeUfNumero(raw: unknown): string {
   return trimmed.padStart(4, "0");
 }
 
-function isTopFeatureFromLayer(
+/** Couches GeoJSON cliquables au-dessus des PMTiles (zonage, bâtiments…). */
+const CADASTRE_HIT_LAYER_IDS = [
+  "latresne_parcelles-fill",
+  "latresne_parcelles-fill-hover",
+  "latresne_parcelles-outline",
+  "parcelle-search-fill",
+  "parcelle-search-outline",
+  "parcelle-target-fill",
+  "parcelle-target",
+  "parcelle-selected-fill",
+  "parcelle-selected",
+] as const;
+
+/** Couches UI au-dessus du hit-test parcelles (sélection UF, pings…). */
+const MAP_UI_TOP_LAYER_IDS = [
+  "uf-builder-fill",
+  "uf-builder-outline",
+  "uf-fill",
+  "uf-outline",
+  "cerfa-parcelles-fill",
+  "cerfa-parcelles-outline",
+  "history-pipeline-parcelles-fill",
+  "history-pipeline-parcelles-outline",
+  "pipelines-history-halo",
+  "pipelines-history-point",
+  "identite-fonciere-history-halo",
+  "identite-fonciere-history-point",
+] as const;
+
+function moveLayerToTop(map: maplibregl.Map, layerId: string) {
+  try {
+    if (map.getLayer(layerId)) map.moveLayer(layerId);
+  } catch {
+    /* style en cours de chargement */
+  }
+}
+
+function bringCadastreHitLayersToFront(map: maplibregl.Map) {
+  for (const id of CADASTRE_HIT_LAYER_IDS) moveLayerToTop(map, id);
+  for (const id of MAP_UI_TOP_LAYER_IDS) moveLayerToTop(map, id);
+}
+
+function queryCadastreHitAtPoint(
   map: maplibregl.Map,
-  point: maplibregl.PointLike,
-  layerId: "latresne_parcelles-fill" | "parcelle-search-fill"
-): boolean {
-  const hits = map.queryRenderedFeatures(point, {
-    layers: ["parcelle-search-fill", "latresne_parcelles-fill"],
-  });
-  if (!hits.length) return false;
-  return hits[0].layer.id === layerId;
+  point: maplibregl.PointLike
+): { layerId: (typeof CADASTRE_HIT_LAYER_IDS)[number]; feature: maplibregl.MapGeoJSONFeature } | null {
+  const layers = CADASTRE_HIT_LAYER_IDS.filter((id) => !!map.getLayer(id));
+  if (!layers.length) return null;
+  const hits = map.queryRenderedFeatures(point, { layers: [...layers] });
+  if (!hits.length) return null;
+  const layerId = hits[0].layer?.id as (typeof CADASTRE_HIT_LAYER_IDS)[number] | undefined;
+  if (!layerId || !CADASTRE_HIT_LAYER_IDS.includes(layerId)) return null;
+  return { layerId, feature: hits[0] };
 }
 
 function getPingColor(createdAt: string | undefined): "green" | "yellow" | "red" {
@@ -140,7 +184,8 @@ export default function LatresnePage() {
   const [showHistoryPings, setShowHistoryPings] = useState(true);
   const [isLoadingCadastre, setIsLoadingCadastre] = useState(true);
   const [ufState, setUfState] = useState<UFState | null>(null);
-  const [rightHistoryOpen, setRightHistoryOpen] = useState(true);
+  const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
+  const [rightLegendOpen, setRightLegendOpen] = useState(true);
   const [historySidebarTab, setHistorySidebarTab] = useState<"cua" | "cif">("cua");
   
   // Mode UF actif par défaut pour permettre la sélection au clic dès l'arrivée sur la page
@@ -550,27 +595,12 @@ export default function LatresnePage() {
       }
       setIsLoadingCadastre(false);
 
-      // Couches données PMTiles (sous le cadastre GeoJSON interactif, au-dessus du fond IGN)
-      const pmtilesBeforeId = findOverlayBeforeId(map);
-      for (const def of CARTO_LAYERS) {
-        if (!map.getSource(def.id)) {
-          map.addSource(def.id, {
-            type: "vector",
-            url: `pmtiles://${def.pmtilesUrl}`,
-          });
-        }
-        for (const sub of def.layers) {
-          if (map.getLayer(sub.id)) continue;
-          map.addLayer(
-            {
-              ...sub,
-              source: def.id,
-              "source-layer": def.sourceLayer,
-            } as maplibregl.LayerSpecification,
-            pmtilesBeforeId
-          );
-        }
-      }
+      // PMTiles : uniquement les couches cochées (évite flash + charge réseau inutile)
+      syncCartoOnMap(
+        map,
+        Object.fromEntries(CARTO_LAYERS.map((l) => [l.id, l.defaultVisible])),
+        {}
+      );
 
       // Cadastre GeoJSON : invisible mais cliquable (contours PMTiles + labels via légende)
       if (map.getLayer("latresne_parcelles-fill")) {
@@ -880,7 +910,7 @@ export default function LatresnePage() {
         setSelectedHistoryPipeline(null);
         setHistoryPopupPosition(null);
         setSelectedIdentiteProjectId(projectId);
-        setRightHistoryOpen(true);
+        setLeftSidebarOpen(true);
         const [lon, lat] = (feature.geometry as GeoJSON.Point).coordinates;
         map.flyTo({ center: [lon, lat], zoom: Math.max(map.getZoom(), 16), duration: 600 });
       });
@@ -930,21 +960,25 @@ export default function LatresnePage() {
         setTooltip(null);
       });
 
-      // Click sur cadastre
-      map.on("click", "latresne_parcelles-fill", async (e) => {
-        if (!isTopFeatureFromLayer(map, e.point, "latresne_parcelles-fill")) return;
-        const feature = e.features?.[0];
-        if (!feature) return;
-        const props = feature.properties as any;
-        const normalizedSection = normalizeUfSection(props.section);
-        const normalizedNumero = normalizeUfNumero(props.numero);
+      // Click parcelles : queryRenderedFeatures (PMTiles ne bloquent plus le hit-test)
+      map.on("click", async (e) => {
+        const hit = queryCadastreHitAtPoint(map, e.point);
+        if (!hit) return;
+        const { feature, layerId } = hit;
+        const props = feature.properties as Record<string, unknown>;
+        const normalizedSection = normalizeUfSection(String(props.section ?? ""));
+        const normalizedNumero = normalizeUfNumero(String(props.numero ?? ""));
+        const insee =
+          layerId === "parcelle-search-fill"
+            ? String(props.insee ?? props.code_insee ?? "33234")
+            : String(props.insee ?? "33234");
 
         if (ufBuilderModeRef.current) {
           toggleUfParcelle({
             section: normalizedSection,
             numero: normalizedNumero,
-            commune: props.commune || "Latresne",
-            insee: props.insee || "33234",
+            commune: String(props.commune || "Latresne"),
+            insee,
             geometry: feature.geometry as GeoJSON.Geometry,
             addedVia: "map",
           });
@@ -952,32 +986,36 @@ export default function LatresnePage() {
         }
 
         const bbox = turf.bbox(feature.geometry as GeoJSON.Geometry);
-        map.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { 
-          padding: 80, 
-          duration: 900,
-          easing: (t) => t * (2 - t)
+        map.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], {
+          padding: 80,
+          duration: layerId === "parcelle-search-fill" ? 1200 : 900,
+          easing: (t) => t * (2 - t),
         });
 
-        const zonageData = await getZonageAtPoint(
-          props.insee || "33234",
-          props.section,
-          props.numero
-        );
+        const zonageData = await getZonageAtPoint(insee, String(props.section), String(props.numero));
 
         setSelectedParcelle({
-          section: props.section,
-          numero: props.numero,
-          commune: props.commune || "Latresne",
-          insee: props.insee || "33234",
+          section: String(props.section),
+          numero: String(props.numero),
+          commune: String(props.commune || "Latresne"),
+          insee,
           zonage: zonageData?.etiquette,
-          zonages: zonageData ? [{
-            section: props.section,
-            numero: props.numero,
-            typezone: zonageData.typezone,
-            etiquette: zonageData.etiquette,
-            libelle: zonageData.libelle,
-            libelong: zonageData.libelong
-          }] : undefined
+          zonages: zonageData
+            ? [
+                {
+                  section: String(props.section),
+                  numero: String(props.numero),
+                  typezone: zonageData.typezone,
+                  etiquette: zonageData.etiquette,
+                  libelle: zonageData.libelle,
+                  libelong: zonageData.libelong,
+                },
+              ]
+            : undefined,
+          surface:
+            layerId === "parcelle-search-fill" && props.contenance
+              ? Number(props.contenance)
+              : undefined,
         });
       });
 
@@ -998,54 +1036,6 @@ export default function LatresnePage() {
       map.on("mouseleave", "parcelle-search-fill", () => {
         map.getCanvas().style.cursor = "";
         setTooltip(null);
-      });
-
-      map.on("click", "parcelle-search-fill", async (e) => {
-        if (!isTopFeatureFromLayer(map, e.point, "parcelle-search-fill")) return;
-        const feature = e.features?.[0];
-        if (!feature) return;
-        const props = feature.properties as any;
-        const normalizedSection = normalizeUfSection(props.section);
-        const normalizedNumero = normalizeUfNumero(props.numero);
-
-        if (ufBuilderModeRef.current) {
-          toggleUfParcelle({
-            section: normalizedSection,
-            numero: normalizedNumero,
-            commune: props.commune || "Latresne",
-            insee: props.insee || props.code_insee || "33234",
-            geometry: feature.geometry as GeoJSON.Geometry,
-            addedVia: "map",
-          });
-          return;
-        }
-
-        const bbox = turf.bbox(feature.geometry as GeoJSON.Geometry);
-        map.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { 
-          padding: 80, 
-          duration: 1200,
-          easing: (t) => t * (2 - t)
-        });
-
-        const insee = props.code_insee ?? props.insee ?? "33234";
-        const zonageData = await getZonageAtPoint(insee, props.section, props.numero);
-
-        setSelectedParcelle({
-          section: props.section,
-          numero: props.numero,
-          commune: props.commune || "Latresne",
-          insee,
-          zonage: zonageData?.etiquette,
-          zonages: zonageData ? [{
-            section: props.section,
-            numero: props.numero,
-            typezone: zonageData.typezone,
-            etiquette: zonageData.etiquette,
-            libelle: zonageData.libelle,
-            libelong: zonageData.libelong
-          }] : undefined,
-          surface: props.contenance ? Number(props.contenance) : undefined
-        });
       });
 
       function showParcelleResult(geojson: any, addressPoint?: [number, number], targetZoom?: number) {
@@ -1229,6 +1219,8 @@ export default function LatresnePage() {
 
       showCerfaParcellesRef.current = showCerfaParcelles;
 
+      bringCadastreHitLayersToFront(map);
+
       map.on("zoom", () => setCurrentZoom(map.getZoom()));
       map.on("zoomend", () => {
         const zoom = map.getZoom();
@@ -1259,6 +1251,13 @@ export default function LatresnePage() {
       if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", vis);
     }
   }, [layerVisible.parcelles, mapReady]);
+
+  // PMTiles ajoutées par toggle : remettre le hit-test parcelles au-dessus
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map?.isStyleLoaded() || !mapReady) return;
+    bringCadastreHitLayersToFront(map);
+  }, [mapReady, layerVisible]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1488,7 +1487,7 @@ export default function LatresnePage() {
     }
   }, [selectedHistoryPipeline]);
 
-  const sidebarSections: SideBarSection[] = [
+  const sidebarSections: CartoToolSection[] = [
     {
       id: "search-parcelle",
       title: "Rechercher une parcelle ou une adresse",
@@ -1670,7 +1669,7 @@ export default function LatresnePage() {
                 embedded={true}
               />
             ),
-          } as SideBarSection,
+          } as CartoToolSection,
         ]
       : []),
     ...(selectedHistoryPipeline
@@ -1706,7 +1705,7 @@ export default function LatresnePage() {
                 }}
               />
             ),
-          } as SideBarSection,
+          } as CartoToolSection,
         ]
       : []),
     {
@@ -1731,25 +1730,29 @@ export default function LatresnePage() {
   ];
 
   return (
-    <div className="relative">
-      <header className="fixed top-0 left-0 right-0 z-50 h-14 bg-white/90 backdrop-blur border-b border-gray-200">
-        <div className="max-w-[1600px] mx-auto h-full px-6 flex items-center justify-between">
-          <img src="/logo_kerelia_noir.png" className="h-7" alt="Kerelia" />
+    <div className="cua-map-workspace">
+        <CartoLeftSidebar
+          isOpen={leftSidebarOpen}
+          onToggle={() => setLeftSidebarOpen((v) => !v)}
+          toolSections={sidebarSections}
+          history={{
+            communeSlug: "latresne",
+            rows: historyPipelines,
+            selectedSlug: selectedHistoryPipeline?.slug ?? null,
+            onSelect: handleSelectHistoryFromSlug,
+            onOpenProject: (slug) => navigate(`/latresne/cua/projects/${slug}`),
+            onUpdateProject: handleUpdateHistoryProject,
+            onDeleteProject: handleDeleteHistoryProject,
+            identiteRows: identiteFonciereHistory,
+            selectedIdentiteProjectId: selectedIdentiteProjectId,
+            onSelectIdentite: handleSelectIdentiteProject,
+            historySidebarTab,
+            onHistorySidebarTabChange: setHistorySidebarTab,
+            onDeleteIdentiteProject: handleDeleteIdentiteProject,
+          }}
+        />
 
-          <div className="flex items-center gap-4">
-            {userEmail && (
-              <div className="text-xs text-[#0b131f]/60">
-                <div className="font-medium">{userEmail}</div>
-              </div>
-            )}
-            <LogoutButton />
-          </div>
-        </div>
-      </header>
-      <div className="flex h-screen pt-20 overflow-hidden">
-        <SideBarLeft sections={sidebarSections} />
-        
-        <div className="flex-1 relative">
+        <div className="flex-1 relative min-h-0 min-w-0">
           <div ref={containerRef} className="w-full h-full" />
         
           <MapTooltipOverlay tooltip={tooltip} />
@@ -1762,34 +1765,24 @@ export default function LatresnePage() {
             maxCount={20}
           />
 
-          {mapReady && mapRef.current && (
-            <CartoLegendPanel
-              map={mapRef.current}
-              layerVisible={layerVisible}
-              onLayerVisibleChange={(layerId, on) =>
-                setLayerVisible((v) => ({ ...v, [layerId]: on }))
-              }
-            />
-          )}
         </div>
-        
-        <RightHistorySidebar
-          rows={historyPipelines}
-          isOpen={rightHistoryOpen}
-          onToggle={() => setRightHistoryOpen((v) => !v)}
-          selectedSlug={selectedHistoryPipeline?.slug ?? null}
-          onSelect={handleSelectHistoryFromSlug}
-          onOpenProject={(slug) => navigate(`/latresne/cua/projects/${slug}`)}
-          onUpdateProject={handleUpdateHistoryProject}
-          onDeleteProject={handleDeleteHistoryProject}
-          identiteRows={identiteFonciereHistory}
-          selectedIdentiteProjectId={selectedIdentiteProjectId}
-          onSelectIdentite={handleSelectIdentiteProject}
-          historySidebarTab={historySidebarTab}
-          onHistorySidebarTabChange={setHistorySidebarTab}
-          onDeleteIdentiteProject={handleDeleteIdentiteProject}
+
+        <RightSidebarPatch
+          isOpen={rightLegendOpen}
+          onToggle={() => setRightLegendOpen((v) => !v)}
+          legend={
+            mapReady && mapRef.current ? (
+              <CartoLegendPanel
+                embedded
+                map={mapRef.current}
+                layerVisible={layerVisible}
+                onLayerVisibleChange={(layerId, on) =>
+                  setLayerVisible((v) => ({ ...v, [layerId]: on }))
+                }
+              />
+            ) : null
+          }
         />
-      </div>
     </div>
   );
 }

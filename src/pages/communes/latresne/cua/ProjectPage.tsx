@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { UploadCloud } from "lucide-react";
-import LogoutButton from "../../../../auth/LogoutButton";
-import supabase from "../../../../supabaseClient";
 import type { HistoryPipeline } from "../../../../components/tools/carto/HistoryPipelineCard";
 
 type ProjectFile = {
@@ -76,7 +74,6 @@ function bucketFromPublicUrl(url?: string): string | null {
 
 export default function ProjectPage() {
   const { slug } = useParams<{ slug: string }>();
-  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [project, setProject] = useState<HistoryPipeline | null>(null);
   const [files, setFiles] = useState<ProjectFile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -167,16 +164,6 @@ export default function ProjectPage() {
       setIsLoading(false);
     }
   };
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data: sess } = await supabase.auth.getSession();
-        const user = sess.session?.user;
-        if (user) setUserEmail(user.email || null);
-      } catch {}
-    })();
-  }, []);
 
   useEffect(() => {
     loadAll();
@@ -271,22 +258,8 @@ export default function ProjectPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 text-[#0b131f]">
-      <header className="fixed top-0 left-0 right-0 z-50 h-14 bg-white/90 backdrop-blur border-b border-gray-200">
-        <div className="max-w-[1600px] mx-auto h-full px-6 flex items-center justify-between">
-          <img src="/logo_kerelia_noir.png" className="h-7" alt="Kerelia" />
-          <div className="flex items-center gap-4">
-            {userEmail && (
-              <div className="text-xs text-[#0b131f]/60">
-                <div className="font-medium">{userEmail}</div>
-              </div>
-            )}
-            <LogoutButton />
-          </div>
-        </div>
-      </header>
-
-      <main className="pt-20 max-w-6xl mx-auto px-4 pb-8">
+    <div className="min-h-[100dvh] bg-gray-50 text-[#0b131f]">
+      <main className="max-w-6xl mx-auto px-4 py-6 pb-8">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="text-xl font-semibold">Dossier projet</h1>

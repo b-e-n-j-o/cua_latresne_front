@@ -1,6 +1,6 @@
 import type maplibregl from "maplibre-gl";
 import type { CartoLayerDef } from "./cartoLayers";
-import { CARTO_LAYERS } from "./cartoLayers";
+import { CARTO_LAYERS, findOverlayBeforeId } from "./cartoLayers";
 
 export const EMPTY_GROUP_KEY = "(NON RENSEIGNÉ)";
 
@@ -59,7 +59,7 @@ export function discoverGroupValues(
   try {
     features = map.querySourceFeatures(def.id, {
       sourceLayer: def.sourceLayer,
-    });
+    }) as maplibregl.MapGeoJSONFeature[];
   } catch {
     return [];
   }
@@ -97,6 +97,40 @@ export function mergeStaticGroupLegend(
   }));
 }
 
+/** Ajoute source + sous-couches PMTiles si besoin (visibilité « none » jusqu’à sync). */
+export function ensureCartoLayerMounted(
+  map: maplibregl.Map,
+  def: CartoLayerDef,
+  beforeId?: string
+): void {
+  if (!def.pmtilesUrl || !def.layers.length) return;
+
+  const insertBefore = beforeId ?? findOverlayBeforeId(map);
+
+  if (!map.getSource(def.id)) {
+    map.addSource(def.id, {
+      type: "vector",
+      url: `pmtiles://${def.pmtilesUrl}`,
+    });
+  }
+
+  for (const sub of def.layers) {
+    if (map.getLayer(sub.id)) continue;
+    map.addLayer(
+      {
+        ...sub,
+        source: def.id,
+        "source-layer": def.sourceLayer,
+        layout: {
+          ...(sub.layout ?? {}),
+          visibility: "none",
+        },
+      } as maplibregl.LayerSpecification,
+      insertBefore
+    );
+  }
+}
+
 export function syncCartoOnMap(
   map: maplibregl.Map,
   layerVisible: Record<string, boolean>,
@@ -104,8 +138,15 @@ export function syncCartoOnMap(
 ): void {
   if (!map.isStyleLoaded()) return;
 
+  const beforeId = findOverlayBeforeId(map);
+
   for (const def of CARTO_LAYERS) {
     const on = !!layerVisible[def.id];
+
+    if (on) {
+      ensureCartoLayerMounted(map, def, beforeId);
+    }
+
     const layoutVis: "visible" | "none" = on ? "visible" : "none";
 
     let filter: maplibregl.FilterSpecification | null = null;

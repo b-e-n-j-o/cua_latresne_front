@@ -3,7 +3,10 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import * as pmtiles from "pmtiles";
 import CartoLegendPanel from "./CartoLegendPanel";
-import { CARTO_LAYERS, findOverlayBeforeId } from "./cartoLayers";
+import { CARTO_LAYERS } from "./cartoLayers";
+import { syncCartoOnMap } from "./cartoFilters";
+import type { CartoLayerDef } from "./cartoLayers";
+
 const protocol = new pmtiles.Protocol();
 maplibregl.addProtocol("pmtiles", protocol.tile);
 
@@ -14,9 +17,51 @@ const LATRESNE_BOUNDS: [number, number, number, number] = [
   -0.533033, 44.769809, -0.459991, 44.808794,
 ];
 
+function fillLayerId(def: CartoLayerDef): string | undefined {
+  return def.layers.find((l) => l.type === "fill")?.id;
+}
+
+function bindCartoLayerTooltip(
+  map: maplibregl.Map,
+  def: CartoLayerDef,
+  setTooltip: (t: { x: number; y: number; text: string } | null) => void
+): void {
+  const layerId = fillLayerId(def);
+  if (!layerId || !map.getLayer(layerId)) return;
+
+  map.on("mousemove", layerId, (e) => {
+    const f = e.features?.[0];
+    if (!f) return;
+    map.getCanvas().style.cursor = "pointer";
+    const p = f.properties as Record<string, unknown>;
+
+    let text: string;
+    if (def.id === "zonage") {
+      const code = p.zonage_reglement ?? p.typezone ?? "Zone";
+      const lib = p.libelle ? ` — ${p.libelle}` : "";
+      text = `${code}${lib}`;
+    } else if (def.tooltipField) {
+      const raw = p[def.tooltipField];
+      text =
+        raw != null && String(raw).trim()
+          ? String(raw).trim().toUpperCase()
+          : def.title.toUpperCase();
+    } else {
+      text = def.title;
+    }
+
+    setTooltip({ x: e.point.x, y: e.point.y, text });
+  });
+  map.on("mouseleave", layerId, () => {
+    map.getCanvas().style.cursor = "";
+    setTooltip(null);
+  });
+}
+
 export default function LatresneTilesPage() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  const tooltipBoundRef = useRef(new Set<string>());
   const [mapReady, setMapReady] = useState(false);
 
   const [layerVisible, setLayerVisible] = useState<Record<string, boolean>>(() =>
@@ -42,73 +87,35 @@ export default function LatresneTilesPage() {
     mapRef.current = map;
 
     map.on("load", () => {
-      const beforeId = findOverlayBeforeId(map);
-
-      for (const def of CARTO_LAYERS) {
-        if (!map.getSource(def.id)) {
-          map.addSource(def.id, {
-            type: "vector",
-            url: `pmtiles://${def.pmtilesUrl}`,
-          });
-        }
-        for (const sub of def.layers) {
-          if (map.getLayer(sub.id)) continue;
-          map.addLayer(
-            {
-              ...sub,
-              source: def.id,
-              "source-layer": def.sourceLayer,
-            } as maplibregl.LayerSpecification,
-            beforeId
-          );
-        }
-      }
-
+      syncCartoOnMap(
+        map,
+        Object.fromEntries(CARTO_LAYERS.map((l) => [l.id, l.defaultVisible])),
+        {}
+      );
       setMapReady(true);
-
-      const fillLayerId = (def: (typeof CARTO_LAYERS)[number]) =>
-        def.layers.find((l) => l.type === "fill")?.id;
-
-      for (const def of CARTO_LAYERS) {
-        const layerId = fillLayerId(def);
-        if (!layerId) continue;
-
-        map.on("mousemove", layerId, (e) => {
-          const f = e.features?.[0];
-          if (!f) return;
-          map.getCanvas().style.cursor = "pointer";
-          const p = f.properties as Record<string, unknown>;
-
-          let text: string;
-          if (def.id === "zonage") {
-            const code = p.zonage_reglement ?? p.typezone ?? "Zone";
-            const lib = p.libelle ? ` — ${p.libelle}` : "";
-            text = `${code}${lib}`;
-          } else if (def.tooltipField) {
-            const raw = p[def.tooltipField];
-            text =
-              raw != null && String(raw).trim()
-                ? String(raw).trim().toUpperCase()
-                : def.title.toUpperCase();
-          } else {
-            text = def.title;
-          }
-
-          setTooltip({ x: e.point.x, y: e.point.y, text });
-        });
-        map.on("mouseleave", layerId, () => {
-          map.getCanvas().style.cursor = "";
-          setTooltip(null);
-        });
-      }
     });
 
     return () => {
       map.remove();
       mapRef.current = null;
+      tooltipBoundRef.current.clear();
       setMapReady(false);
     };
   }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map?.isStyleLoaded() || !mapReady) return;
+
+    syncCartoOnMap(map, layerVisible, {});
+
+    for (const def of CARTO_LAYERS) {
+      if (!layerVisible[def.id] || tooltipBoundRef.current.has(def.id)) continue;
+      if (!fillLayerId(def) || !map.getLayer(fillLayerId(def)!)) continue;
+      bindCartoLayerTooltip(map, def, setTooltip);
+      tooltipBoundRef.current.add(def.id);
+    }
+  }, [layerVisible, mapReady]);
 
   return (
     <div className="relative w-full h-screen">

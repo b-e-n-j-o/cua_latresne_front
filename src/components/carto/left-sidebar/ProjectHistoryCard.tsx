@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { FileText, Pencil, Save, Trash2, X } from "lucide-react";
-import HistoryPipelineCard, { type HistoryPipeline } from "../../../components/tools/carto/HistoryPipelineCard";
+import HistoryPipelineCard, { type HistoryPipeline } from "../../tools/carto/HistoryPipelineCard";
 
 type EditablePayload = {
   cerfa_data: {
@@ -242,4 +242,3 @@ export default function ProjectHistoryCard({
     </div>
   );
 }
-
