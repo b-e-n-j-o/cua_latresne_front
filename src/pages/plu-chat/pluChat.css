@@ -789,6 +789,54 @@
   padding: 1rem 1.25rem 1.5rem;
 }
 
+.plu-raw-ctx__tokens {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  background: rgba(46, 110, 98, 0.08);
+  border: 1px solid rgba(46, 110, 98, 0.2);
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.plu-raw-ctx__tokens--muted {
+  color: #64748b;
+  font-style: italic;
+}
+
+.plu-raw-ctx__tokens-total {
+  margin: 0 0 0.65rem;
+  font-size: 0.9375rem;
+}
+
+.plu-raw-ctx__tokens-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+}
+
+.plu-raw-ctx__tokens-table th,
+.plu-raw-ctx__tokens-table td {
+  padding: 0.35rem 0.5rem;
+  text-align: right;
+  border-bottom: 1px solid rgba(46, 110, 98, 0.15);
+}
+
+.plu-raw-ctx__tokens-table th:first-child,
+.plu-raw-ctx__tokens-table td:first-child {
+  text-align: left;
+}
+
+.plu-raw-ctx__tokens-table--sum {
+  font-weight: 600;
+}
+
+.plu-raw-ctx__tokens-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
 .plu-raw-ctx__meta {
   font-size: 0.8rem;
   color: var(--plu-text-muted);

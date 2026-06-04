@@ -2,6 +2,14 @@ import { type ReactNode, useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { pluAuthHeaders } from "./pluAuth";
 
+type GeminiTokenUsage = {
+  prompt_token_count?: number;
+  candidates_token_count?: number;
+  thoughts_token_count?: number;
+  cached_content_token_count?: number;
+  total_token_count?: number;
+};
+
 type RawContextPayload = {
   version?: number;
   captured_at?: string;
@@ -21,6 +29,11 @@ type RawContextPayload = {
   }[];
   tool_count?: number;
   model_answer?: string;
+  gemini_rounds?: (GeminiTokenUsage & {
+    round?: number;
+    with_tool_calls?: boolean;
+  })[];
+  gemini_usage_total?: GeminiTokenUsage;
 };
 
 type Props = {
@@ -49,6 +62,72 @@ function Section({
 
 function PreBlock({ text }: { text: string }) {
   return <pre className="plu-raw-ctx__pre">{text}</pre>;
+}
+
+function fmt(n: number | undefined): string {
+  return (n ?? 0).toLocaleString("fr-FR");
+}
+
+function TokenUsageBlock({ ctx }: { ctx: RawContextPayload }) {
+  const total = ctx.gemini_usage_total;
+  const hasBilling =
+    (total?.total_token_count ?? 0) > 0 || (total?.prompt_token_count ?? 0) > 0;
+  const rounds = ctx.gemini_rounds ?? [];
+
+  if (!hasBilling) {
+    return (
+      <p className="plu-raw-ctx__tokens plu-raw-ctx__tokens--muted">
+        Tokens Gemini non enregistrés (message antérieur à la mise à jour).
+      </p>
+    );
+  }
+
+  return (
+    <div className="plu-raw-ctx__tokens">
+      <p className="plu-raw-ctx__tokens-total">
+        <strong>Total facturé (tour)</strong> : {fmt(total?.total_token_count)} tokens
+      </p>
+      <table className="plu-raw-ctx__tokens-table">
+        <thead>
+          <tr>
+            <th scope="col" />
+            <th scope="col">Entrée</th>
+            <th scope="col">Sortie</th>
+            <th scope="col">Cache</th>
+            <th scope="col">Réflexion</th>
+            <th scope="col">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr className="plu-raw-ctx__tokens-table--sum">
+            <td>Tour complet</td>
+            <td>{fmt(total?.prompt_token_count)}</td>
+            <td>{fmt(total?.candidates_token_count)}</td>
+            <td>{fmt(total?.cached_content_token_count)}</td>
+            <td>{fmt(total?.thoughts_token_count)}</td>
+            <td>{fmt(total?.total_token_count)}</td>
+          </tr>
+          {rounds.map((r) => (
+            <tr key={r.round}>
+              <td>
+                Appel #{r.round}
+                {r.with_tool_calls ? " (tools)" : " (réponse)"}
+              </td>
+              <td>{fmt(r.prompt_token_count)}</td>
+              <td>{fmt(r.candidates_token_count)}</td>
+              <td>{fmt(r.cached_content_token_count)}</td>
+              <td>{fmt(r.thoughts_token_count)}</td>
+              <td>{fmt(r.total_token_count)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="plu-raw-ctx__tokens-hint">
+        Chiffres issus de l&apos;API Gemini (<code>usage_metadata</code>) — base pour
+        l&apos;évaluation de la facturation.
+      </p>
+    </div>
+  );
 }
 
 export default function PluRawContextPanel({ apiRoot, sessionId, messageId, onClose }: Props) {
@@ -118,6 +197,8 @@ export default function PluRawContextPanel({ apiRoot, sessionId, messageId, onCl
                 {ctx.model && <>Modèle : {ctx.model} · </>}
                 {ctx.tool_count != null && <>{ctx.tool_count} tool(s)</>}
               </p>
+
+              <TokenUsageBlock ctx={ctx} />
 
               <Section title="Prompt système (assemblé)">
                 <PreBlock text={ctx.system_instruction || "(vide)"} />
