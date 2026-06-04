@@ -132,7 +132,10 @@ export default function PluRawContextPanel({ apiRoot, sessionId, messageId, onCl
               )}
 
               {ctx.prior_messages && ctx.prior_messages.length > 0 && (
-                <Section title={`Historique (${ctx.prior_messages.length} message(s))`)} defaultOpen={false}>
+                <Section
+                  title={`Historique (${ctx.prior_messages.length} message(s))`}
+                  defaultOpen={false}
+                >
                   <PreBlock text={JSON.stringify(ctx.prior_messages, null, 2)} />
                 </Section>
               )}
