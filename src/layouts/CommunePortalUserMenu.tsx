@@ -24,9 +24,9 @@ export default function CommunePortalUserMenu({ communeLabel }: Props) {
 
   return (
     <div className="commune-portal__nav-footer">
-      <button
-        type="button"
+      <div
         className="commune-portal__user-trigger"
+        role="group"
         aria-label={`Compte — ${communeLabel}`}
       >
         <span className="commune-portal__commune-badge">{initials}</span>
@@ -43,7 +43,7 @@ export default function CommunePortalUserMenu({ communeLabel }: Props) {
             <LogoutButton />
           </div>
         </div>
-      </button>
+      </div>
     </div>
   );
 }

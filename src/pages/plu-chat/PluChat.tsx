@@ -237,11 +237,15 @@ export default function PluChat({ commune = "argeles" }: PluChatProps) {
     try {
       const auth = await pluAuthHeaders();
       const res = await fetch(`${apiRoot}/sessions?limit=50`, { headers: auth });
-      if (!res.ok) return;
+      if (!res.ok) {
+        const detail = await res.text().catch(() => "");
+        console.error("Historique PLU:", res.status, detail);
+        return;
+      }
       const data = await res.json();
       setSessions(data.sessions ?? []);
-    } catch {
-      /* historique optionnel */
+    } catch (err) {
+      console.error("Historique PLU:", err);
     } finally {
       setLoadingSessions(false);
     }
