@@ -1,12 +1,37 @@
-import { ChangeEvent, FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { ChangeEvent, CSSProperties, FormEvent } from "react";
+
+const GEMINI_MODELS = [
+  "gemini-3.1-pro-preview",
+  "gemini-3.5-flash",
+  "gemini-3.1-flash-lite",
+] as const;
+
+type GeminiModel = (typeof GEMINI_MODELS)[number];
 
 type SelectedFileInfo = {
   name: string;
+  zone: string;
   charCount: number | null;
   sizeBytes: number;
   loading: boolean;
   error?: string;
 };
+
+type FileCompare = {
+  zone: string;
+  source_txt: string;
+  markdown: string | null;
+  status?: string | null;
+  routed_to?: string | null;
+};
+
+function fileStem(filename: string): string {
+  let base = filename.split(/[/\\]/).pop() || "document";
+  if (base.toLowerCase().endsWith(".txt")) base = base.slice(0, -4);
+  const stem = base.replace(/[^\w.\-]/g, "_").replace(/^[._]+|[._]+$/g, "");
+  return stem || "document";
+}
 
 function formatChars(n: number): string {
   return n.toLocaleString("fr-FR");
@@ -51,6 +76,7 @@ type JobStatus = {
   total: number;
   processed: number;
   current_file?: string | null;
+  model?: string | null;
   error?: string | null;
   results: FileResult[];
   download_ready: boolean;
@@ -59,6 +85,10 @@ type JobStatus = {
 
 function formatTokens(t: TokenUsage): string {
   return t.total_token_count.toLocaleString("fr-FR");
+}
+
+function formatTokenTriple(t: TokenUsage): string {
+  return `${t.prompt_token_count.toLocaleString("fr-FR")} / ${t.candidates_token_count.toLocaleString("fr-FR")} / ${t.thoughts_token_count.toLocaleString("fr-FR")}`;
 }
 
 function TokenDetail({ label, usage }: { label: string; usage: TokenUsage }) {
@@ -79,6 +109,22 @@ function TokenDetail({ label, usage }: { label: string; usage: TokenUsage }) {
   );
 }
 
+const paneStyle: CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  margin: 0,
+  padding: 16,
+  overflow: "auto",
+  fontSize: 12,
+  lineHeight: 1.55,
+  fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+  whiteSpace: "pre-wrap",
+  wordBreak: "break-word",
+  background: "rgba(0,0,0,0.35)",
+  border: "none",
+  color: "rgba(255,255,255,0.9)",
+};
+
 const STATUS_LABEL: Record<string, string> = {
   queued: "En file d'attente",
   running: "En cours",
@@ -90,11 +136,15 @@ const STATUS_LABEL: Record<string, string> = {
 export default function MarkdownBatchPage() {
   const [files, setFiles] = useState<FileList | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<SelectedFileInfo[]>([]);
+  const [geminiModel, setGeminiModel] = useState<GeminiModel>("gemini-3.1-pro-preview");
   const [skipJudge, setSkipJudge] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
   const [status, setStatus] = useState<JobStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [compareZone, setCompareZone] = useState<string | null>(null);
+  const [compare, setCompare] = useState<FileCompare | null>(null);
+  const [compareLoading, setCompareLoading] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopPolling = useCallback(() => {
@@ -132,9 +182,36 @@ export default function MarkdownBatchPage() {
 
   useEffect(() => () => stopPolling(), [stopPolling]);
 
+  const loadCompare = useCallback(
+    async (zone: string) => {
+      if (!jobId) return;
+      setCompareZone(zone);
+      setCompareLoading(true);
+      setCompare(null);
+      try {
+        const res = await fetch(
+          `${API}/plu-txt-markdown/batch/jobs/${jobId}/files/${encodeURIComponent(zone)}/compare`,
+        );
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.detail || res.statusText);
+        }
+        setCompare(await res.json());
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Impossible de charger la comparaison");
+        setCompareZone(null);
+      } finally {
+        setCompareLoading(false);
+      }
+    },
+    [jobId],
+  );
+
   const onFilesChange = async (ev: ChangeEvent<HTMLInputElement>) => {
     const list = ev.target.files;
     setFiles(list);
+    setCompareZone(null);
+    setCompare(null);
 
     if (!list?.length) {
       setSelectedFiles([]);
@@ -143,6 +220,7 @@ export default function MarkdownBatchPage() {
 
     const pending: SelectedFileInfo[] = Array.from(list).map((f) => ({
       name: f.name,
+      zone: fileStem(f.name),
       charCount: null,
       sizeBytes: f.size,
       loading: true,
@@ -155,6 +233,7 @@ export default function MarkdownBatchPage() {
           const text = await f.text();
           return {
             name: f.name,
+            zone: fileStem(f.name),
             charCount: [...text].length,
             sizeBytes: f.size,
             loading: false,
@@ -162,6 +241,7 @@ export default function MarkdownBatchPage() {
         } catch {
           return {
             name: f.name,
+            zone: fileStem(f.name),
             charCount: null,
             sizeBytes: f.size,
             loading: false,
@@ -175,12 +255,16 @@ export default function MarkdownBatchPage() {
 
   const totalChars = selectedFiles.reduce((sum, f) => sum + (f.charCount ?? 0), 0);
   const filesStillLoading = selectedFiles.some((f) => f.loading);
+  const jobFinished =
+    status?.status === "done" || status?.status === "cancelled" || status?.status === "failed";
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
     setStatus(null);
     setJobId(null);
+    setCompareZone(null);
+    setCompare(null);
 
     if (!files?.length) {
       setError("Sélectionnez au moins un fichier .txt");
@@ -194,6 +278,7 @@ export default function MarkdownBatchPage() {
     try {
       const url = new URL(`${API}/plu-txt-markdown/batch/jobs`);
       url.searchParams.set("skip_judge", skipJudge ? "true" : "false");
+      url.searchParams.set("model", geminiModel);
 
       const res = await fetch(url.toString(), { method: "POST", body: form });
       if (!res.ok) {
@@ -381,6 +466,32 @@ export default function MarkdownBatchPage() {
           </div>
         )}
 
+        <label style={{ display: "block", marginBottom: 16 }}>
+          <span style={{ display: "block", fontSize: 13, marginBottom: 8, opacity: 0.8 }}>
+            Modèle Gemini
+          </span>
+          <select
+            value={geminiModel}
+            disabled={submitting}
+            onChange={(ev) => setGeminiModel(ev.target.value as GeminiModel)}
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              borderRadius: 8,
+              border: "1px solid rgba(255,255,255,0.15)",
+              background: "rgba(0,0,0,0.3)",
+              color: "#fff",
+              fontSize: 14,
+            }}
+          >
+            {GEMINI_MODELS.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        </label>
+
         <label
           style={{
             display: "flex",
@@ -424,7 +535,7 @@ export default function MarkdownBatchPage() {
       )}
 
       {status && (
-        <div style={{ marginTop: 32, maxWidth: 720 }}>
+        <div style={{ marginTop: 32, maxWidth: "min(1400px, 100%)" }}>
           <div
             style={{
               display: "flex",
@@ -438,6 +549,7 @@ export default function MarkdownBatchPage() {
             <p style={{ margin: 0, flex: 1, minWidth: 200 }}>
               Job <code style={{ opacity: 0.9 }}>{jobId}</code> —{" "}
               {STATUS_LABEL[status.status] || status.status}
+              {status.model ? ` — ${status.model}` : ""}
               {status.current_file ? ` — ${status.current_file}` : ""}
             </p>
             {(status.status === "queued" || status.status === "running") && (
@@ -486,39 +598,66 @@ export default function MarkdownBatchPage() {
           )}
 
           {status.results.length > 0 && (
-            <table
-              style={{
-                width: "100%",
-                marginTop: 20,
-                fontSize: 13,
-                borderCollapse: "collapse",
-              }}
-            >
-              <thead>
-                <tr style={{ textAlign: "left", opacity: 0.6 }}>
-                  <th style={{ padding: "8px 12px 8px 0" }}>Fichier</th>
-                  <th style={{ padding: "8px 12px" }}>Statut</th>
-                  <th style={{ padding: "8px 12px" }}>Verdict</th>
-                  <th style={{ padding: "8px 12px" }}>Coût</th>
-                  <th style={{ padding: "8px 0 8px 12px" }}>Jetons (total)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {status.results.map((r) => (
-                  <tr key={r.zone} style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-                    <td style={{ padding: "10px 12px 10px 0" }}>{r.zone}</td>
-                    <td style={{ padding: "10px 12px" }}>{r.status}</td>
-                    <td style={{ padding: "10px 12px" }}>{r.routed_to || r.verdict || "—"}</td>
-                    <td style={{ padding: "10px 12px" }}>
-                      {r.total_cost_usd != null ? `$${r.total_cost_usd.toFixed(3)}` : "—"}
-                    </td>
-                    <td style={{ padding: "10px 0 10px 12px" }}>
-                      {r.tokens?.total ? formatTokens(r.tokens.total) : "—"}
-                    </td>
+            <>
+              <p style={{ fontSize: 12, opacity: 0.55, marginTop: 16, marginBottom: 8 }}>
+                {jobFinished
+                  ? "Cliquez sur un fichier pour comparer le .txt source et le Markdown généré."
+                  : "Jetons par fichier : entrée / sortie / réflexion"}
+              </p>
+              <table
+                style={{
+                  width: "100%",
+                  fontSize: 13,
+                  borderCollapse: "collapse",
+                }}
+              >
+                <thead>
+                  <tr style={{ textAlign: "left", opacity: 0.6 }}>
+                    <th style={{ padding: "8px 12px 8px 0" }}>Fichier</th>
+                    <th style={{ padding: "8px 12px" }}>Statut</th>
+                    <th style={{ padding: "8px 12px" }}>Verdict</th>
+                    <th style={{ padding: "8px 12px" }}>Coût</th>
+                    <th style={{ padding: "8px 12px" }} title="entrée / sortie / réflexion">
+                      Jetons (in / out / think)
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {status.results.map((r) => {
+                    const clickable = jobFinished && r.status !== "extract_failed";
+                    const selected = compareZone === r.zone;
+                    return (
+                      <tr
+                        key={r.zone}
+                        onClick={() => clickable && loadCompare(r.zone)}
+                        style={{
+                          borderTop: "1px solid rgba(255,255,255,0.08)",
+                          cursor: clickable ? "pointer" : "default",
+                          background: selected ? "rgba(200,230,160,0.12)" : "transparent",
+                        }}
+                      >
+                        <td style={{ padding: "10px 12px 10px 0" }}>
+                          {r.zone}
+                          {clickable && (
+                            <span style={{ marginLeft: 8, fontSize: 11, opacity: 0.45 }}>
+                              comparer →
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: "10px 12px" }}>{r.status}</td>
+                        <td style={{ padding: "10px 12px" }}>{r.routed_to || r.verdict || "—"}</td>
+                        <td style={{ padding: "10px 12px" }}>
+                          {r.total_cost_usd != null ? `$${r.total_cost_usd.toFixed(3)}` : "—"}
+                        </td>
+                        <td style={{ padding: "10px 12px", fontSize: 12 }}>
+                          {r.tokens?.total ? formatTokenTriple(r.tokens.total) : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </>
           )}
 
           {status.tokens_total && (
@@ -562,6 +701,88 @@ export default function MarkdownBatchPage() {
             >
               Télécharger le ZIP (markdown + audits)
             </button>
+          )}
+
+          {jobFinished && compareZone && (
+            <div style={{ marginTop: 32 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "baseline",
+                  justifyContent: "space-between",
+                  gap: 16,
+                  marginBottom: 12,
+                }}
+              >
+                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>
+                  Comparaison — {compareZone}
+                </h2>
+                {compare?.routed_to && (
+                  <span style={{ fontSize: 12, opacity: 0.55 }}>Dossier : {compare.routed_to}</span>
+                )}
+              </div>
+
+              {compareLoading && (
+                <p style={{ opacity: 0.6, fontSize: 14 }}>Chargement…</p>
+              )}
+
+              {!compareLoading && compare && (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 0,
+                    height: "min(72vh, 720px)",
+                    borderRadius: 12,
+                    overflow: "hidden",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                  }}
+                >
+                  <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                    <div
+                      style={{
+                        padding: "10px 16px",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        letterSpacing: "0.04em",
+                        textTransform: "uppercase",
+                        background: "rgba(255,255,255,0.06)",
+                        borderBottom: "1px solid rgba(255,255,255,0.08)",
+                      }}
+                    >
+                      Texte source (.txt)
+                    </div>
+                    <pre style={paneStyle}>{compare.source_txt}</pre>
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      minWidth: 0,
+                      borderLeft: "1px solid rgba(255,255,255,0.12)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: "10px 16px",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        letterSpacing: "0.04em",
+                        textTransform: "uppercase",
+                        background: "rgba(200,230,160,0.1)",
+                        borderBottom: "1px solid rgba(255,255,255,0.08)",
+                        color: "#c8e6a0",
+                      }}
+                    >
+                      Markdown généré
+                    </div>
+                    <pre style={paneStyle}>
+                      {compare.markdown ?? "(Aucun markdown — échec d'extraction ou fichier non traité)"}
+                    </pre>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
       )}

@@ -5,11 +5,13 @@ import remarkGfm from "remark-gfm";
 import "./pluChat.css";
 import PluMapPanel, { type MapData } from "./PluMapPanel";
 import PluChatSidebar, { type SessionSummary } from "./PluChatSidebar";
+import PluRawContextPanel from "./PluRawContextPanel";
 import {
   PLU_COMMUNE_CONFIG,
   pluApiRoot,
   type PluCommuneSlug,
 } from "./communeConfig";
+import { pluAuthHeaders } from "./pluAuth";
 import { MAP_BUFFER_M } from "./map/colors";
 
 const API_BASE = (import.meta.env.VITE_API_BASE || "http://localhost:8000").replace(/\/$/, "");
@@ -21,10 +23,12 @@ type PluChatProps = {
 async function fetchSessionMap(
   apiRoot: string,
   sessionId: string,
+  authHeaders: Record<string, string>,
 ): Promise<MapData | null> {
   try {
     const res = await fetch(
       `${apiRoot}/session/${sessionId}/map?buffer_m=${MAP_BUFFER_M}`,
+      { headers: authHeaders },
     );
     if (!res.ok) return null;
     const data = (await res.json()) as MapData;
@@ -62,6 +66,9 @@ type ChatMessage = {
   content: string;
   meta?: string;
   mapData?: MapData | null;
+  /** Id message Supabase (réponses assistant) pour GET raw-context */
+  dbMessageId?: string;
+  hasRawContext?: boolean;
 };
 
 type ToolCall = { name: string; result_summary: string };
@@ -73,12 +80,18 @@ type ApiTurn = {
   zones_summary?: string;
   map_data?: MapData | null;
   show_map?: boolean;
+  model_message_id?: string;
 };
 
 type SessionState = {
   session_id: string;
   zones: { code_zone?: string; pct_parcelle_couverte?: number }[];
-  messages: { role: string; content: string }[];
+  messages: {
+    id: string;
+    role: string;
+    content: string;
+    has_raw_context?: boolean;
+  }[];
 };
 
 type ParcellePair = { section: string; numero: string };
@@ -175,6 +188,8 @@ function mapSessionMessages(raw: SessionState["messages"]): ChatMessage[] {
     id: uid(),
     role: m.role === "user" ? "user" : "assistant",
     content: m.content,
+    dbMessageId: m.role === "model" || m.role === "assistant" ? m.id : undefined,
+    hasRawContext: Boolean(m.has_raw_context),
   }));
 }
 
@@ -201,6 +216,9 @@ export default function PluChat({ commune = "argeles" }: PluChatProps) {
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const [mapVisible, setMapVisible] = useState(false);
   const [activeMapData, setActiveMapData] = useState<MapData | null>(null);
+  const [rawContextTarget, setRawContextTarget] = useState<{
+    messageId: string;
+  } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -217,7 +235,8 @@ export default function PluChat({ commune = "argeles" }: PluChatProps) {
   const fetchSessions = useCallback(async () => {
     setLoadingSessions(true);
     try {
-      const res = await fetch(`${apiRoot}/sessions?limit=50`);
+      const auth = await pluAuthHeaders();
+      const res = await fetch(`${apiRoot}/sessions?limit=50`, { headers: auth });
       if (!res.ok) return;
       const data = await res.json();
       setSessions(data.sessions ?? []);
@@ -247,14 +266,17 @@ export default function PluChat({ commune = "argeles" }: PluChatProps) {
     setZonesSummary(null);
     setMapVisible(false);
     setActiveMapData(null);
+    setRawContextTarget(null);
   };
 
   const deleteSession = async (id: string) => {
     if (deletingSessionId) return;
     setDeletingSessionId(id);
     try {
+      const auth = await pluAuthHeaders();
       const res = await fetch(`${apiRoot}/session/${id}`, {
         method: "DELETE",
+        headers: auth,
       });
       if (!res.ok) {
         const detail = await res.text();
@@ -275,7 +297,8 @@ export default function PluChat({ commune = "argeles" }: PluChatProps) {
     if (isLoading || loadingSessionId) return;
     setLoadingSessionId(id);
     try {
-      const res = await fetch(`${apiRoot}/session/${id}`);
+      const auth = await pluAuthHeaders();
+      const res = await fetch(`${apiRoot}/session/${id}`, { headers: auth });
       if (!res.ok) {
         const detail = await res.text();
         throw new Error(detail || `Erreur HTTP ${res.status}`);
@@ -286,7 +309,7 @@ export default function PluChat({ commune = "argeles" }: PluChatProps) {
       setMessages(mapSessionMessages(data.messages));
       setInput("");
 
-      const mapPayload = await fetchSessionMap(apiRoot, data.session_id);
+      const mapPayload = await fetchSessionMap(apiRoot, data.session_id, auth);
       if (mapPayload) {
         setActiveMapData(mapPayload);
         setMapVisible(true);
@@ -328,7 +351,8 @@ export default function PluChat({ commune = "argeles" }: PluChatProps) {
         turnRequestedMap(data) || Boolean(options?.fetchIfParcelleSession);
       if (!shouldFetch) return;
 
-      const fetched = await fetchSessionMap(apiRoot, sid);
+      const auth = await pluAuthHeaders();
+      const fetched = await fetchSessionMap(apiRoot, sid, auth);
       if (fetched) {
         setActiveMapData(fetched);
         setMapVisible(true);
@@ -354,6 +378,8 @@ export default function PluChat({ commune = "argeles" }: PluChatProps) {
           content: data.answer || "Aucune réponse reçue.",
           meta: formatMeta(data, summary ?? zonesSummary ?? undefined) || undefined,
           mapData: mapData ?? data.map_data ?? null,
+          dbMessageId: data.model_message_id,
+          hasRawContext: Boolean(data.model_message_id),
         },
       ]);
 
@@ -375,11 +401,12 @@ export default function PluChat({ commune = "argeles" }: PluChatProps) {
     }
 
     try {
+      const auth = await pluAuthHeaders();
       if (!sessionId) {
         const ref = parseParcelRef(trimmed);
         const response = await fetch(`${apiRoot}/session`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { ...auth, "Content-Type": "application/json" },
           body: JSON.stringify(buildSessionCreateBody(trimmed, ref)),
         });
 
@@ -404,7 +431,7 @@ export default function PluChat({ commune = "argeles" }: PluChatProps) {
       } else {
         const response = await fetch(`${apiRoot}/chat/${sessionId}`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { ...auth, "Content-Type": "application/json" },
           body: JSON.stringify({ message: trimmed }),
         });
 
@@ -553,6 +580,17 @@ export default function PluChat({ commune = "argeles" }: PluChatProps) {
                             <AssistantMarkdown content={msg.content} />
                           </div>
                           {msg.meta && <div className="plu-chat__meta">{msg.meta}</div>}
+                          {msg.role === "assistant" && sessionId && msg.dbMessageId && (
+                              <button
+                                type="button"
+                                className="plu-chat__ctx-btn"
+                                onClick={() =>
+                                  setRawContextTarget({ messageId: msg.dbMessageId! })
+                                }
+                              >
+                                Voir contexte
+                              </button>
+                            )}
                         </>
                       )}
                     </div>
@@ -584,6 +622,15 @@ export default function PluChat({ commune = "argeles" }: PluChatProps) {
         isVisible={mapVisible}
         onClose={() => setMapVisible(false)}
       />
+
+      {rawContextTarget && sessionId && (
+        <PluRawContextPanel
+          apiRoot={apiRoot}
+          sessionId={sessionId}
+          messageId={rawContextTarget.messageId}
+          onClose={() => setRawContextTarget(null)}
+        />
+      )}
     </div>
   );
 }

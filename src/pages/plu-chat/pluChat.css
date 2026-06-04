@@ -726,3 +726,145 @@
     padding: 1rem 0.75rem 0.75rem;
   }
 }
+
+/* Panneau contexte brut LLM (debug) */
+.plu-raw-ctx {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+}
+
+.plu-raw-ctx__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.plu-raw-ctx__panel {
+  position: relative;
+  width: min(52rem, 100vw);
+  max-width: 100%;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.12);
+}
+
+.plu-raw-ctx__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--plu-border);
+  flex-shrink: 0;
+}
+
+.plu-raw-ctx__title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.plu-raw-ctx__sub {
+  margin: 0.25rem 0 0;
+  font-size: 0.75rem;
+  color: var(--plu-text-muted);
+}
+
+.plu-raw-ctx__close {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0.35rem;
+  color: var(--plu-text-muted);
+}
+
+.plu-raw-ctx__body {
+  flex: 1;
+  overflow: auto;
+  padding: 1rem 1.25rem 1.5rem;
+}
+
+.plu-raw-ctx__meta {
+  font-size: 0.8rem;
+  color: var(--plu-text-muted);
+  margin: 0 0 1rem;
+}
+
+.plu-raw-ctx__status,
+.plu-raw-ctx__error {
+  font-size: 0.9rem;
+}
+
+.plu-raw-ctx__error {
+  color: #b91c1c;
+}
+
+.plu-raw-ctx__section {
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--plu-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.plu-raw-ctx__section-title {
+  padding: 0.6rem 0.85rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--plu-surface);
+  list-style: none;
+}
+
+.plu-raw-ctx__section-title::-webkit-details-marker {
+  display: none;
+}
+
+.plu-raw-ctx__section-body {
+  padding: 0.65rem 0.85rem 0.85rem;
+}
+
+.plu-raw-ctx__label {
+  margin: 0.5rem 0 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--plu-text-muted);
+}
+
+.plu-raw-ctx__pre {
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: #f4f4f5;
+  border-radius: 6px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 28rem;
+  overflow: auto;
+}
+
+.plu-chat__ctx-btn {
+  margin-top: 0.5rem;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--plu-text-muted);
+  background: transparent;
+  border: 1px solid var(--plu-border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.plu-chat__ctx-btn:hover {
+  color: var(--plu-text);
+  border-color: #ccc;
+  background: var(--plu-surface);
+}
