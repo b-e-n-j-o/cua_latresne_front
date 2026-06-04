@@ -11,8 +11,11 @@ import {
   pluApiRoot,
   type PluCommuneSlug,
 } from "./communeConfig";
-import { pluAuthHeaders } from "./pluAuth";
-import { MAP_BUFFER_M } from "./map/colors";
+import {
+  fetchPluSessionMap,
+  mapDataHasParcelleGeometry,
+  pluAuthHeaders,
+} from "./pluAuth";
 
 const API_BASE = (import.meta.env.VITE_API_BASE || "http://localhost:8000").replace(/\/$/, "");
 
@@ -23,35 +26,25 @@ type PluChatProps = {
 async function fetchSessionMap(
   apiRoot: string,
   sessionId: string,
-  authHeaders: Record<string, string>,
 ): Promise<MapData | null> {
   try {
-    const res = await fetch(
-      `${apiRoot}/session/${sessionId}/map?buffer_m=${MAP_BUFFER_M}`,
-      { headers: authHeaders },
-    );
-    if (!res.ok) return null;
+    const res = await fetchPluSessionMap(apiRoot, sessionId);
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      console.error("Carte PLU:", res.status, detail);
+      return null;
+    }
     const data = (await res.json()) as MapData;
-    return parcelleMapHasGeometry(data.parcelle) ? data : null;
-  } catch {
+    return mapDataHasParcelleGeometry(data.parcelle) ? data : null;
+  } catch (err) {
+    console.error("Carte PLU:", err);
     return null;
   }
 }
 
-function parcelleMapHasGeometry(
-  parcelle: MapData["parcelle"] | null | undefined,
-): boolean {
-  if (!parcelle) return false;
-  if (parcelle.type === "Feature") return Boolean(parcelle.geometry);
-  if (parcelle.type === "FeatureCollection") {
-    return parcelle.features.some((f) => f.geometry);
-  }
-  return false;
-}
-
 function mapDataFromTurn(data: { map_data?: MapData | null }): MapData | null {
   const md = data.map_data;
-  return md && parcelleMapHasGeometry(md.parcelle) ? md : null;
+  return md && mapDataHasParcelleGeometry(md.parcelle) ? md : null;
 }
 
 function turnRequestedMap(data: { show_map?: boolean }): boolean {
@@ -301,8 +294,9 @@ export default function PluChat({ commune = "argeles" }: PluChatProps) {
     if (isLoading || loadingSessionId) return;
     setLoadingSessionId(id);
     try {
-      const auth = await pluAuthHeaders();
-      const res = await fetch(`${apiRoot}/session/${id}`, { headers: auth });
+      const res = await fetch(`${apiRoot}/session/${id}`, {
+        headers: await pluAuthHeaders(),
+      });
       if (!res.ok) {
         const detail = await res.text();
         throw new Error(detail || `Erreur HTTP ${res.status}`);
@@ -313,7 +307,7 @@ export default function PluChat({ commune = "argeles" }: PluChatProps) {
       setMessages(mapSessionMessages(data.messages));
       setInput("");
 
-      const mapPayload = await fetchSessionMap(apiRoot, data.session_id, auth);
+      const mapPayload = await fetchSessionMap(apiRoot, data.session_id);
       if (mapPayload) {
         setActiveMapData(mapPayload);
         setMapVisible(true);
@@ -355,8 +349,7 @@ export default function PluChat({ commune = "argeles" }: PluChatProps) {
         turnRequestedMap(data) || Boolean(options?.fetchIfParcelleSession);
       if (!shouldFetch) return;
 
-      const auth = await pluAuthHeaders();
-      const fetched = await fetchSessionMap(apiRoot, sid, auth);
+      const fetched = await fetchSessionMap(apiRoot, sid);
       if (fetched) {
         setActiveMapData(fetched);
         setMapVisible(true);

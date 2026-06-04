@@ -3,7 +3,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./PluMapPanel.css";
 import { applyMapLayers, type LayerHandlers } from "./map/applyLayers";
-import { MAP_BUFFER_M } from "./map/colors";
+import { fetchPluSessionMap } from "./pluAuth";
 import { useMapVisibility } from "./map/hooks/useMapVisibility";
 import MapLegend from "./map/legend/MapLegend";
 import type { MapData } from "./map/types";
@@ -55,9 +55,7 @@ export default function PluMapPanel({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(
-        `${apiRoot}/session/${sessionId}/map?buffer_m=${MAP_BUFFER_M}`,
-      );
+      const res = await fetchPluSessionMap(apiRoot, sessionId);
       if (!res.ok) {
         let detail = `HTTP ${res.status}`;
         try {
@@ -78,8 +76,10 @@ export default function PluMapPanel({
   }, [sessionId, apiRoot]);
 
   useEffect(() => {
-    if (isVisible && sessionId) void fetchMapData();
-  }, [isVisible, sessionId, fetchMapData]);
+    if (!isVisible || !sessionId) return;
+    if (propMapData) return;
+    void fetchMapData();
+  }, [isVisible, sessionId, fetchMapData, propMapData]);
 
   useEffect(() => {
     if (!isVisible || !mapContainerRef.current || mapRef.current) return;
