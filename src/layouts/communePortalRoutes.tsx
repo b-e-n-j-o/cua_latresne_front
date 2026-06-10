@@ -4,6 +4,7 @@ import PluChat from "../pages/plu-chat/PluChat";
 import type { PluCommuneSlug } from "../pages/plu-chat/communeConfig";
 import LatresneCuaPage from "../pages/communes/latresne/cua/LatresnePage";
 import ArgelesCuaPage from "../pages/communes/argeles/cua/ArgelesPage";
+import CuaCataloguePage from "../pages/communes/argeles/cua/CuaCataloguePage";
 import MiosCuaPage from "../pages/communes/mios/MiosPage";
 import LatresneProjectPage from "../pages/communes/latresne/cua/ProjectPage";
 import MiosProjectPage from "../pages/communes/mios/ProjectPage";
@@ -23,6 +24,10 @@ const CUA_PAGES: Record<CuaPageSlug, ComponentType> = {
 
 function isPluChatCommune(slug: string | undefined): slug is PluCommuneSlug {
   return slug === "argeles" || slug === "latresne" || slug === "mios" || slug === "france";
+}
+
+export function CommuneCatalogueRoute() {
+  return <CuaCataloguePage />;
 }
 
 export function CommuneCuaRoute() {

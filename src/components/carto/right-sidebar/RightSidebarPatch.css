@@ -181,6 +181,29 @@
   opacity: 0.65;
 }
 
+.carto-legend-embedded__label--family {
+  font-weight: 600;
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.carto-legend-embedded__family-children {
+  margin-left: 0.75rem;
+  padding-left: 0.35rem;
+  border-left: 1px solid var(--rsp-border);
+}
+
+.carto-legend-embedded__layer--nested {
+  border-bottom: none;
+  margin-bottom: 0.15rem;
+  padding-bottom: 0.15rem;
+}
+
+.carto-legend-embedded__layer--nested .carto-legend-embedded__label {
+  font-weight: 400;
+}
+
 .carto-legend-embedded__sub {
   margin-left: 1.25rem;
   padding-left: 0.5rem;

@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import * as pmtiles from "pmtiles";
 import * as turf from "@turf/turf";
 import { useNavigate } from "react-router-dom";
 import CartoLeftSidebar, { type CartoToolSection } from "../../../../components/carto/left-sidebar/CartoLeftSidebar";
+import RightSidebarPatch from "../../../../components/carto/right-sidebar/RightSidebarPatch";
 import ParcelleSearchForm from "../../../../components/tools/carto/ParcelleSearchform";
 import SearchUniteFonciere from "../../../../components/tools/carto/SearchUniteFonciere";
 import { type HistoryPipeline } from "../../../../components/tools/carto/HistoryPipelineCard";
@@ -14,9 +16,77 @@ import type { ParcelleInfo, ZonageInfo } from "../../../../types/parcelle";
 import supabase from "../../../../supabaseClient";
 import { MapLoadingOverlay, MapTooltipOverlay, UfBuilderModeBanner } from "./LatresneMapOverlays";
 import type { IdentiteFonciereHistoryRow } from "../../../../components/carto/right-sidebar/CartoHistoryPanel";
-const LATRESNE_BOUNDS: [number, number, number, number] = [
-  3.005104, 42.531832, 3.063641, 42.559276
+import { CARTO_LAYERS } from "./cartoLayers";
+import { syncCartoOnMap } from "./cartoFilters";
+import CartoLegendPanel from "./CartoLegendPanel";
+
+const cartoProtocol = new pmtiles.Protocol();
+maplibregl.addProtocol("pmtiles", cartoProtocol.tile);
+
+const ARGELLES_BOUNDS: [number, number, number, number] = [
+  3.005104, 42.531832, 3.063641, 42.559276,
 ];
+
+const CADASTRE_HIT_LAYER_IDS = [
+  "latresne_parcelles-fill",
+  "latresne_parcelles-fill-hover",
+  "latresne_parcelles-outline",
+  "parcelle-search-fill",
+  "parcelle-search-outline",
+  "parcelle-target-fill",
+  "parcelle-target",
+  "parcelle-selected-fill",
+  "parcelle-selected",
+] as const;
+
+const MAP_UI_TOP_LAYER_IDS = [
+  "uf-builder-fill",
+  "uf-builder-outline",
+  "uf-fill",
+  "uf-outline",
+  "cerfa-parcelles-fill",
+  "cerfa-parcelles-outline",
+  "history-pipeline-parcelles-fill",
+  "history-pipeline-parcelles-outline",
+  "pipelines-history-halo",
+  "pipelines-history-point",
+  "identite-fonciere-history-halo",
+  "identite-fonciere-history-point",
+] as const;
+
+function moveLayerToTop(map: maplibregl.Map, layerId: string) {
+  try {
+    if (map.getLayer(layerId)) map.moveLayer(layerId);
+  } catch {
+    /* style en cours de chargement */
+  }
+}
+
+function bringCadastreHitLayersToFront(map: maplibregl.Map) {
+  for (const id of CADASTRE_HIT_LAYER_IDS) moveLayerToTop(map, id);
+  for (const id of MAP_UI_TOP_LAYER_IDS) moveLayerToTop(map, id);
+}
+
+/** Applique un paint uniquement si la couche existe (style IGN ≠ OSM). */
+function setPaintPropertyIfExists(
+  map: maplibregl.Map,
+  layerId: string,
+  property: string,
+  value: unknown
+): void {
+  if (!map.getLayer(layerId)) return;
+  try {
+    map.setPaintProperty(layerId, property, value);
+  } catch {
+    /* fond vectoriel pas encore prêt */
+  }
+}
+
+function softenIgnBaseLayers(map: maplibregl.Map): void {
+  setPaintPropertyIfExists(map, "water", "fill-opacity", 0.45);
+  setPaintPropertyIfExists(map, "landcover", "fill-opacity", 0.35);
+  setPaintPropertyIfExists(map, "building", "fill-opacity", 0.25);
+}
 
 const API_BASE = import.meta.env.VITE_API_BASE;
 const ARG_CADASTRE_API_PATH = "/communes/argeles/parcelles/geojson";
@@ -206,6 +276,10 @@ export default function ArgelesPage() {
   const [selectedIdentiteProjectId, setSelectedIdentiteProjectId] = useState<string | null>(null);
   const [historyPopupPosition, setHistoryPopupPosition] = useState<{ x: number; y: number; placement: "above" | "below" } | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const [layerVisible, setLayerVisible] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(CARTO_LAYERS.map((l) => [l.id, l.defaultVisible]))
+  );
+  const [rightLegendOpen, setRightLegendOpen] = useState(true);
   const [showHistoryPings, setShowHistoryPings] = useState(true);
   const [isLoadingCadastre, setIsLoadingCadastre] = useState(true);
   const [ufState, setUfState] = useState<UFState | null>(null);
@@ -544,7 +618,7 @@ export default function ArgelesPage() {
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: "https://data.geopf.fr/annexes/ressources/vectorTiles/styles/PLAN.IGN/standard.json",
-      bounds: LATRESNE_BOUNDS,
+      bounds: ARGELLES_BOUNDS,
       fitBoundsOptions: { padding: 40 },
       maxZoom: 22
     });
@@ -554,11 +628,7 @@ export default function ArgelesPage() {
       map.setZoom(14);
       setCurrentZoom(14);
 
-      try {
-        map.setPaintProperty("water", "fill-opacity", 0.45);
-        map.setPaintProperty("landcover", "fill-opacity", 0.35);
-        map.setPaintProperty("building", "fill-opacity", 0.25);
-      } catch {}
+      softenIgnBaseLayers(map);
 
       // Charger le cadastre depuis l'API avec cache navigateur + fallback local.
       setIsLoadingCadastre(true);
@@ -609,6 +679,12 @@ export default function ArgelesPage() {
         });
       }
       setIsLoadingCadastre(false);
+
+      syncCartoOnMap(
+        map,
+        Object.fromEntries(CARTO_LAYERS.map((l) => [l.id, l.defaultVisible])),
+        {}
+      );
 
       // Sources supplémentaires
       map.addSource("parcelle-search", {
@@ -910,7 +986,7 @@ export default function ArgelesPage() {
         setSelectedHistoryPipeline(null);
         setHistoryPopupPosition(null);
         setSelectedIdentiteProjectId(projectId);
-        setRightHistoryOpen(true);
+        setRightLegendOpen(true);
         const [lon, lat] = (feature.geometry as GeoJSON.Point).coordinates;
         map.flyTo({ center: [lon, lat], zoom: Math.max(map.getZoom(), 16), duration: 600 });
       });
@@ -1259,6 +1335,8 @@ export default function ArgelesPage() {
 
       showCerfaParcellesRef.current = showCerfaParcelles;
 
+      bringCadastreHitLayersToFront(map);
+
       map.on("zoom", () => setCurrentZoom(map.getZoom()));
       map.on("zoomend", () => {
         const zoom = map.getZoom();
@@ -1274,6 +1352,26 @@ export default function ArgelesPage() {
       mapRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map?.isStyleLoaded() || !mapReady) return;
+    const on = layerVisible.parcelles !== false;
+    const vis: "visible" | "none" = on ? "visible" : "none";
+    for (const id of [
+      "latresne_parcelles-fill",
+      "latresne_parcelles-fill-hover",
+      "latresne_parcelles-outline",
+    ]) {
+      if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", vis);
+    }
+  }, [layerVisible.parcelles, mapReady]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map?.isStyleLoaded() || !mapReady) return;
+    bringCadastreHitLayersToFront(map);
+  }, [mapReady, layerVisible]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1781,6 +1879,23 @@ export default function ArgelesPage() {
             maxCount={20}
           />
         </div>
+
+        <RightSidebarPatch
+          isOpen={rightLegendOpen}
+          onToggle={() => setRightLegendOpen((v) => !v)}
+          legend={
+            mapReady && mapRef.current ? (
+              <CartoLegendPanel
+                embedded
+                map={mapRef.current}
+                layerVisible={layerVisible}
+                onLayerVisibleChange={(layerId, on) =>
+                  setLayerVisible((v) => ({ ...v, [layerId]: on }))
+                }
+              />
+            ) : null
+          }
+        />
     </div>
   );
 }

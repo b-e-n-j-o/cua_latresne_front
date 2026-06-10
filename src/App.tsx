@@ -16,6 +16,7 @@ import LatresneTilesPage from "./pages/communes/latresne/cua/LatresnePagePMTiles
 import PortailApp from "./portail/PortailApp";
 import CommuneLayout, { CommunePortalEntry } from "./layouts/CommuneLayout";
 import {
+  CommuneCatalogueRoute,
   CommuneCuaRoute,
   CommuneChatRoute,
   CommuneProjectRoute,
@@ -114,6 +115,7 @@ export default function App() {
         {/* Portail cartographique par commune (barre latérale + outils) */}
         <Route path="/:communeSlug" element={<CommuneLayout />}>
           <Route index element={<CommunePortalEntry />} />
+          <Route path="catalogue" element={<CommuneCatalogueRoute />} />
           <Route path="cua" element={<CommuneCuaRoute />} />
           <Route path="cua/projects/:slug" element={<CommuneProjectRoute />} />
           <Route path="chat" element={<CommuneChatRoute />} />
