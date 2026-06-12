@@ -20,6 +20,8 @@ type Props = {
   layerVisible: Record<string, boolean>;
   onLayerVisibleChange: (layerId: string, on: boolean) => void;
   embedded?: boolean;
+  /** Ex. remonter le cadastre au-dessus des overlays carto après chaque sync. */
+  onAfterSync?: (map: maplibregl.Map) => void;
 };
 
 function LayerToggle({
@@ -45,6 +47,7 @@ export default function CartoLegendPanel({
   layerVisible,
   onLayerVisibleChange,
   embedded = false,
+  onAfterSync,
 }: Props) {
   const [panelOpen, setPanelOpen] = useState(true);
   const [expandedFamilies, setExpandedFamilies] = useState<Record<string, boolean>>(() =>
@@ -121,8 +124,8 @@ export default function CartoLegendPanel({
 
   useEffect(() => {
     if (!map) return;
-    syncCartoOnMap(map, layerVisible, visibleGroups);
-  }, [map, layerVisible, visibleGroups]);
+    syncCartoOnMap(map, layerVisible, visibleGroups, onAfterSync);
+  }, [map, layerVisible, visibleGroups, onAfterSync]);
 
   const toggleFamily = (familyId: CartoFamilyId, on: boolean) => {
     for (const def of layersForFamily(familyId)) {
@@ -312,6 +315,7 @@ function FamilyRow({
             type="button"
             className="rsp-expand-btn"
             aria-expanded={expanded}
+            title={expanded ? "Replier" : "Déplier les sous-couches"}
             onClick={onToggleExpand}
           >
             {expanded ? "▾" : "▸"}
@@ -334,8 +338,9 @@ function FamilyRow({
       <div className="flex items-center gap-0.5 min-w-0">
         <button
           type="button"
-          className="w-4 h-4 flex items-center justify-center text-gray-500 hover:text-gray-800 shrink-0 text-[10px]"
+          className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded shrink-0 text-sm font-semibold"
           aria-expanded={expanded}
+          title={expanded ? "Replier" : "Déplier la légende"}
           onClick={onToggleExpand}
         >
           {expanded ? "▾" : "▸"}
@@ -398,12 +403,13 @@ function LayerRow({
               type="button"
               className="rsp-expand-btn"
               aria-expanded={expanded}
+              title={expanded ? "Replier la légende" : "Déplier la légende"}
               onClick={onToggleExpand}
             >
               {expanded ? "▾" : "▸"}
             </button>
           ) : (
-            <span className="w-4 shrink-0" />
+            <span className="w-[1.375rem] shrink-0" />
           )}
           <span
             className={`carto-legend-embedded__label${layerOn ? "" : " carto-legend-embedded__label--off"}`}
@@ -414,7 +420,7 @@ function LayerRow({
           <LayerToggle checked={layerOn} onChange={onLayerChange} label={def.title} />
         </div>
 
-        {hasSub && expanded && layerOn && (
+        {hasSub && expanded && (
           <div className="carto-legend-embedded__sub">
             {colorLegendOnly ? (
               <ColorLegendItems items={def.colorLegend!} embedded />
@@ -466,14 +472,15 @@ function LayerRow({
         {hasSub ? (
           <button
             type="button"
-            className="w-4 h-4 flex items-center justify-center text-gray-500 hover:text-gray-800 shrink-0 text-[10px]"
+            className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded shrink-0 text-sm font-semibold"
             aria-expanded={expanded}
+            title={expanded ? "Replier la légende" : "Déplier la légende"}
             onClick={onToggleExpand}
           >
             {expanded ? "▾" : "▸"}
           </button>
         ) : (
-          <span className="w-4 shrink-0" />
+          <span className="w-6 shrink-0" />
         )}
         <label className="flex items-center gap-1.5 cursor-pointer flex-1 min-w-0 py-0.5">
           <input
@@ -491,7 +498,7 @@ function LayerRow({
         </label>
       </div>
 
-      {hasSub && expanded && layerOn && (
+      {hasSub && expanded && (
         <div className="ml-4 mt-0.5 mb-1 border-l border-gray-200 pl-1.5 max-h-28 overflow-y-auto">
           {colorLegendOnly ? (
             <ColorLegendItems items={def.colorLegend!} embedded={false} />

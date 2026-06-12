@@ -1572,23 +1572,6 @@ export default function MiosPage() {
 
   const sidebarSections: CartoToolSection[] = [
     {
-      id: "search-parcelle",
-      title: "Rechercher une parcelle ou une adresse",
-      defaultOpen: false,
-      content: (
-        <>
-          <ParcelleSearchForm
-            onSearch={(geojson, addressPoint, keepSelection) => {
-              if (!showParcelleResultRef.current) return;
-              showParcelleResultRef.current(geojson, addressPoint);
-              if (!keepSelection) setSelectedParcelle(null);
-            }}
-            embedded={true}
-          />
-        </>
-      ),
-    },
-    {
       id: "search-uf",
       title: "Certificat d'Urbanisme (CUA) / Carte d'Identité Foncière (CIF)",
       defaultOpen: true,
@@ -1817,6 +1800,34 @@ export default function MiosPage() {
         <CartoLeftSidebar
           isOpen={leftSidebarOpen}
           onToggle={() => setLeftSidebarOpen((v) => !v)}
+          searchBlock={{
+            title: "Rechercher une parcelle",
+            defaultOpen: true,
+            content: (
+              <ParcelleSearchForm
+                embedded
+                onSelect={async (section, numero) => {
+                  const params = new URLSearchParams({
+                    code_insee: "33284",
+                    commune: "Mios",
+                    section,
+                    numero,
+                  });
+                  const res = await fetch(
+                    `${import.meta.env.VITE_API_BASE}/parcelle/et-voisins?${params}`
+                  );
+                  if (!res.ok) throw new Error();
+                  const data = await res.json();
+                  if (!showParcelleResultRef.current) return;
+                  showParcelleResultRef.current(
+                    { type: data.type, features: data.features },
+                    data.address_point
+                  );
+                  setSelectedParcelle(null);
+                }}
+              />
+            ),
+          }}
           toolSections={sidebarSections}
           history={{
             communeSlug: "mios",

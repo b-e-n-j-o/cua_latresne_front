@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import * as pmtiles from "pmtiles";
@@ -13,11 +13,13 @@ import SuiviInstructionCard from "../../../../components/tools/carto/SuiviInstru
 import CerfaTool from "./cerfa/CerfaTool";
 import UniteFonciereCard from "../../../../components/tools/carto/UniteFonciereCard";
 import type { ParcelleInfo, ZonageInfo } from "../../../../types/parcelle";
+import type { ParcelleResumeRef } from "../../../../types/sigResume";
+import ParcelleResumePanel from "./ParcelleResumePanel";
 import supabase from "../../../../supabaseClient";
 import { MapLoadingOverlay, MapTooltipOverlay, UfBuilderModeBanner } from "./LatresneMapOverlays";
 import type { IdentiteFonciereHistoryRow } from "../../../../components/carto/right-sidebar/CartoHistoryPanel";
 import { CARTO_LAYERS } from "./cartoLayers";
-import { syncCartoOnMap } from "./cartoFilters";
+import { mountAllCartoLayers, syncCartoOnMap } from "./cartoFilters";
 import CartoLegendPanel from "./CartoLegendPanel";
 
 const cartoProtocol = new pmtiles.Protocol();
@@ -37,6 +39,11 @@ const CADASTRE_HIT_LAYER_IDS = [
   "parcelle-target",
   "parcelle-selected-fill",
   "parcelle-selected",
+] as const;
+
+const CADASTRE_LABEL_LAYER_IDS = [
+  "latresne_parcelles-labels",
+  "parcelle-search-labels",
 ] as const;
 
 const MAP_UI_TOP_LAYER_IDS = [
@@ -64,6 +71,7 @@ function moveLayerToTop(map: maplibregl.Map, layerId: string) {
 
 function bringCadastreHitLayersToFront(map: maplibregl.Map) {
   for (const id of CADASTRE_HIT_LAYER_IDS) moveLayerToTop(map, id);
+  for (const id of CADASTRE_LABEL_LAYER_IDS) moveLayerToTop(map, id);
   for (const id of MAP_UI_TOP_LAYER_IDS) moveLayerToTop(map, id);
 }
 
@@ -91,8 +99,8 @@ function softenIgnBaseLayers(map: maplibregl.Map): void {
 const API_BASE = import.meta.env.VITE_API_BASE;
 const ARG_CADASTRE_API_PATH = "/communes/argeles/parcelles/geojson";
 const ARG_CADASTRE_FALLBACK_PATH = "/data/parcelles.geojson";
-const ARG_CADASTRE_CACHE_NAME = "cua-cadastre-v1";
-const ARG_CADASTRE_CACHE_META_KEY = "cua-cadastre:argeles:last-sync";
+const ARG_CADASTRE_CACHE_NAME = "cua-cadastre-v2-geom";
+const ARG_CADASTRE_CACHE_META_KEY = "cua-cadastre:argeles:last-sync-v2";
 const ARG_CADASTRE_CACHE_TTL_MS = 1000 * 60 * 60 * 12; // 12h
 let cadastreMemoryCache: GeoJSON.FeatureCollection | null = null;
 
@@ -227,7 +235,43 @@ function parseIdentiteCentroid(raw: unknown): { lon: number; lat: number } | nul
   return null;
 }
 
+const ARGELLES_INSEE = "66008";
+const ARGELLES_COMMUNE = "Argelès-sur-Mer";
+
 const PARCELLE_CLICK_ZOOM = 13;
+const PARCELLE_LABEL_MIN_ZOOM = 16;
+/** Zoom cible lors de la sélection d'une parcelle (clic ou recherche). */
+const PARCELLE_SELECT_ZOOM = 17;
+
+function zoomMapToParcelGeometry(map: maplibregl.Map, geometry: GeoJSON.Geometry): void {
+  const center = turf.center(geometry);
+  const coords = center.geometry.coordinates as [number, number];
+  map.flyTo({
+    center: coords,
+    zoom: Math.max(map.getZoom(), PARCELLE_SELECT_ZOOM),
+    duration: 900,
+    essential: true,
+  });
+}
+
+const PARCELLE_LABEL_LAYOUT: maplibregl.SymbolLayerSpecification["layout"] = {
+  "text-field": [
+    "concat",
+    ["get", "section"],
+    " ",
+    ["get", "numero"],
+  ],
+  "text-size": 11,
+  "text-font": ["Noto Sans Regular"],
+  "text-allow-overlap": false,
+  "text-padding": 2,
+};
+
+const PARCELLE_LABEL_PAINT: maplibregl.SymbolLayerSpecification["paint"] = {
+  "text-color": "#1a1a1a",
+  "text-halo-color": "#ffffff",
+  "text-halo-width": 1.4,
+};
 const CARD_EST_HEIGHT = 380;
 const CARD_WIDTH = 320;
 const POPUP_GAP = 14;
@@ -263,6 +307,7 @@ export default function ArgelesPage() {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const cadastreDataRef = useRef<GeoJSON.FeatureCollection | null>(null);
+  const [cadastreData, setCadastreData] = useState<GeoJSON.FeatureCollection | null>(null);
   
   const [tooltip, setTooltip] = useState<{ x: number; y: number; content: string } | null>(null);
   const [selectedParcelle, setSelectedParcelle] = useState<ParcelleInfo | null>(null);
@@ -314,6 +359,7 @@ export default function ArgelesPage() {
   >([]);
   
   const showParcelleResultRef = useRef<((geojson: any, addressPoint?: [number, number], targetZoom?: number) => void) | null>(null);
+  const selectParcelleByRefRef = useRef<((section: string, numero: string) => Promise<void>) | null>(null);
   const getZonageForUFRef = useRef<((insee: string, parcelles: Array<{ section: string; numero: string }>) => Promise<ZonageInfo[]>) | null>(null);
   const showCerfaParcellesRef = useRef<((parcelles: Array<{ section: string; numero: string }>, commune: string, insee: string) => Promise<void>) | null>(null);
   const isHoveringHistoryPingRef = useRef(false);
@@ -636,6 +682,7 @@ export default function ArgelesPage() {
       try {
         parcellesData = await fetchCadastreGeojson();
         cadastreDataRef.current = parcellesData;
+        setCadastreData(parcellesData);
       } catch (err) {
         console.error("Erreur chargement cadastre:", err);
       }
@@ -652,9 +699,9 @@ export default function ArgelesPage() {
           type: "fill",
           source: "latresne_parcelles",
           paint: {
-            "fill-color": "#e0e0e0",
-            "fill-opacity": 0.6
-          }
+            "fill-color": "#000000",
+            "fill-opacity": 0,
+          },
         });
 
         map.addLayer({
@@ -672,18 +719,29 @@ export default function ArgelesPage() {
           type: "line",
           source: "latresne_parcelles",
           paint: {
-            "line-color": "#666666",
-            "line-width": 1.2,
-            "line-opacity": 0.8
-          }
+            "line-color": "#000000",
+            "line-width": 1,
+            "line-opacity": 0.8,
+          },
+        });
+
+        map.addLayer({
+          id: "latresne_parcelles-labels",
+          type: "symbol",
+          source: "latresne_parcelles",
+          minzoom: PARCELLE_LABEL_MIN_ZOOM,
+          layout: PARCELLE_LABEL_LAYOUT,
+          paint: PARCELLE_LABEL_PAINT,
         });
       }
       setIsLoadingCadastre(false);
 
+      mountAllCartoLayers(map);
       syncCartoOnMap(
         map,
         Object.fromEntries(CARTO_LAYERS.map((l) => [l.id, l.defaultVisible])),
-        {}
+        {},
+        bringCadastreHitLayersToFront
       );
 
       // Sources supplémentaires
@@ -736,6 +794,15 @@ export default function ArgelesPage() {
         source: "parcelle-search",
         filter: ["==", ["get", "section"], ""],
         paint: { "line-color": "#E53E3E", "line-width": 3 }
+      });
+
+      map.addLayer({
+        id: "parcelle-search-labels",
+        type: "symbol",
+        source: "parcelle-search",
+        minzoom: PARCELLE_LABEL_MIN_ZOOM,
+        layout: PARCELLE_LABEL_LAYOUT,
+        paint: PARCELLE_LABEL_PAINT,
       });
 
       map.addSource("uf-builder", {
@@ -1036,55 +1103,127 @@ export default function ArgelesPage() {
         setTooltip(null);
       });
 
-      // Click sur cadastre
-      map.on("click", "latresne_parcelles-fill", async (e) => {
-        if (!isTopFeatureFromLayer(map, e.point, "latresne_parcelles-fill")) return;
-        const feature = e.features?.[0];
-        if (!feature) return;
-        const props = feature.properties as any;
+      async function selectParcelleFromFeature(feature: GeoJSON.Feature) {
+        const props = (feature.properties ?? {}) as Record<string, unknown>;
+        const geometry = feature.geometry;
+        if (!geometry) return;
+
         const normalizedSection = normalizeUfSection(props.section);
         const normalizedNumero = normalizeUfNumero(props.numero);
+        const insee = String(props.insee ?? props.code_insee ?? ARGELLES_INSEE);
+        const commune = String(props.commune ?? ARGELLES_COMMUNE);
+
+        zoomMapToParcelGeometry(map, geometry as GeoJSON.Geometry);
 
         if (ufBuilderModeRef.current) {
           toggleUfParcelle({
             section: normalizedSection,
             numero: normalizedNumero,
-            commune: props.commune || "Argeles",
-            insee: props.insee || "66008",
-            geometry: feature.geometry as GeoJSON.Geometry,
+            commune,
+            insee,
+            geometry: geometry as GeoJSON.Geometry,
             addedVia: "map",
           });
           return;
         }
 
-        const bbox = turf.bbox(feature.geometry as GeoJSON.Geometry);
-        map.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { 
-          padding: 80, 
-          duration: 900,
-          easing: (t) => t * (2 - t)
-        });
+        const searchSource = map.getSource("parcelle-search") as maplibregl.GeoJSONSource | undefined;
+        if (searchSource) {
+          searchSource.setData({
+            type: "FeatureCollection",
+            features: [{
+              type: "Feature",
+              geometry: geometry as GeoJSON.Geometry,
+              properties: {
+                ...props,
+                section: props.section,
+                numero: props.numero,
+                commune,
+                insee,
+                code_insee: insee,
+                is_target: true,
+              },
+            }],
+          });
+        }
 
         const zonageData = await getZonageAtPoint(
-          props.insee || "66008",
-          props.section,
-          props.numero
+          insee,
+          String(props.section ?? ""),
+          String(props.numero ?? "")
         );
 
         setSelectedParcelle({
-          section: props.section,
-          numero: props.numero,
-          commune: props.commune || "Argeles",
-          insee: props.insee || "66008",
+          section: String(props.section ?? ""),
+          numero: String(props.numero ?? ""),
+          commune,
+          insee,
+          surface: props.contenance ? Number(props.contenance) : undefined,
           zonage: zonageData?.etiquette,
-          zonages: zonageData ? [{
-            section: props.section,
-            numero: props.numero,
-            typezone: zonageData.typezone,
-            etiquette: zonageData.etiquette,
-            libelle: zonageData.libelle,
-            libelong: zonageData.libelong
-          }] : undefined
+          zonages: zonageData
+            ? [{
+                section: String(props.section ?? ""),
+                numero: String(props.numero ?? ""),
+                typezone: zonageData.typezone,
+                etiquette: zonageData.etiquette,
+                libelle: zonageData.libelle,
+                libelong: zonageData.libelong,
+              }]
+            : undefined,
         });
+      }
+
+      async function selectParcelleByRef(section: string, numero: string) {
+        const normSection = normalizeUfSection(section);
+        const normNumero = normalizeUfNumero(numero);
+
+        const cadastre = cadastreDataRef.current;
+        const fromCadastre = cadastre?.features.find((f) => {
+          const p = (f.properties ?? {}) as Record<string, unknown>;
+          return (
+            normalizeUfSection(p.section) === normSection &&
+            normalizeUfNumero(p.numero) === normNumero
+          );
+        });
+
+        if (fromCadastre) {
+          await selectParcelleFromFeature(fromCadastre);
+          return;
+        }
+
+        const params = new URLSearchParams({
+          code_insee: ARGELLES_INSEE,
+          section: normSection,
+          numero: normNumero,
+          commune: ARGELLES_COMMUNE,
+        });
+        const res = await fetch(`${API_BASE}/parcelle/et-voisins?${params}`);
+        if (!res.ok) throw new Error("Parcelle introuvable");
+
+        const data = await res.json();
+        const features: GeoJSON.Feature[] = Array.isArray(data.features) ? data.features : [];
+        const target =
+          features.find((f) => (f.properties as Record<string, unknown>)?.is_target === true) ??
+          features.find((f) => {
+            const p = (f.properties ?? {}) as Record<string, unknown>;
+            return (
+              normalizeUfSection(p.section) === normSection &&
+              normalizeUfNumero(p.numero) === normNumero
+            );
+          });
+
+        if (!target) throw new Error("Parcelle introuvable");
+        await selectParcelleFromFeature(target);
+      }
+
+      selectParcelleByRefRef.current = selectParcelleByRef;
+
+      // Click sur cadastre
+      map.on("click", "latresne_parcelles-fill", async (e) => {
+        if (!isTopFeatureFromLayer(map, e.point, "latresne_parcelles-fill")) return;
+        const feature = e.features?.[0];
+        if (!feature) return;
+        await selectParcelleFromFeature(feature as GeoJSON.Feature);
       });
 
       // Hover/click sur résultats recherche
@@ -1110,48 +1249,7 @@ export default function ArgelesPage() {
         if (!isTopFeatureFromLayer(map, e.point, "parcelle-search-fill")) return;
         const feature = e.features?.[0];
         if (!feature) return;
-        const props = feature.properties as any;
-        const normalizedSection = normalizeUfSection(props.section);
-        const normalizedNumero = normalizeUfNumero(props.numero);
-
-        if (ufBuilderModeRef.current) {
-          toggleUfParcelle({
-            section: normalizedSection,
-            numero: normalizedNumero,
-            commune: props.commune || "Argeles",
-            insee: props.insee || props.code_insee || "66008",
-            geometry: feature.geometry as GeoJSON.Geometry,
-            addedVia: "map",
-          });
-          return;
-        }
-
-        const bbox = turf.bbox(feature.geometry as GeoJSON.Geometry);
-        map.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { 
-          padding: 80, 
-          duration: 1200,
-          easing: (t) => t * (2 - t)
-        });
-
-        const insee = props.code_insee ?? props.insee ?? "66008";
-        const zonageData = await getZonageAtPoint(insee, props.section, props.numero);
-
-        setSelectedParcelle({
-          section: props.section,
-          numero: props.numero,
-          commune: props.commune || "Argeles",
-          insee,
-          zonage: zonageData?.etiquette,
-          zonages: zonageData ? [{
-            section: props.section,
-            numero: props.numero,
-            typezone: zonageData.typezone,
-            etiquette: zonageData.etiquette,
-            libelle: zonageData.libelle,
-            libelong: zonageData.libelong
-          }] : undefined,
-          surface: props.contenance ? Number(props.contenance) : undefined
-        });
+        await selectParcelleFromFeature(feature as GeoJSON.Feature);
       });
 
       function showParcelleResult(geojson: any, addressPoint?: [number, number], targetZoom?: number) {
@@ -1362,16 +1460,11 @@ export default function ArgelesPage() {
       "latresne_parcelles-fill",
       "latresne_parcelles-fill-hover",
       "latresne_parcelles-outline",
+      "latresne_parcelles-labels",
     ]) {
       if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", vis);
     }
   }, [layerVisible.parcelles, mapReady]);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map?.isStyleLoaded() || !mapReady) return;
-    bringCadastreHitLayersToFront(map);
-  }, [mapReady, layerVisible]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1601,24 +1694,51 @@ export default function ArgelesPage() {
     }
   }, [selectedHistoryPipeline]);
 
+  const resumeParcelles = useMemo((): ParcelleResumeRef[] | null => {
+    if (ufState?.parcelles?.length) {
+      return ufState.parcelles.map((p) => ({
+        section: p.section,
+        numero: p.numero,
+        commune: ufState.commune,
+        insee: ufState.insee,
+        surface_m2: p.surface_m2,
+      }));
+    }
+    if (ufBuilderMode && selectedUfParcelles.length > 0) {
+      return selectedUfParcelles.map((p) => ({
+        section: p.section,
+        numero: p.numero,
+        commune: p.commune,
+        insee: p.insee,
+      }));
+    }
+    if (selectedParcelle?.isUF && selectedParcelle.ufParcelles?.length) {
+      return selectedParcelle.ufParcelles.map((p) => ({
+        section: p.section,
+        numero: p.numero,
+        commune: p.commune ?? selectedParcelle.commune,
+        insee: p.insee ?? selectedParcelle.insee,
+      }));
+    }
+    if (selectedParcelle && !selectedParcelle.isUF) {
+      return [
+        {
+          section: selectedParcelle.section,
+          numero: selectedParcelle.numero,
+          commune: selectedParcelle.commune,
+          insee: selectedParcelle.insee,
+          surface_m2: selectedParcelle.surface,
+        },
+      ];
+    }
+    return null;
+  }, [ufState, ufBuilderMode, selectedUfParcelles, selectedParcelle]);
+
+  const isDraftUfResume = Boolean(
+    ufBuilderMode && selectedUfParcelles.length > 0 && !ufState
+  );
+
   const sidebarSections: CartoToolSection[] = [
-    {
-      id: "search-parcelle",
-      title: "Rechercher une parcelle ou une adresse",
-      defaultOpen: false,
-      content: (
-        <>
-          <ParcelleSearchForm
-            onSearch={(geojson, addressPoint, keepSelection) => {
-              if (!showParcelleResultRef.current) return;
-              showParcelleResultRef.current(geojson, addressPoint);
-              if (!keepSelection) setSelectedParcelle(null);
-            }}
-            embedded={true}
-          />
-        </>
-      ),
-    },
     {
       id: "search-uf",
       title: "Certificat d'Urbanisme (CUA) / Carte d'Identité Foncière (CIF)",
@@ -1848,7 +1968,39 @@ export default function ArgelesPage() {
         <CartoLeftSidebar
           isOpen={leftSidebarOpen}
           onToggle={() => setLeftSidebarOpen((v) => !v)}
+          searchBlock={{
+            title: "Rechercher une parcelle",
+            defaultOpen: true,
+            content: (
+              <ParcelleSearchForm
+                embedded
+                onSelect={async (section, numero) => {
+                  if (!selectParcelleByRefRef.current) return;
+                  await selectParcelleByRefRef.current(section, numero);
+                }}
+              />
+            ),
+          }}
           toolSections={sidebarSections}
+          parcelleBlock={
+            resumeParcelles?.length
+              ? {
+                  title:
+                    resumeParcelles.length > 1
+                      ? `Caractéristiques parcelles (${resumeParcelles.length})`
+                      : "Caractéristiques parcelle",
+                  defaultOpen: true,
+                  content: (
+                    <ParcelleResumePanel
+                      communeSlug="argeles"
+                      parcelles={resumeParcelles}
+                      cadastre={cadastreData}
+                      isDraftUf={isDraftUfResume}
+                    />
+                  ),
+                }
+              : null
+          }
           history={{
             communeSlug: "argeles",
             rows: historyPipelines,
@@ -1892,6 +2044,7 @@ export default function ArgelesPage() {
                 onLayerVisibleChange={(layerId, on) =>
                   setLayerVisible((v) => ({ ...v, [layerId]: on }))
                 }
+                onAfterSync={bringCadastreHitLayersToFront}
               />
             ) : null
           }

@@ -93,6 +93,17 @@ export function mergeStaticGroupLegend(
   }));
 }
 
+/** Monte toutes les sources/layers PMTiles une fois (visibility gérée par syncCartoOnMap). */
+export function mountAllCartoLayers(map: maplibregl.Map): void {
+  if (!map.isStyleLoaded()) return;
+  const beforeId = findOverlayBeforeId(map);
+  for (const def of CARTO_LAYERS) {
+    if (def.pmtilesUrl && def.layers.length) {
+      ensureCartoLayerMounted(map, def, beforeId);
+    }
+  }
+}
+
 export function ensureCartoLayerMounted(
   map: maplibregl.Map,
   def: CartoLayerDef,
@@ -129,7 +140,8 @@ export function ensureCartoLayerMounted(
 export function syncCartoOnMap(
   map: maplibregl.Map,
   layerVisible: Record<string, boolean>,
-  visibleGroups: Record<string, Set<string>>
+  visibleGroups: Record<string, Set<string>>,
+  onAfterSync?: (map: maplibregl.Map) => void
 ): void {
   if (!map.isStyleLoaded()) return;
 
@@ -138,11 +150,12 @@ export function syncCartoOnMap(
   for (const def of CARTO_LAYERS) {
     if (!def.layers.length) continue;
 
-    const on = !!layerVisible[def.id];
-
-    if (on) {
+    // Sources conservées en mémoire : masquer = visibility:none (tuiles en cache MapLibre)
+    if (def.pmtilesUrl) {
       ensureCartoLayerMounted(map, def, beforeId);
     }
+
+    const on = !!layerVisible[def.id];
 
     const layoutVis: "visible" | "none" = on ? "visible" : "none";
 
@@ -162,4 +175,6 @@ export function syncCartoOnMap(
       }
     }
   }
+
+  onAfterSync?.(map);
 }

@@ -1,0 +1,121 @@
+import type {
+  CartoCatalogue,
+  FamilyIntersectionGroup,
+  FullIntersectionsReport,
+  IntersectionObject,
+} from "../../types/fullIntersections";
+import type { ParcelleResumeRef } from "../../types/sigResume";
+import { MIN_OBJET_PCT_SIG } from "./sigResume";
+
+const SKIP_LAYER_IDS = new Set(["parcelles"]);
+
+export function isSignificantIntersectionObj(obj: IntersectionObject): boolean {
+  const pct = obj.pct_sig;
+  if (typeof pct === "number" && !Number.isNaN(pct)) return pct >= MIN_OBJET_PCT_SIG;
+  const area = obj.surface_inter_m2;
+  if (typeof area === "number" && !Number.isNaN(area) && area > 0) return true;
+  const len = obj.longueur_inter_m;
+  return typeof len === "number" && !Number.isNaN(len) && len > 0;
+}
+
+export function objectLabelFromTip(
+  tip: string | undefined,
+  obj: IntersectionObject,
+  fallback = "—"
+): string {
+  if (tip) {
+    const v = obj[tip];
+    if (v != null && String(v).trim()) return String(v).trim();
+  }
+  for (const key of ["libelle", "label", "legende", "nom", "type", "suptype", "nomsuplitt", "id"]) {
+    const v = obj[key];
+    if (v != null && String(v).trim()) return String(v).trim();
+  }
+  return fallback;
+}
+
+function apiBase(): string {
+  return (import.meta.env.VITE_API_BASE || "http://localhost:8000").replace(/\/$/, "");
+}
+
+export async function fetchCartoCatalogue(communeSlug: string): Promise<CartoCatalogue> {
+  const res = await fetch(`${apiBase()}/communes/${communeSlug}/carto/catalogue`);
+  if (!res.ok) throw new Error(`Catalogue carto (${res.status})`);
+  return res.json();
+}
+
+export async function fetchFullIntersections(
+  communeSlug: string,
+  parcelles: ParcelleResumeRef[]
+): Promise<FullIntersectionsReport> {
+  const res = await fetch(`${apiBase()}/communes/${communeSlug}/parcelles/intersections`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      refs: parcelles.map((p) => ({ section: p.section, numero: p.numero })),
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(
+      typeof err.detail === "string" ? err.detail : `Intersections (${res.status})`
+    );
+  }
+  return res.json();
+}
+
+export function groupIntersectionsByFamily(
+  catalogue: CartoCatalogue,
+  report: FullIntersectionsReport,
+  hideEmpty: boolean
+): FamilyIntersectionGroup[] {
+  const familyTitle = new Map(catalogue.families.map((f) => [f.id, f.title]));
+  const buckets = new Map<string, FamilyIntersectionGroup>();
+
+  for (const [layerId, layerMeta] of Object.entries(catalogue.layers)) {
+    if (SKIP_LAYER_IDS.has(layerId) || layerMeta.src === "geojson") continue;
+
+    const result = report.intersections[layerId];
+    const objets = (result?.objets ?? []).filter(isSignificantIntersectionObj);
+    const hasHit = objets.length > 0;
+    if (hideEmpty && !hasHit) continue;
+
+    const familyId = layerMeta.family ?? "_other";
+    if (!buckets.has(familyId)) {
+      buckets.set(familyId, {
+        familyId,
+        familyTitle: familyTitle.get(familyId) ?? "Autres",
+        layers: [],
+      });
+    }
+    buckets.get(familyId)!.layers.push({
+      layerId,
+      title: layerMeta.title ?? result?.nom ?? layerId,
+      tip: layerMeta.tip,
+      geom: layerMeta.geom,
+      result: result ?? { nom: layerMeta.title, objets: [], pct_sig: 0, geom_type: "surfacique" },
+      significantObjets: objets,
+    });
+  }
+
+  const order = catalogue.families.map((f) => f.id);
+  return [...buckets.values()].sort(
+    (a, b) => {
+      const ia = order.indexOf(a.familyId);
+      const ib = order.indexOf(b.familyId);
+      return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+    }
+  );
+}
+
+export const FAMILY_ACCENT: Record<string, string> = {
+  zonages_plu: "bg-blue-600",
+  prescriptions: "bg-orange-500",
+  informations: "bg-violet-500",
+  servitudes: "bg-rose-500",
+  risques: "bg-red-600",
+  environnement: "bg-emerald-600",
+  reseaux: "bg-slate-600",
+  cadastre: "bg-gray-500",
+  _other: "bg-gray-400",
+};

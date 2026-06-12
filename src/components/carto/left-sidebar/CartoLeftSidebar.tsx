@@ -12,14 +12,25 @@ export type CartoToolSection = {
   fallback?: ReactNode;
 };
 
+export type CartoSidebarBlock = {
+  title: string;
+  content: ReactNode;
+  defaultOpen?: boolean;
+};
+
 type CartoLeftSidebarProps = {
   isOpen: boolean;
   onToggle: () => void;
   toolSections: CartoToolSection[];
   history: CartoHistoryPanelProps;
+  /** Bloc séparé (ex. caractéristiques parcelle), entre CUA et historique. */
+  parcelleBlock?: CartoSidebarBlock | null;
+  /** Recherche parcelle, au-dessus du bloc « Nouveau CU ». */
+  searchBlock?: CartoSidebarBlock | null;
   newCuTitle?: string;
   defaultNewCuOpen?: boolean;
   defaultHistoryOpen?: boolean;
+  defaultParcelleOpen?: boolean;
 };
 
 function LeftSidebarBlock({
@@ -87,9 +98,12 @@ export default function CartoLeftSidebar({
   onToggle,
   toolSections,
   history,
+  parcelleBlock = null,
+  searchBlock = null,
   newCuTitle = "Nouveau Certificat d'Urbanisme",
   defaultNewCuOpen = false,
   defaultHistoryOpen = false,
+  defaultParcelleOpen = true,
 }: CartoLeftSidebarProps) {
   return (
     <aside
@@ -109,6 +123,15 @@ export default function CartoLeftSidebar({
       {isOpen ? (
         <div className="carto-left-sidebar__inner">
           <div className="carto-left-sidebar__scroll">
+            {searchBlock ? (
+              <LeftSidebarBlock
+                title={searchBlock.title}
+                defaultOpen={searchBlock.defaultOpen ?? true}
+              >
+                <div className="carto-left-sidebar__search">{searchBlock.content}</div>
+              </LeftSidebarBlock>
+            ) : null}
+
             <LeftSidebarBlock title={newCuTitle} defaultOpen={defaultNewCuOpen}>
               <div className="carto-left-sidebar__tools">
                 {toolSections.length === 0 ? (
@@ -131,6 +154,15 @@ export default function CartoLeftSidebar({
                 )}
               </div>
             </LeftSidebarBlock>
+
+            {parcelleBlock ? (
+              <LeftSidebarBlock
+                title={parcelleBlock.title}
+                defaultOpen={parcelleBlock.defaultOpen ?? defaultParcelleOpen}
+              >
+                <div className="carto-left-sidebar__parcelle">{parcelleBlock.content}</div>
+              </LeftSidebarBlock>
+            ) : null}
 
             <LeftSidebarBlock title="Historique" defaultOpen={defaultHistoryOpen}>
               <div className="carto-left-sidebar__history">
