@@ -1,6 +1,7 @@
 import type {
   ParcelleResumeRef,
   SigResume,
+  SigResumeLayer,
   SigResumeLayerKey,
   SigResumeObjet,
 } from "../../types/sigResume";
@@ -24,14 +25,42 @@ export function filterSignificantObjets(
   return (objets ?? []).filter(isSignificantIntersection);
 }
 
-export function layerPctFromObjets(objets: SigResumeObjet[]): number {
-  const total = objets.reduce((sum, obj) => {
+/**
+ * Pourcentage couche / parcelle (union des intersections, plafonné à 100 %).
+ * Préfère layer.pct_sig (ST_Union côté enrichissement batch) ; repli sur surfaces.
+ */
+export function layerPctFromLayer(
+  layer: SigResumeLayer | undefined,
+  objets: SigResumeObjet[],
+  parcelSurfaceM2?: number
+): number {
+  if (typeof layer?.pct_sig === "number" && !Number.isNaN(layer.pct_sig)) {
+    return Math.min(100, Math.round(layer.pct_sig * 10) / 10);
+  }
+
+  if (parcelSurfaceM2 && parcelSurfaceM2 > 0) {
+    const sumArea = objets.reduce((sum, obj) => {
+      const a = obj.surface_inter_m2;
+      return sum + (typeof a === "number" && !Number.isNaN(a) ? a : 0);
+    }, 0);
+    if (sumArea > 0) {
+      const pct = (sumArea / parcelSurfaceM2) * 100;
+      return Math.min(100, Math.round(pct * 10) / 10);
+    }
+  }
+
+  const sumPct = objets.reduce((sum, obj) => {
     if (typeof obj.pct_sig === "number" && !Number.isNaN(obj.pct_sig)) {
       return sum + obj.pct_sig;
     }
     return sum;
   }, 0);
-  return Math.round(total * 10) / 10;
+  return sumPct > 0 ? Math.min(100, Math.round(sumPct * 10) / 10) : 0;
+}
+
+/** @deprecated Préférer layerPctFromLayer — la somme des pct_sig objet peut dépasser 100 %. */
+export function layerPctFromObjets(objets: SigResumeObjet[]): number {
+  return layerPctFromLayer(undefined, objets);
 }
 
 export function normalizeParcelSection(raw: unknown): string {
@@ -193,16 +222,11 @@ export function mergeSigResumeFromApiItem(
   };
 }
 
-export async function fetchParcellesResume(
+async function fetchParcellesResumeOnce(
   communeSlug: string,
   parcelles: ParcelleResumeRef[]
 ): Promise<Record<string, SigResume>> {
-  if (!parcelles.length) return {};
-
-  const base = (import.meta.env.VITE_API_BASE || "http://localhost:8000").replace(
-    /\/$/,
-    ""
-  );
+  const base = (import.meta.env.VITE_API_BASE || "http://localhost:8000").replace(/\/$/, "");
   const refs = parcelles
     .map((p) => `${normalizeParcelSection(p.section)}:${normalizeParcelNumero(p.numero)}`)
     .join(",");
@@ -222,6 +246,34 @@ export async function fetchParcellesResume(
     }
   }
   return out;
+}
+
+export async function fetchParcellesResume(
+  communeSlug: string,
+  parcelles: ParcelleResumeRef[]
+): Promise<Record<string, SigResume>> {
+  if (!parcelles.length) return {};
+
+  try {
+    return await fetchParcellesResumeOnce(communeSlug, parcelles);
+  } catch {
+    // Fallback parcelle par parcelle (ex. UF où une parcelle a des NaN en base)
+    const out: Record<string, SigResume> = {};
+    await Promise.all(
+      parcelles.map(async (p) => {
+        try {
+          const partial = await fetchParcellesResumeOnce(communeSlug, [p]);
+          Object.assign(out, partial);
+        } catch {
+          /* cadastre GeoJSON utilisé en secours côté buildParcelleResumeViews */
+        }
+      })
+    );
+    if (Object.keys(out).length === 0) {
+      throw new Error("Resume parcelles indisponible");
+    }
+    return out;
+  }
 }
 
 export function buildParcelleResumeViews(

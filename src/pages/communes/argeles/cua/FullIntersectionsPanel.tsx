@@ -1,19 +1,20 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, Loader2, Search } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import type { CartoCatalogue, FullIntersectionsReport } from "../../../../types/fullIntersections";
-import type { ParcelleResumeRef } from "../../../../types/sigResume";
 import {
   FAMILY_ACCENT,
   fetchCartoCatalogue,
-  fetchFullIntersections,
   groupIntersectionsByFamily,
   objectLabelFromTip,
 } from "../../../../utils/argeles/fullIntersections";
 
 type Props = {
   communeSlug: string;
-  parcelles: ParcelleResumeRef[];
-  parcellesKey: string;
+  report: FullIntersectionsReport | null;
+  loading: boolean;
+  error: string | null;
+  onRecalculate?: () => void;
+  scrollIntoViewOnReport?: boolean;
 };
 
 function formatM2(n: number | null | undefined): string {
@@ -127,15 +128,15 @@ function FamilyBlock({
 
 export default function FullIntersectionsPanel({
   communeSlug,
-  parcelles,
-  parcellesKey,
+  report,
+  loading,
+  error,
+  onRecalculate,
+  scrollIntoViewOnReport = false,
 }: Props) {
+  const sectionRef = useRef<HTMLElement>(null);
   const [catalogue, setCatalogue] = useState<CartoCatalogue | null>(null);
-  const [report, setReport] = useState<FullIntersectionsReport | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [hideEmpty, setHideEmpty] = useState(true);
-  const cacheRef = useRef<Map<string, FullIntersectionsReport>>(new Map());
+  const lastScrolledAt = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -158,77 +159,40 @@ export default function FullIntersectionsPanel({
     ).length;
   }, [catalogue]);
 
-  const runAnalysis = useCallback(async (force = false) => {
-    if (!force) {
-      const cached = cacheRef.current.get(parcellesKey);
-      if (cached) {
-        setReport(cached);
-        return;
-      }
-    } else {
-      cacheRef.current.delete(parcellesKey);
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await fetchFullIntersections(communeSlug, parcelles);
-      cacheRef.current.set(parcellesKey, data);
-      setReport(data);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erreur lors de l'analyse");
-      setReport(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [communeSlug, parcelles, parcellesKey]);
-
-  useEffect(() => {
-    setReport(null);
-    setError(null);
-  }, [parcellesKey]);
-
   const groups = useMemo(() => {
     if (!catalogue || !report) return [];
-    return groupIntersectionsByFamily(catalogue, report, hideEmpty);
-  }, [catalogue, report, hideEmpty]);
+    return groupIntersectionsByFamily(catalogue, report);
+  }, [catalogue, report]);
 
-  const emptyFamiliesWhenFiltered =
-    hideEmpty && report != null && groups.length === 0 && (report.n_couches_concernees ?? 0) === 0;
+  useEffect(() => {
+    if (!scrollIntoViewOnReport || !report?.computed_at) return;
+    if (lastScrolledAt.current === report.computed_at) return;
+    lastScrolledAt.current = report.computed_at;
+    requestAnimationFrame(() => {
+      sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  }, [report, scrollIntoViewOnReport]);
+
+  if (!loading && !report && !error) return null;
 
   return (
-    <section className="space-y-2 pt-1 border-t border-gray-200">
+    <section ref={sectionRef} className="space-y-2 pt-1 border-t border-gray-200">
       <h4 className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
         Analyse SIG complète
       </h4>
 
-      {!report ? (
-        <>
-          <p className="text-[11px] text-gray-500 leading-snug">
-            Calcul à la demande sur {layerCount || "…"} couches du catalogue (5–15 s).
-          </p>
-          <button
-            type="button"
-            disabled={loading || !parcelles.length}
-            onClick={() => void runAnalysis(false)}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-md border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 text-xs font-medium text-gray-800 transition-colors"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                Analyse en cours…
-              </>
-            ) : (
-              <>
-                <Search className="w-3.5 h-3.5" />
-                Analyser toutes les couches SIG
-              </>
-            )}
-          </button>
-          {error ? (
-            <p className="text-xs text-red-700 bg-red-50 border border-red-100 rounded p-2">{error}</p>
-          ) : null}
-        </>
-      ) : (
+      {loading && !report ? (
+        <div className="flex items-center gap-2 text-[11px] text-gray-600 px-1 py-2">
+          <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+          Analyse des intersections sur l&apos;unité foncière…
+        </div>
+      ) : null}
+
+      {error ? (
+        <p className="text-xs text-red-700 bg-red-50 border border-red-100 rounded p-2">{error}</p>
+      ) : null}
+
+      {report ? (
         <>
           <div className="rounded-md bg-slate-50 border border-slate-200 px-2.5 py-2 text-[11px] text-slate-800">
             <div className="font-semibold">
@@ -236,6 +200,9 @@ export default function FullIntersectionsPanel({
             </div>
             <div className="text-gray-600 mt-0.5">
               Surface SIG : {formatM2(report.surface_m2)}
+              <span className="block text-[10px] text-gray-500 mt-0.5">
+                Intersections strictes sur l&apos;UF (hors buffer cartographique)
+              </span>
               {report.computed_at ? (
                 <span className="block text-[10px] text-gray-400 mt-0.5">
                   Calculé le {new Date(report.computed_at).toLocaleString("fr-FR")}
@@ -244,17 +211,7 @@ export default function FullIntersectionsPanel({
             </div>
           </div>
 
-          <label className="flex items-center gap-2 text-[11px] text-gray-600 cursor-pointer">
-            <input
-              type="checkbox"
-              className="rounded border-gray-300"
-              checked={hideEmpty}
-              onChange={(e) => setHideEmpty(e.target.checked)}
-            />
-            Masquer les couches sans intersection
-          </label>
-
-          {emptyFamiliesWhenFiltered ? (
+          {groups.length === 0 ? (
             <p className="text-xs text-gray-500 italic">Aucune intersection significative sur le catalogue.</p>
           ) : (
             <div className="space-y-2 max-h-[420px] overflow-y-auto pr-0.5">
@@ -264,16 +221,18 @@ export default function FullIntersectionsPanel({
             </div>
           )}
 
-          <button
-            type="button"
-            disabled={loading}
-            onClick={() => void runAnalysis(true)}
-            className="w-full text-[11px] text-gray-500 hover:text-gray-800 underline disabled:opacity-50"
-          >
-            {loading ? "Recalcul…" : "Recalculer"}
-          </button>
+          {onRecalculate ? (
+            <button
+              type="button"
+              disabled={loading}
+              onClick={onRecalculate}
+              className="w-full text-[11px] text-gray-500 hover:text-gray-800 underline disabled:opacity-50"
+            >
+              {loading ? "Recalcul…" : "Recalculer"}
+            </button>
+          ) : null}
         </>
-      )}
+      ) : null}
     </section>
   );
 }

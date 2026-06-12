@@ -2,10 +2,20 @@ import type {
   CartoCatalogue,
   FamilyIntersectionGroup,
   FullIntersectionsReport,
+  IntersectionLayerResult,
   IntersectionObject,
 } from "../../types/fullIntersections";
+import type { StudyZoneCartoContext } from "../../components/carto/studyZone/types";
 import type { ParcelleResumeRef } from "../../types/sigResume";
 import { MIN_OBJET_PCT_SIG } from "./sigResume";
+
+const STUDY_ZONE_INTERNAL_PROPS = new Set([
+  "intersects_parcel",
+  "_fid",
+  "_studyKey",
+  "_studyColor",
+  "_studyLabel",
+]);
 
 const SKIP_LAYER_IDS = new Set(["parcelles"]);
 
@@ -44,6 +54,59 @@ export async function fetchCartoCatalogue(communeSlug: string): Promise<CartoCat
   return res.json();
 }
 
+/**
+ * Dérive le rapport d'intersections strictes (UF seule) depuis la réponse carto-context.
+ * Le backend sélectionne les entités dans le buffer carto mais calcule pct_sig / surfaces
+ * uniquement sur l'intersection réelle avec l'UF (flag intersects_parcel).
+ */
+export function buildIntersectionsReportFromCartoContext(
+  context: StudyZoneCartoContext
+): FullIntersectionsReport {
+  const intersections: Record<string, IntersectionLayerResult> = {};
+  const surfaceM2 = context.surface_m2 ?? 0;
+
+  for (const [layerId, layer] of Object.entries(context.layers)) {
+    const geomType = layer.geom_type;
+    const parcelHits = (layer.features?.features ?? []).filter(
+      (f) => (f.properties as { intersects_parcel?: boolean })?.intersects_parcel
+    );
+
+    const objets: IntersectionObject[] = parcelHits.map((f) => {
+      const props = { ...(f.properties ?? {}) };
+      for (const k of STUDY_ZONE_INTERNAL_PROPS) delete props[k];
+      return props as IntersectionObject;
+    });
+
+    let pctSig = 0;
+    if (geomType === "surfacique" && surfaceM2 > 0) {
+      const totalArea = objets.reduce((sum, o) => {
+        const a = o.surface_inter_m2;
+        return sum + (typeof a === "number" ? a : 0);
+      }, 0);
+      const raw = (totalArea / surfaceM2) * 100;
+      pctSig = Math.round(Math.min(100, raw) * 10000) / 10000;
+    }
+
+    intersections[layerId] = {
+      nom: layer.title,
+      geom_type: geomType,
+      pct_sig: pctSig,
+      objets,
+    };
+  }
+
+  const nConcerned = Object.values(intersections).filter((l) => l.objets?.length).length;
+
+  return {
+    parcelles: context.parcelles,
+    surface_m2: surfaceM2,
+    computed_at: context.computed_at,
+    n_couches: Object.keys(context.layers).length,
+    n_couches_concernees: nConcerned,
+    intersections,
+  };
+}
+
 export async function fetchFullIntersections(
   communeSlug: string,
   parcelles: ParcelleResumeRef[]
@@ -66,8 +129,7 @@ export async function fetchFullIntersections(
 
 export function groupIntersectionsByFamily(
   catalogue: CartoCatalogue,
-  report: FullIntersectionsReport,
-  hideEmpty: boolean
+  report: FullIntersectionsReport
 ): FamilyIntersectionGroup[] {
   const familyTitle = new Map(catalogue.families.map((f) => [f.id, f.title]));
   const buckets = new Map<string, FamilyIntersectionGroup>();
@@ -77,8 +139,7 @@ export function groupIntersectionsByFamily(
 
     const result = report.intersections[layerId];
     const objets = (result?.objets ?? []).filter(isSignificantIntersectionObj);
-    const hasHit = objets.length > 0;
-    if (hideEmpty && !hasHit) continue;
+    if (!objets.length) continue;
 
     const familyId = layerMeta.family ?? "_other";
     if (!buckets.has(familyId)) {

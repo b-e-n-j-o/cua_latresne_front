@@ -21,14 +21,24 @@ export function MapTooltipOverlay({ tooltip }: { tooltip: MapTooltipState }) {
   );
 }
 
-export function MapLoadingOverlay({ isLoadingCadastre }: { isLoadingCadastre: boolean }) {
-  if (!isLoadingCadastre) return null;
+export function MapLoadingOverlay({
+  isLoadingCadastre = false,
+  isLoadingStudyZone = false,
+}: {
+  isLoadingCadastre?: boolean;
+  isLoadingStudyZone?: boolean;
+}) {
+  if (!isLoadingCadastre && !isLoadingStudyZone) return null;
+
+  const message = isLoadingStudyZone
+    ? "Découpage de la zone d'étude…"
+    : "Chargement du cadastre...";
 
   return (
     <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-50">
       <div className="text-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4" />
-        <p className="text-sm text-gray-600">Chargement du cadastre...</p>
+        <p className="text-sm text-gray-600">{message}</p>
       </div>
     </div>
   );

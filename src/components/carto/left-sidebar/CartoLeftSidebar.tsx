@@ -31,6 +31,8 @@ type CartoLeftSidebarProps = {
   defaultNewCuOpen?: boolean;
   defaultHistoryOpen?: boolean;
   defaultParcelleOpen?: boolean;
+  /** Historique rendu à l'intérieur du bloc « Certificat d'urbanisme » (pas de section séparée). */
+  historyInsideNewCu?: boolean;
 };
 
 function LeftSidebarBlock({
@@ -74,21 +76,21 @@ function ToolSection({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <section className="border border-gray-200 rounded-md overflow-hidden bg-white">
+    <section className="carto-left-sidebar__tool-section">
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-3 py-2.5 bg-gray-50 hover:bg-gray-100 transition-colors text-xs font-semibold text-gray-700"
+        className="carto-left-sidebar__tool-section-trigger"
       >
         <div className="flex items-center gap-2">
-          {icon ? <span className="text-gray-500">{icon}</span> : null}
+          {icon ? <span>{icon}</span> : null}
           <span>{title}</span>
         </div>
-        <span className="text-gray-400">
+        <span>
           {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </span>
       </button>
-      {open ? <div className="p-3 bg-white">{children}</div> : null}
+      {open ? <div className="carto-left-sidebar__tool-section-body">{children}</div> : null}
     </section>
   );
 }
@@ -104,24 +106,39 @@ export default function CartoLeftSidebar({
   defaultNewCuOpen = false,
   defaultHistoryOpen = false,
   defaultParcelleOpen = true,
+  historyInsideNewCu = false,
 }: CartoLeftSidebarProps) {
   return (
-    <aside
-      className={`carto-left-sidebar${isOpen ? "" : " carto-left-sidebar--collapsed"}`}
-      aria-label="Outils et historique"
-    >
-      <button
-        type="button"
-        className="carto-left-sidebar__toggle"
-        onClick={onToggle}
-        aria-label={isOpen ? "Masquer le panneau gauche" : "Afficher le panneau gauche"}
-        aria-expanded={isOpen}
-      >
-        {isOpen ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
-      </button>
+    <>
+      {!isOpen ? (
+        <button
+          type="button"
+          className="carto-left-sidebar__expand"
+          onClick={onToggle}
+          aria-label="Afficher le panneau gauche"
+          title="Afficher le panneau"
+        >
+          <ChevronRight size={18} />
+        </button>
+      ) : null}
 
-      {isOpen ? (
+      <aside
+        className={`carto-left-sidebar${isOpen ? "" : " carto-left-sidebar--collapsed"}`}
+        aria-label="Outils et historique"
+      >
+        {isOpen ? (
         <div className="carto-left-sidebar__inner">
+          <div className="carto-left-sidebar__header">
+            <button
+              type="button"
+              className="carto-left-sidebar__header-toggle"
+              onClick={onToggle}
+              aria-label="Replier le panneau gauche"
+              title="Replier"
+            >
+              <ChevronLeft size={16} />
+            </button>
+          </div>
           <div className="carto-left-sidebar__scroll">
             {searchBlock ? (
               <LeftSidebarBlock
@@ -153,6 +170,11 @@ export default function CartoLeftSidebar({
                   ))
                 )}
               </div>
+              {historyInsideNewCu ? (
+                <div className="carto-left-sidebar__history carto-left-sidebar__history--nested">
+                  <CartoHistoryPanel {...history} variant="left" />
+                </div>
+              ) : null}
             </LeftSidebarBlock>
 
             {parcelleBlock ? (
@@ -164,15 +186,18 @@ export default function CartoLeftSidebar({
               </LeftSidebarBlock>
             ) : null}
 
-            <LeftSidebarBlock title="Historique" defaultOpen={defaultHistoryOpen}>
-              <div className="carto-left-sidebar__history">
-                <CartoHistoryPanel {...history} variant="left" />
-              </div>
-            </LeftSidebarBlock>
+            {!historyInsideNewCu ? (
+              <LeftSidebarBlock title="Historique" defaultOpen={defaultHistoryOpen}>
+                <div className="carto-left-sidebar__history">
+                  <CartoHistoryPanel {...history} variant="left" />
+                </div>
+              </LeftSidebarBlock>
+            ) : null}
           </div>
         </div>
-      ) : null}
-    </aside>
+        ) : null}
+      </aside>
+    </>
   );
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import * as pmtiles from "pmtiles";
@@ -10,17 +10,37 @@ import ParcelleSearchForm from "../../../../components/tools/carto/ParcelleSearc
 import SearchUniteFonciere from "../../../../components/tools/carto/SearchUniteFonciere";
 import { type HistoryPipeline } from "../../../../components/tools/carto/HistoryPipelineCard";
 import SuiviInstructionCard from "../../../../components/tools/carto/SuiviInstructionCard";
-import CerfaTool from "./cerfa/CerfaTool";
 import UniteFonciereCard from "../../../../components/tools/carto/UniteFonciereCard";
 import type { ParcelleInfo, ZonageInfo } from "../../../../types/parcelle";
+import type { FullIntersectionsReport } from "../../../../types/fullIntersections";
 import type { ParcelleResumeRef } from "../../../../types/sigResume";
+import { buildIntersectionsReportFromCartoContext } from "../../../../utils/argeles/fullIntersections";
 import ParcelleResumePanel from "./ParcelleResumePanel";
 import supabase from "../../../../supabaseClient";
-import { MapLoadingOverlay, MapTooltipOverlay, UfBuilderModeBanner } from "./LatresneMapOverlays";
+import { MapLoadingOverlay, MapTooltipOverlay, UfBuilderModeBanner } from "./ArgelesMapOverlays";
 import type { IdentiteFonciereHistoryRow } from "../../../../components/carto/right-sidebar/CartoHistoryPanel";
 import { CARTO_LAYERS } from "./cartoLayers";
 import { mountAllCartoLayers, syncCartoOnMap } from "./cartoFilters";
 import CartoLegendPanel from "./CartoLegendPanel";
+import StudyZoneControls from "../../../../components/carto/studyZone/StudyZoneControls";
+import StudyZoneLegendPanel from "../../../../components/carto/studyZone/StudyZoneLegendPanel";
+import { fetchStudyZoneCarto } from "../../../../components/carto/studyZone/studyZoneApi";
+import {
+  applyStudyZoneToMap,
+  buildBufferPolygon,
+  clearStudyZoneFromMap,
+  defaultVisibleLayerIds,
+  filterStudyZoneContext,
+  fitStudyZoneBounds,
+  studyZoneLayerSummary,
+  updateStudyZoneOnMap,
+  type StudyZoneFilterOptions,
+} from "../../../../components/carto/studyZone/studyZoneMap";
+import { attachStudyZoneInteractions } from "../../../../components/carto/studyZone/studyZoneInteractions";
+import { buildStudyZoneLegends } from "../../../../components/carto/studyZone/studyZoneLegend";
+import { buildInitialVisibleGroups, mergeVisibleGroupKeys } from "../../../../components/carto/studyZone/studyZoneCarto";
+import type { StudyZoneModeState } from "../../../../components/carto/studyZone/types";
+import { studyZoneParcellesKey, STUDY_ZONE_BUFFER_MAX_DEFAULT, STUDY_ZONE_DISPLAY_CLIP_M, studyZoneLabel } from "../../../../components/carto/studyZone/types";
 
 const cartoProtocol = new pmtiles.Protocol();
 maplibregl.addProtocol("pmtiles", cartoProtocol.tile);
@@ -330,6 +350,17 @@ export default function ArgelesPage() {
   const [ufState, setUfState] = useState<UFState | null>(null);
   const [historySidebarTab, setHistorySidebarTab] = useState<"cua" | "cif">("cua");
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
+  const [studyZoneMode, setStudyZoneMode] = useState<StudyZoneModeState | null>(null);
+  const [studyZoneLoading, setStudyZoneLoading] = useState(false);
+  const [studyZoneError, setStudyZoneError] = useState<string | null>(null);
+  const [intersectionsReport, setIntersectionsReport] = useState<FullIntersectionsReport | null>(null);
+  const [intersectionsLoading, setIntersectionsLoading] = useState(false);
+  const [intersectionsError, setIntersectionsError] = useState<string | null>(null);
+  const studyZoneCacheRef = useRef<Map<string, StudyZoneModeState["context"]>>(new Map());
+  const studyZoneInitialFitRef = useRef(false);
+  const studyZonePopupRef = useRef<maplibregl.Popup | null>(null);
+  const studyZoneDetachRef = useRef<(() => void) | null>(null);
+  const studyZoneActiveRef = useRef(false);
 
   // Mode UF actif par défaut pour permettre la sélection au clic dès l'arrivée sur la page
   const [ufBuilderMode, setUfBuilderMode] = useState(true);
@@ -422,6 +453,10 @@ export default function ArgelesPage() {
   useEffect(() => {
     ufBuilderModeRef.current = ufBuilderMode;
   }, [ufBuilderMode]);
+
+  useEffect(() => {
+    studyZoneActiveRef.current = !!studyZoneMode?.active;
+  }, [studyZoneMode]);
   
   useEffect(() => {
     selectedUfParcellesRef.current = selectedUfParcelles;
@@ -1062,6 +1097,15 @@ export default function ArgelesPage() {
       map.on("mousemove", "latresne_parcelles-fill", (e) => {
         if (isHoveringHistoryPingRef.current) return;
         if (ufStateRef.current) return;
+        if (studyZoneActiveRef.current) {
+          map.getCanvas().style.cursor = "not-allowed";
+          setTooltip({
+            x: e.point.x,
+            y: e.point.y,
+            content: "Mode zone d'étude — quittez pour changer de parcelle",
+          });
+          return;
+        }
         if (!e.features?.length) return;
         
         const feature = e.features[0];
@@ -1104,6 +1148,7 @@ export default function ArgelesPage() {
       });
 
       async function selectParcelleFromFeature(feature: GeoJSON.Feature) {
+        if (studyZoneActiveRef.current) return;
         const props = (feature.properties ?? {}) as Record<string, unknown>;
         const geometry = feature.geometry;
         if (!geometry) return;
@@ -1228,6 +1273,10 @@ export default function ArgelesPage() {
 
       // Hover/click sur résultats recherche
       map.on("mousemove", "parcelle-search-fill", (e) => {
+        if (studyZoneActiveRef.current) {
+          map.getCanvas().style.cursor = "not-allowed";
+          return;
+        }
         if (!e.features?.length) return;
         const feature = e.features[0];
         const props = feature.properties as any;
@@ -1738,6 +1787,187 @@ export default function ArgelesPage() {
     ufBuilderMode && selectedUfParcelles.length > 0 && !ufState
   );
 
+  const resumeParcellesKey = useMemo(() => {
+    if (!resumeParcelles?.length) return "";
+    return studyZoneParcellesKey(resumeParcelles);
+  }, [resumeParcelles]);
+
+  const exitStudyZone = useCallback(() => {
+    studyZoneDetachRef.current?.();
+    studyZoneDetachRef.current = null;
+    studyZonePopupRef.current?.remove();
+    studyZonePopupRef.current = null;
+    const map = mapRef.current;
+    if (map?.isStyleLoaded()) {
+      clearStudyZoneFromMap(map);
+      syncCartoOnMap(map, layerVisible, {}, bringCadastreHitLayersToFront);
+    }
+    setStudyZoneMode(null);
+    studyZoneInitialFitRef.current = false;
+    setStudyZoneError(null);
+    setStudyZoneLoading(false);
+    setIntersectionsReport(null);
+    setIntersectionsLoading(false);
+    setIntersectionsError(null);
+  }, [layerVisible]);
+
+  const enterStudyZone = useCallback(async (force = false) => {
+    if (!resumeParcelles?.length || studyZoneLoading) return;
+    const cacheKey = `${resumeParcellesKey}@clip${STUDY_ZONE_DISPLAY_CLIP_M}`;
+    setStudyZoneLoading(true);
+    setStudyZoneError(null);
+    setIntersectionsLoading(true);
+    setIntersectionsError(null);
+    setIntersectionsReport(null);
+    try {
+      if (force) studyZoneCacheRef.current.delete(cacheKey);
+      let context = studyZoneCacheRef.current.get(cacheKey);
+      if (!context) {
+        context = await fetchStudyZoneCarto("argeles", resumeParcelles);
+        studyZoneCacheRef.current.set(cacheKey, context);
+      }
+      const bufferM = Math.min(context.context_buffer_max_m, STUDY_ZONE_BUFFER_MAX_DEFAULT);
+      const visibleLayerIds = defaultVisibleLayerIds(context);
+      const baseFiltered = filterStudyZoneContext(context, {
+        bufferM,
+        visibleLayerIds,
+        visibleGroups: {},
+      });
+      const legends = buildStudyZoneLegends(context, baseFiltered);
+      const visibleGroups = buildInitialVisibleGroups(context, legends);
+
+      setStudyZoneMode({
+        active: true,
+        parcellesKey: resumeParcellesKey,
+        context,
+        bufferM,
+        visibleLayerIds,
+        visibleGroups,
+        highlightFid: null,
+      });
+      studyZoneInitialFitRef.current = true;
+    } catch (err) {
+      setStudyZoneError(err instanceof Error ? err.message : "Erreur carto zone d'étude");
+      setStudyZoneLoading(false);
+      setIntersectionsLoading(false);
+      setIntersectionsError(err instanceof Error ? err.message : "Erreur analyse SIG");
+    }
+  }, [resumeParcelles, resumeParcellesKey, studyZoneLoading]);
+
+  const studyFilterOpts = useMemo((): StudyZoneFilterOptions | null => {
+    if (!studyZoneMode?.active) return null;
+    return {
+      bufferM: studyZoneMode.bufferM,
+      visibleLayerIds: studyZoneMode.visibleLayerIds,
+      visibleGroups: studyZoneMode.visibleGroups,
+    };
+  }, [studyZoneMode]);
+
+  const studyFiltered = useMemo(() => {
+    if (!studyZoneMode?.active || !studyFilterOpts) return null;
+    return filterStudyZoneContext(studyZoneMode.context, studyFilterOpts);
+  }, [studyZoneMode, studyFilterOpts]);
+
+  const studyLayerLegends = useMemo(() => {
+    if (!studyZoneMode?.active || !studyFiltered) return [];
+    return buildStudyZoneLegends(studyZoneMode.context, studyFiltered);
+  }, [studyZoneMode, studyFiltered]);
+
+  useEffect(() => {
+    if (!studyZoneMode?.active || !studyLayerLegends.length) return;
+    setStudyZoneMode((prev) => {
+      if (!prev?.active) return prev;
+      const merged = mergeVisibleGroupKeys(prev.visibleGroups, studyLayerLegends);
+      const unchanged = Object.keys(merged).every((layerId) => {
+        const before = prev.visibleGroups[layerId];
+        const after = merged[layerId];
+        if (!before && !after) return true;
+        if (!before || !after || before.size !== after.size) return false;
+        for (const k of before) if (!after.has(k)) return false;
+        return true;
+      });
+      if (unchanged && Object.keys(prev.visibleGroups).length === Object.keys(merged).length) {
+        return prev;
+      }
+      return { ...prev, visibleGroups: merged };
+    });
+  }, [studyZoneMode?.active, studyLayerLegends]);
+
+  const studyBufferPoly = useMemo(() => {
+    if (!studyZoneMode?.active) return null;
+    return buildBufferPolygon(studyZoneMode.context.parcelle, studyZoneMode.bufferM);
+  }, [studyZoneMode]);
+
+  const studyLayerRows = useMemo(() => {
+    if (!studyZoneMode?.active || !studyFiltered) return [];
+    return studyZoneLayerSummary(studyZoneMode.context).map((row) => ({
+      layerId: row.layerId,
+      title: row.title,
+      family: row.family,
+      familyTitle: row.familyTitle,
+      parcelHits: row.parcelHits,
+      visibleCount: studyFiltered[row.layerId]?.length ?? 0,
+    }));
+  }, [studyZoneMode, studyFiltered]);
+
+  useEffect(() => {
+    if (!studyZoneMode?.active) return;
+    if (resumeParcellesKey && studyZoneMode.parcellesKey !== resumeParcellesKey) {
+      exitStudyZone();
+    }
+  }, [studyZoneMode, resumeParcellesKey, exitStudyZone]);
+
+  useEffect(() => {
+    if (!studyZoneMode?.active || studyZoneLoading) return;
+    try {
+      const report = buildIntersectionsReportFromCartoContext(studyZoneMode.context);
+      setIntersectionsReport(report);
+      setIntersectionsError(null);
+    } catch (err) {
+      setIntersectionsReport(null);
+      setIntersectionsError(err instanceof Error ? err.message : "Erreur analyse SIG");
+    } finally {
+      setIntersectionsLoading(false);
+    }
+  }, [studyZoneMode, studyZoneLoading]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapReady || !map || !studyZoneMode?.active || !studyFiltered) return;
+
+    const apply = () => {
+      if (studyZoneInitialFitRef.current) {
+        applyStudyZoneToMap(
+          map,
+          studyZoneMode.context,
+          studyFiltered,
+          studyBufferPoly,
+          studyZoneMode.visibleGroups
+        );
+        fitStudyZoneBounds(map, studyZoneMode.context.parcelle, studyFiltered);
+        studyZoneInitialFitRef.current = false;
+        setStudyZoneLoading(false);
+      } else {
+        updateStudyZoneOnMap(
+          map,
+          studyZoneMode.context,
+          studyFiltered,
+          studyBufferPoly,
+          studyZoneMode.visibleGroups
+        );
+      }
+      studyZoneDetachRef.current?.();
+      studyZoneDetachRef.current = attachStudyZoneInteractions(
+        map,
+        studyZoneMode.context,
+        studyZonePopupRef
+      );
+    };
+
+    if (map.isStyleLoaded()) apply();
+    else map.once("load", apply);
+  }, [mapReady, studyZoneMode, studyFiltered, studyBufferPoly]);
+
   const sidebarSections: CartoToolSection[] = [
     {
       id: "search-uf",
@@ -1942,25 +2172,6 @@ export default function ArgelesPage() {
           } as CartoToolSection,
         ]
       : []),
-    {
-      id: "cerfa",
-      title: "CUA à partir d'un formulaire CERFA",
-      defaultOpen: false,
-      content: (
-        <CerfaTool
-          onPipelineCreated={(newSlug) => {
-            console.log("[CUA] Redirection vers page projet", { newSlug });
-            refreshHistoryPipelines(newSlug);
-            navigate(`/argeles/cua/projects/${newSlug}`);
-          }}
-          onParcellesDetected={async (parcelles, commune, insee) => {
-            if (showCerfaParcellesRef.current) {
-              await showCerfaParcellesRef.current(parcelles, commune, insee);
-            }
-          }}
-        />
-      ),
-    },
   ];
 
   return (
@@ -1968,9 +2179,11 @@ export default function ArgelesPage() {
         <CartoLeftSidebar
           isOpen={leftSidebarOpen}
           onToggle={() => setLeftSidebarOpen((v) => !v)}
+          newCuTitle="Certificat d'urbanisme"
+          historyInsideNewCu
           searchBlock={{
             title: "Rechercher une parcelle",
-            defaultOpen: true,
+            defaultOpen: false,
             content: (
               <ParcelleSearchForm
                 embedded
@@ -1991,12 +2204,32 @@ export default function ArgelesPage() {
                       : "Caractéristiques parcelle",
                   defaultOpen: true,
                   content: (
-                    <ParcelleResumePanel
-                      communeSlug="argeles"
-                      parcelles={resumeParcelles}
-                      cadastre={cadastreData}
-                      isDraftUf={isDraftUfResume}
-                    />
+                    <>
+                      <ParcelleResumePanel
+                        communeSlug="argeles"
+                        parcelles={resumeParcelles}
+                        cadastre={cadastreData}
+                        isDraftUf={isDraftUfResume}
+                        studyZoneActive={!!studyZoneMode?.active}
+                        studyZoneLoading={studyZoneLoading}
+                        studyZoneLabel={
+                          studyZoneMode?.active
+                            ? studyZoneLabel(studyZoneMode.context)
+                            : undefined
+                        }
+                        onEnterStudyZone={() => void enterStudyZone()}
+                        onExitStudyZone={exitStudyZone}
+                        intersectionsReport={intersectionsReport}
+                        intersectionsLoading={intersectionsLoading}
+                        intersectionsError={intersectionsError}
+                        onRecalculateIntersections={() => void enterStudyZone(true)}
+                      />
+                      {studyZoneError ? (
+                        <p className="text-xs text-red-700 bg-red-50 border border-red-100 rounded p-2 mt-2">
+                          {studyZoneError}
+                        </p>
+                      ) : null}
+                    </>
                   ),
                 }
               : null
@@ -2022,7 +2255,10 @@ export default function ArgelesPage() {
           <div ref={containerRef} className="w-full h-full" />
         
           <MapTooltipOverlay tooltip={tooltip} />
-          <MapLoadingOverlay isLoadingCadastre={isLoadingCadastre} />
+          <MapLoadingOverlay
+            isLoadingCadastre={isLoadingCadastre}
+            isLoadingStudyZone={studyZoneLoading}
+          />
           <UfBuilderModeBanner
             ufBuilderMode={ufBuilderMode}
             currentZoom={currentZoom}
@@ -2030,13 +2266,65 @@ export default function ArgelesPage() {
             selectedCount={selectedUfParcelles.length}
             maxCount={20}
           />
+          {studyZoneMode?.active ? (
+            <StudyZoneControls
+              context={studyZoneMode.context}
+              bufferM={studyZoneMode.bufferM}
+              bufferMaxM={studyZoneMode.context.context_buffer_max_m}
+              loading={studyZoneLoading}
+              onBufferChange={(m) =>
+                setStudyZoneMode((prev) => (prev?.active ? { ...prev, bufferM: m } : prev))
+              }
+              onExit={exitStudyZone}
+            />
+          ) : null}
         </div>
 
         <RightSidebarPatch
           isOpen={rightLegendOpen}
           onToggle={() => setRightLegendOpen((v) => !v)}
           legend={
-            mapReady && mapRef.current ? (
+            studyZoneMode?.active ? (
+              <StudyZoneLegendPanel
+                layerRows={studyLayerRows}
+                layerLegends={studyLayerLegends}
+                visibleLayerIds={studyZoneMode.visibleLayerIds}
+                visibleGroups={studyZoneMode.visibleGroups}
+                onToggleLayer={(layerId) =>
+                  setStudyZoneMode((prev) => {
+                    if (!prev?.active) return prev;
+                    const next = new Set(prev.visibleLayerIds);
+                    if (next.has(layerId)) next.delete(layerId);
+                    else next.add(layerId);
+                    return { ...prev, visibleLayerIds: next };
+                  })
+                }
+                onToggleGroup={(layerId, key) =>
+                  setStudyZoneMode((prev) => {
+                    if (!prev?.active) return prev;
+                    const set = new Set(prev.visibleGroups[layerId] ?? []);
+                    if (set.has(key)) set.delete(key);
+                    else set.add(key);
+                    return {
+                      ...prev,
+                      visibleGroups: { ...prev.visibleGroups, [layerId]: set },
+                    };
+                  })
+                }
+                onToggleAllGroups={(layerId, on, keys) =>
+                  setStudyZoneMode((prev) => {
+                    if (!prev?.active) return prev;
+                    return {
+                      ...prev,
+                      visibleGroups: {
+                        ...prev.visibleGroups,
+                        [layerId]: on ? new Set(keys) : new Set(),
+                      },
+                    };
+                  })
+                }
+              />
+            ) : mapReady && mapRef.current ? (
               <CartoLegendPanel
                 embedded
                 map={mapRef.current}

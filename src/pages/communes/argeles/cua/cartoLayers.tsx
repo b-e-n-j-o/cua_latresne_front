@@ -648,7 +648,6 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
   {
     id: "batiments",
     title: "Bâtiments",
-    family: "cadastre",
     defaultVisible: false,
     pmtilesUrl: tilesUrl("batiments"),
     sourceLayer: "batiments",

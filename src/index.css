@@ -1,6 +1,7 @@
 /* === Design System Kerelia (Tailwind v4) === */
 
 @import "tailwindcss";
+@import "./styles/kerelia-tokens.css";
 
 /* === Déclaration des tokens v4 === */
 @theme {
@@ -38,12 +39,18 @@
   --color-sidebar-ring: oklch(0.55 0.25 270);
 
   --radius: 1rem;
+
+  /* Police par défaut de l'app — hérite partout sans retoucher chaque composant */
+  --font-sans: var(--font-kerelia);
 }
 
 /* === Base === */
 @layer base {
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
+    font-family: var(--font-kerelia);
+    font-weight: 400;
+    letter-spacing: -0.01em;
   }
 
   * {
