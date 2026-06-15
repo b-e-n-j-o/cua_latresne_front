@@ -8,16 +8,16 @@ export const demoContactCtaCopy = {
 } as const;
 
 export const heroCopy = {
-  headlineLines: ["Bureau d'études en données géospatiales."] as const,
+  headlineLines: ["Édition de logiciels d'intelligence géospatiale."] as const,
   sub:
-    "Kerelia produit des analyses réglementaires, environnementales et foncières à partir de référentiels publics et propriétaires.",
+    "Kerelia produit des outils intelligents d'analyses réglementaires, environnementales et foncières à partir de données publiques et propriétaires.",
   metaBl: ["BORDEAUX 44.836° N 0.578° W", "INCUBÉE A TECHNOWEST"] as const,
 } as const;
 
 export const sourcesPartnershipsCopy = {
   title: "Sources & partenariats",
   intro:
-    "Kerelia produit ses analyses à partir des référentiels publics et privés faisant autorité. Nous travaillons sans intermédiaire avec les sources de l'État, des établissements publics et des organismes scientifiques.",
+    "Kerelia produit ses analyses à partir des données publiques et propriétaires faisant autorité. Nous travaillons sans intermédiaire avec les sources de l'État, des établissements publics et des organismes scientifiques.",
   institutionalHeading: "Références institutionnelles",
   operationalHeading: "Partenariats opérationnels",
   partnerships: [
