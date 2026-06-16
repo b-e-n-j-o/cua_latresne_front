@@ -108,6 +108,60 @@ export function useMapVisibility(mapData: MapData | null) {
   const toggleInformation = useCallback((key: string) => toggleInSet(setVisibleInformations, key), []);
   const toggleExtra = useCallback((id: string) => toggleInSet(setVisibleExtra, id), []);
 
+  const hideAllLayers = useCallback(() => {
+    setVisibleZones(new Set());
+    setVisibleServitudes(new Set());
+    setVisiblePrescriptions(new Set());
+    setVisibleInformations(new Set());
+    setVisibleExtra(new Set());
+  }, []);
+
+  const showAllLayers = useCallback(() => {
+    if (!mapData) return;
+    setVisibleZones(new Set(mapData.zones.features.map((f) => f.properties.code_zone)));
+    setVisibleServitudes(new Set(servitudeGroups.map((g) => g.key)));
+    setVisiblePrescriptions(new Set(prescriptionGroups.map((g) => g.key)));
+    setVisibleInformations(new Set(informationGroups.map((g) => g.key)));
+    setVisibleExtra(new Set(extraLayers.map((l) => l.id)));
+  }, [mapData, servitudeGroups, prescriptionGroups, informationGroups, extraLayers]);
+
+  const allLayersVisible = useMemo(() => {
+    if (!mapData) return false;
+    const zonesOk = mapData.zones.features.every((f) => visibleZones.has(f.properties.code_zone));
+    const servOk = servitudeGroups.every((g) => visibleServitudes.has(g.key));
+    const prescrOk = prescriptionGroups.every((g) => visiblePrescriptions.has(g.key));
+    const infoOk = informationGroups.every((g) => visibleInformations.has(g.key));
+    const extraOk = extraLayers.every((l) => visibleExtra.has(l.id));
+    return zonesOk && servOk && prescrOk && infoOk && extraOk;
+  }, [
+    mapData,
+    servitudeGroups,
+    prescriptionGroups,
+    informationGroups,
+    extraLayers,
+    visibleZones,
+    visibleServitudes,
+    visiblePrescriptions,
+    visibleInformations,
+    visibleExtra,
+  ]);
+
+  const allLayersHidden = useMemo(
+    () =>
+      visibleZones.size === 0 &&
+      visibleServitudes.size === 0 &&
+      visiblePrescriptions.size === 0 &&
+      visibleInformations.size === 0 &&
+      visibleExtra.size === 0,
+    [
+      visibleZones,
+      visibleServitudes,
+      visiblePrescriptions,
+      visibleInformations,
+      visibleExtra,
+    ],
+  );
+
   const hasLegendContent =
     (mapData?.zones.features.length ?? 0) > 0 ||
     servitudeGroups.length > 0 ||
@@ -136,6 +190,10 @@ export function useMapVisibility(mapData: MapData | null) {
     extraLayers,
     visibleExtra,
     toggleExtra,
+    hideAllLayers,
+    showAllLayers,
+    allLayersVisible,
+    allLayersHidden,
   };
 }
 

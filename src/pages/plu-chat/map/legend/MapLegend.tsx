@@ -13,6 +13,27 @@ export default function MapLegend({ mapData, visibility }: Props) {
 
   return (
     <div className="plu-map-panel__legend-scroll">
+      <div className="plu-map-panel__legend-toolbar">
+        <button
+          type="button"
+          className="plu-map-panel__legend-toolbar-btn"
+          onClick={visibility.hideAllLayers}
+          disabled={visibility.allLayersHidden}
+          title="Masquer toutes les couches de la légende"
+        >
+          Tout masquer
+        </button>
+        <button
+          type="button"
+          className="plu-map-panel__legend-toolbar-btn"
+          onClick={visibility.showAllLayers}
+          disabled={visibility.allLayersVisible}
+          title="Réafficher toutes les couches de la légende"
+        >
+          Tout afficher
+        </button>
+      </div>
+
       {visibility.extraLayers.length > 0 && (
         <LegendCollapsibleSection
           title="Couches locales"

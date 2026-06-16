@@ -560,6 +560,47 @@
   color: var(--plu-text);
 }
 
+/* Tableaux GFM (remark-gfm) — bordures, alignement, défilement horizontal */
+.plu-chat__markdown-table-wrap {
+  margin: 0.85rem 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--plu-border);
+  border-radius: 0.65rem;
+  background: #fff;
+}
+
+.plu-chat__markdown table {
+  width: 100%;
+  min-width: 28rem;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.plu-chat__markdown th,
+.plu-chat__markdown td {
+  padding: 0.55rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--plu-border);
+}
+
+.plu-chat__markdown th {
+  font-weight: 600;
+  color: var(--plu-text);
+  background: var(--plu-surface);
+  white-space: nowrap;
+}
+
+.plu-chat__markdown tr:last-child td {
+  border-bottom: none;
+}
+
+.plu-chat__markdown tbody tr:hover td {
+  background: rgba(133, 227, 114, 0.06);
+}
+
 .plu-chat__meta {
   font-size: 0.72rem;
   color: var(--plu-text-muted);

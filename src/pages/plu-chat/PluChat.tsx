@@ -189,7 +189,18 @@ function mapSessionMessages(raw: SessionState["messages"]): ChatMessage[] {
 function AssistantMarkdown({ content }: { content: string }) {
   return (
     <div className="plu-chat__markdown">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          table: ({ children, ...props }) => (
+            <div className="plu-chat__markdown-table-wrap">
+              <table {...props}>{children}</table>
+            </div>
+          ),
+        }}
+      >
+        {content}
+      </ReactMarkdown>
     </div>
   );
 }

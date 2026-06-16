@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Maximize2 } from "lucide-react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./PluMapPanel.css";
@@ -40,8 +41,22 @@ export default function PluMapPanel({
   const [mapData, setMapData] = useState<MapData | null>(propMapData);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const visibility = useMapVisibility(mapData);
+
+  useEffect(() => {
+    if (!isVisible) setIsExpanded(false);
+  }, [isVisible]);
+
+  useEffect(() => {
+    if (!isExpanded) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsExpanded(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isExpanded]);
 
   useEffect(() => {
     if (propMapData) {
@@ -161,10 +176,18 @@ export default function PluMapPanel({
       window.clearTimeout(t);
       ro.disconnect();
     };
-  }, [isVisible, mapData]);
+  }, [isVisible, mapData, isExpanded]);
+
+  const panelClassName = [
+    "plu-map-panel",
+    isVisible && "plu-map-panel--visible",
+    isExpanded && "plu-map-panel--expanded",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
-    <aside className={`plu-map-panel${isVisible ? " plu-map-panel--visible" : ""}`}>
+    <aside className={panelClassName}>
       <div className="plu-map-panel__header">
         <span className="plu-map-panel__title">Carte PLU</span>
         <div className="plu-map-panel__header-actions">
@@ -179,11 +202,23 @@ export default function PluMapPanel({
               {visibility.legendOpen ? "Masquer légende" : "Légende"}
             </button>
           )}
+          {!isExpanded && (
+            <button
+              type="button"
+              className="plu-map-panel__expand"
+              onClick={() => setIsExpanded(true)}
+              aria-label="Agrandir la carte en plein écran"
+              title="Plein écran"
+            >
+              <Maximize2 size={15} strokeWidth={2.25} aria-hidden />
+            </button>
+          )}
           <button
             type="button"
             className="plu-map-panel__close"
-            onClick={onClose}
-            aria-label="Fermer la carte"
+            onClick={isExpanded ? () => setIsExpanded(false) : onClose}
+            aria-label={isExpanded ? "Revenir à la vue partagée" : "Fermer la carte"}
+            title={isExpanded ? "Revenir au chat" : "Fermer la carte"}
           >
             ✕
           </button>
