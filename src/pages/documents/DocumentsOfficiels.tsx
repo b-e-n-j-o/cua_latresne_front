@@ -119,7 +119,7 @@ export default function DocumentsOfficiels({ apiBase = "", token, communeSlug }:
       <section className="doc-list" aria-label="Documents officiels">
         <div className="doc-list-top">
           <div className="doc-list-head">
-            <h1 className="doc-list-title">Documents officiels</h1>
+            <h1 className="doc-list-title">Documents officiels du Géoportail</h1>
             <span className="doc-list-count">{groupedCount}</span>
           </div>
           <div className="doc-search">
@@ -156,7 +156,7 @@ export default function DocumentsOfficiels({ apiBase = "", token, communeSlug }:
         {!selected && (
           <div className="doc-viewer-empty">
             <DocIcon />
-            <p>Sélectionne un document à gauche pour l&apos;afficher.</p>
+            <p>Sélectionner un document à gauche pour l&apos;afficher.</p>
             <p className="doc-muted">Source : Géoportail de l&apos;urbanisme</p>
           </div>
         )}

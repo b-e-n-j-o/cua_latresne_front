@@ -17,7 +17,7 @@ const TOOL_META: Record<
   cua: { segment: "cua", title: "Certificats d’urbanisme", Icon: FileText },
   chat: { segment: "chat", title: "Assistant PLU", Icon: MessageSquare },
   reglements: { segment: "reglements", title: "Règlements", Icon: BookOpen },
-  documents: { segment: "documents", title: "Documents officiels", Icon: FileStack },
+  documents: { segment: "documents", title: "Documents officiels Géoportail", Icon: FileStack },
 };
 
 export default function CommuneLayout() {
