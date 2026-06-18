@@ -2,6 +2,7 @@ import React, { useState } from "react";
 // Importez useNavigate et Link pour la navigation
 import { useNavigate, Link } from "react-router-dom"; 
 import supabase from "../supabaseClient";
+import { fetchCommuneAccess, resolvePostLoginPath } from "./communeAccess";
 
 /**
  * LoginForm : Gère la soumission du formulaire et la redirection après succès.
@@ -20,14 +21,19 @@ export default function LoginForm() {
     setBusy(true);
     setError(null);
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       
       if (error) {
         throw error;
       }
-      
-      // ✅ SUCCÈS : Rediriger l'utilisateur vers la page d'accueil
-      navigate("/", { replace: true }); 
+
+      const loggedInUser = data.user ?? data.session?.user;
+      if (loggedInUser) {
+        const access = await fetchCommuneAccess(loggedInUser);
+        navigate(resolvePostLoginPath(access), { replace: true });
+      } else {
+        navigate("/", { replace: true });
+      }
 
     } catch (err: any) {
       console.error(err);

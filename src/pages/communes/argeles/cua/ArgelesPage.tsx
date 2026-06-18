@@ -255,6 +255,43 @@ function parseIdentiteCentroid(raw: unknown): { lon: number; lat: number } | nul
   return null;
 }
 
+function getPipelineCentroid(p: HistoryPipeline): { lon: number; lat: number } | null {
+  return parseIdentiteCentroid(p.centroid as unknown);
+}
+
+function normalizeHistoryPipelines(pipelines: HistoryPipeline[]): HistoryPipeline[] {
+  return pipelines.map((p) => {
+    const centroid = getPipelineCentroid(p);
+    return centroid ? { ...p, centroid } : p;
+  });
+}
+
+function buildHistoryMapFeatures(pipelines: HistoryPipeline[]): GeoJSON.Feature[] {
+  return pipelines.flatMap((p) => {
+    const c = getPipelineCentroid(p);
+    if (!c) return [];
+    return [
+      {
+        type: "Feature" as const,
+        geometry: {
+          type: "Point" as const,
+          coordinates: [c.lon, c.lat],
+        },
+        properties: {
+          slug: p.slug,
+          numero_cu: p.cerfa_data?.numero_cu,
+          demandeur: p.cerfa_data?.demandeur,
+          section: p.cerfa_data?.parcelles?.[0]?.section,
+          numero: p.cerfa_data?.parcelles?.[0]?.numero,
+          commune: p.commune,
+          code_insee: p.code_insee,
+          pingColor: getPingColor(p.created_at),
+        },
+      },
+    ];
+  });
+}
+
 const ARGELLES_INSEE = "66008";
 const ARGELLES_COMMUNE = "Argelès-sur-Mer";
 
@@ -545,14 +582,15 @@ export default function ArgelesPage() {
     }
   ) => {
     const base = (API_BASE || "http://localhost:8000").replace(/\/$/, "");
-    const res = await fetch(`${base}/pipelines/${slug}`, {
+    const qs = userId ? `?user_id=${encodeURIComponent(userId)}` : "";
+    const res = await fetch(`${base}/pipelines/${slug}${qs}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
     const data = await res.json();
     if (!res.ok || !data?.success) {
-      throw new Error(data?.error || "Erreur de mise à jour");
+      throw new Error(data?.detail || data?.error || "Erreur de mise à jour");
     }
 
     updateHistoryPipelineInState(slug, (p) => ({
@@ -570,10 +608,11 @@ export default function ArgelesPage() {
 
   const handleDeleteHistoryProject = async (slug: string) => {
     const base = (API_BASE || "http://localhost:8000").replace(/\/$/, "");
-    const res = await fetch(`${base}/pipelines/${slug}`, { method: "DELETE" });
+    const qs = userId ? `?user_id=${encodeURIComponent(userId)}` : "";
+    const res = await fetch(`${base}/pipelines/${slug}${qs}`, { method: "DELETE" });
     const data = await res.json();
     if (!res.ok || !data?.success) {
-      throw new Error(data?.error || "Erreur de suppression");
+      throw new Error(data?.detail || data?.error || "Erreur de suppression");
     }
 
     setHistoryPipelines((prev) => prev.filter((p) => p.slug !== slug));
@@ -588,46 +627,33 @@ export default function ArgelesPage() {
     if (!map || !userId) return;
     try {
       const base = API_BASE.replace(/\/$/, "");
-      const res = await fetch(`${base}/pipelines/by_user?user_id=${userId}`);
+      const res = await fetch(`${base}/pipelines/by_user?user_id=${userId}&commune_slug=argeles`);
       const j = await res.json();
       if (!j.success || !Array.isArray(j.pipelines)) {
         console.warn("⚠️ Impossible de charger l'historique des pipelines pour la carte");
         return;
       }
 
-      const pipelinesWithCentroid = j.pipelines.filter(
-        (p: any) => p.centroid && typeof p.centroid.lon === "number" && typeof p.centroid.lat === "number"
-      );
-      setHistoryPipelines(pipelinesWithCentroid);
+      const normalized = normalizeHistoryPipelines(j.pipelines);
+      setHistoryPipelines(normalized);
 
-      const features: GeoJSON.Feature[] = pipelinesWithCentroid.map((p: any) => ({
-        type: "Feature",
-        geometry: {
-          type: "Point",
-          coordinates: [p.centroid.lon, p.centroid.lat],
-        },
-        properties: {
-          slug: p.slug,
-          numero_cu: p.cerfa_data?.numero_cu,
-          demandeur: p.cerfa_data?.demandeur,
-          section: p.cerfa_data?.parcelles?.[0]?.section,
-          numero: p.cerfa_data?.parcelles?.[0]?.numero,
-          commune: p.commune,
-          code_insee: p.code_insee,
-          pingColor: getPingColor(p.created_at),
-        },
-      }));
+      const pipelinesWithCentroid = normalized.filter((p) => getPipelineCentroid(p) !== null);
+
+      const features = buildHistoryMapFeatures(normalized);
 
       const source = map.getSource("pipelines-history") as maplibregl.GeoJSONSource | undefined;
       if (source) {
         source.setData({ type: "FeatureCollection", features });
+        bringCadastreHitLayersToFront(map);
       }
 
       if (focusSlug) {
-        const created = pipelinesWithCentroid.find((p: any) => p.slug === focusSlug);
+        const created = pipelinesWithCentroid.find((p) => p.slug === focusSlug);
         if (created) {
+          const centroid = getPipelineCentroid(created);
+          if (!centroid) return;
           setSelectedHistoryPipeline(created);
-          const point = map.project([created.centroid.lon, created.centroid.lat]);
+          const point = map.project([centroid.lon, centroid.lat]);
           const container = map.getContainer();
           const cw = container.clientWidth;
           const ch = container.clientHeight;
@@ -635,7 +661,7 @@ export default function ArgelesPage() {
           const x = clampPopupX(point.x, cw);
           setHistoryPopupPosition({ x, y: point.y, placement });
           map.flyTo({
-            center: [created.centroid.lon, created.centroid.lat],
+            center: [centroid.lon, centroid.lat],
             zoom: Math.max(map.getZoom(), 16),
             duration: 600,
           });
@@ -1534,27 +1560,10 @@ export default function ArgelesPage() {
     const source = map.getSource("pipelines-history") as maplibregl.GeoJSONSource | undefined;
     if (!source) return;
 
-    const features: GeoJSON.Feature[] = historyPipelines
-      .filter((p: any) => p.centroid && typeof p.centroid.lon === "number" && typeof p.centroid.lat === "number")
-      .map((p: any) => ({
-        type: "Feature",
-        geometry: {
-          type: "Point",
-          coordinates: [p.centroid.lon, p.centroid.lat],
-        },
-        properties: {
-          slug: p.slug,
-          numero_cu: p.cerfa_data?.numero_cu,
-          demandeur: p.cerfa_data?.demandeur,
-          section: p.cerfa_data?.parcelles?.[0]?.section,
-          numero: p.cerfa_data?.parcelles?.[0]?.numero,
-          commune: p.commune,
-          code_insee: p.code_insee,
-          pingColor: getPingColor(p.created_at),
-        },
-      }));
+    const features = buildHistoryMapFeatures(historyPipelines);
 
     source.setData({ type: "FeatureCollection", features });
+    bringCadastreHitLayersToFront(map);
   }, [historyPipelines]);
 
   useEffect(() => {
@@ -2130,6 +2139,7 @@ export default function ArgelesPage() {
                   }
                 }}
                 dbSchema="argeles"
+                communeSlug="argeles"
                 embedded={true}
               />
             ),

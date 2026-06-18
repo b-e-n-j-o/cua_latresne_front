@@ -9,7 +9,7 @@ import RedirectSlugPage from "./routes/RedirectSlugPage";
 import HistoryPanel from "./HistoryPanel";
 import AdminPage from "./routes/AdminPage";
 import CuaViewer from "./routes/CuaViewer";
-import ChatUrba from "./pages/chat-urba/ChatUrba";
+import PluChat from "./pages/plu-chat/PluChat";
 import LidarViewerPage from "./pages/visualisations_de_test/lidar/LidarViewerPage";
 import MntViewerPage from "./pages/visualisations_de_test/mnt/MntViewerPage";
 import LatresneTilesPage from "./pages/communes/latresne/cua/LatresnePagePMTiles";
@@ -20,6 +20,7 @@ import {
   CommuneCuaRoute,
   CommuneChatRoute,
   CommuneProjectRoute,
+  CommuneReglementsRoute,
 } from "./layouts/communePortalRoutes";
 import DemoRequestPage from "./pages/website/DemoRequestPage";
 import MarkdownBatchPage from "./pages/tools/MarkdownBatchPage";
@@ -83,7 +84,7 @@ export default function App() {
         <Route path="/update-password" element={<UpdatePasswordPage />} />
         <Route path="/notre-equipe" element={<Navigate to={{ pathname: "/", hash: "equipe" }} replace />} />
         <Route path="/cua" element={<CuaViewer />} />
-        <Route path="/chat-urba" element={<ChatUrba />} />
+        <Route path="/chat-urba" element={<PluChat commune="france" />} />
         <Route path="/latresne" element={<div>Page introuvable</div>} />
         <Route path="/lidar" element={<LidarViewerPage />} />
         <Route path="/mnt" element={<MntViewerPage />} />
@@ -119,6 +120,7 @@ export default function App() {
           <Route path="cua" element={<CommuneCuaRoute />} />
           <Route path="cua/projects/:slug" element={<CommuneProjectRoute />} />
           <Route path="chat" element={<CommuneChatRoute />} />
+          <Route path="reglements" element={<CommuneReglementsRoute />} />
         </Route>
         <Route path="*" element={<div>Page introuvable</div>} />
       </Routes>

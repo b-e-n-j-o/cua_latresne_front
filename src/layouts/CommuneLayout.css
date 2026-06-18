@@ -1,4 +1,11 @@
-/* Portail commune — barre latérale navigation (CUA / chat) */
+.commune-portal-fallback--loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100dvh;
+  color: #64748b;
+  font-size: 0.95rem;
+}
 
 .commune-portal {
   --commune-nav-w: 3.5rem;

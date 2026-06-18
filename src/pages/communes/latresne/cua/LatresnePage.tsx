@@ -366,14 +366,15 @@ export default function LatresnePage() {
     }
   ) => {
     const base = (API_BASE || "http://localhost:8000").replace(/\/$/, "");
-    const res = await fetch(`${base}/pipelines/${slug}`, {
+    const qs = userId ? `?user_id=${encodeURIComponent(userId)}` : "";
+    const res = await fetch(`${base}/pipelines/${slug}${qs}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
     const data = await res.json();
     if (!res.ok || !data?.success) {
-      throw new Error(data?.error || "Erreur de mise à jour");
+      throw new Error(data?.detail || data?.error || "Erreur de mise à jour");
     }
 
     updateHistoryPipelineInState(slug, (p) => ({
@@ -391,10 +392,11 @@ export default function LatresnePage() {
 
   const handleDeleteHistoryProject = async (slug: string) => {
     const base = (API_BASE || "http://localhost:8000").replace(/\/$/, "");
-    const res = await fetch(`${base}/pipelines/${slug}`, { method: "DELETE" });
+    const qs = userId ? `?user_id=${encodeURIComponent(userId)}` : "";
+    const res = await fetch(`${base}/pipelines/${slug}${qs}`, { method: "DELETE" });
     const data = await res.json();
     if (!res.ok || !data?.success) {
-      throw new Error(data?.error || "Erreur de suppression");
+      throw new Error(data?.detail || data?.error || "Erreur de suppression");
     }
 
     setHistoryPipelines((prev) => prev.filter((p) => p.slug !== slug));
@@ -409,17 +411,18 @@ export default function LatresnePage() {
     if (!map || !userId) return;
     try {
       const base = API_BASE.replace(/\/$/, "");
-      const res = await fetch(`${base}/pipelines/by_user?user_id=${userId}`);
+      const res = await fetch(`${base}/pipelines/by_user?user_id=${userId}&commune_slug=latresne`);
       const j = await res.json();
       if (!j.success || !Array.isArray(j.pipelines)) {
         console.warn("⚠️ Impossible de charger l'historique des pipelines pour la carte");
         return;
       }
 
+      setHistoryPipelines(j.pipelines);
+
       const pipelinesWithCentroid = j.pipelines.filter(
         (p: any) => p.centroid && typeof p.centroid.lon === "number" && typeof p.centroid.lat === "number"
       );
-      setHistoryPipelines(pipelinesWithCentroid);
 
       const features: GeoJSON.Feature[] = pipelinesWithCentroid.map((p: any) => ({
         type: "Feature",

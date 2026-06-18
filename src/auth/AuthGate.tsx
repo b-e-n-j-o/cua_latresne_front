@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useLocation, Navigate } from "react-router-dom";
 import supabase from "../supabaseClient";
+import { CommuneAccessProvider } from "./CommuneAccessContext";
 
 /**
  * AuthGate — Composant de garde qui protège les routes.
@@ -50,7 +51,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
   // 3. Utilisateur CONNECTÉ : Accès autorisé
   if (user) {
-    return <>{children}</>;
+    return <CommuneAccessProvider>{children}</CommuneAccessProvider>;
   }
 
   // 4. Utilisateur NON CONNECTÉ et non sur la page de login : Redirection

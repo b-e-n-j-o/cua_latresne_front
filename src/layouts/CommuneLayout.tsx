@@ -1,5 +1,7 @@
 import { NavLink, Outlet, useParams, Navigate } from "react-router-dom";
-import { FileText, MessageSquare } from "lucide-react";
+import { BookOpen, FileText, MessageSquare } from "lucide-react";
+import { useCommuneAccess } from "../auth/CommuneAccessContext";
+import { canAccessCommuneSlug, resolveCommuneRedirectPath } from "../auth/communeAccess";
 import {
   getCommunePortal,
   isCommunePortalSlug,
@@ -14,13 +16,27 @@ const TOOL_META: Record<
 > = {
   cua: { segment: "cua", title: "Certificats d’urbanisme", Icon: FileText },
   chat: { segment: "chat", title: "Assistant PLU", Icon: MessageSquare },
+  reglements: { segment: "reglements", title: "Règlements", Icon: BookOpen },
 };
 
 export default function CommuneLayout() {
   const { communeSlug } = useParams<{ communeSlug: string }>();
+  const { loading, allowedSlugs } = useCommuneAccess();
+
+  if (loading) {
+    return (
+      <div className="commune-portal-fallback commune-portal-fallback--loading">
+        Chargement des droits d&apos;accès…
+      </div>
+    );
+  }
 
   if (!isCommunePortalSlug(communeSlug)) {
     return <div className="commune-portal-fallback">Commune introuvable</div>;
+  }
+
+  if (!canAccessCommuneSlug(communeSlug, allowedSlugs)) {
+    return <Navigate to={resolveCommuneRedirectPath({ allowedSlugs, unrestricted: false })} replace />;
   }
 
   const portal = getCommunePortal(communeSlug)!;
@@ -69,9 +85,24 @@ export default function CommuneLayout() {
 /** Redirige /:commune vers le premier outil disponible */
 export function CommunePortalEntry() {
   const { communeSlug } = useParams<{ communeSlug: string }>();
+  const { loading, allowedSlugs } = useCommuneAccess();
+
+  if (loading) {
+    return (
+      <div className="commune-portal-fallback commune-portal-fallback--loading">
+        Chargement…
+      </div>
+    );
+  }
+
   if (!isCommunePortalSlug(communeSlug)) {
     return <Navigate to="/" replace />;
   }
+
+  if (!canAccessCommuneSlug(communeSlug, allowedSlugs)) {
+    return <Navigate to={resolveCommuneRedirectPath({ allowedSlugs, unrestricted: false })} replace />;
+  }
+
   const first = getCommunePortal(communeSlug)!.tools[0];
   return <Navigate to={`/${communeSlug}/${first}`} replace />;
 }

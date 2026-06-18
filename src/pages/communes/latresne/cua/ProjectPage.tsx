@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { UploadCloud } from "lucide-react";
 import type { HistoryPipeline } from "../../../../components/tools/carto/HistoryPipelineCard";
+import { encodeCuaViewerToken, downloadCuaDocx } from "../../../../utils/cuaViewer";
 
 type ProjectFile = {
   id: string;
@@ -20,8 +21,14 @@ const API_BASE = (import.meta.env.VITE_API_BASE || "").replace(/\/$/, "");
 
 function formatDate(value?: string): string {
   if (!value) return "—";
+  const trimmed = value.trim();
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(trimmed)) {
+    return trimmed;
+  }
   try {
-    return new Date(value).toLocaleDateString("fr-FR");
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return value;
+    return d.toLocaleDateString("fr-FR");
   } catch {
     return value;
   }
@@ -54,12 +61,14 @@ function getExpirationProgress(createdAt?: string): { progress: number; isExpire
   }
 }
 
-function encodeViewerToken(payload: Record<string, unknown>): string {
-  const json = JSON.stringify(payload);
-  const bytes = new TextEncoder().encode(json);
-  let bin = "";
-  for (const b of bytes) bin += String.fromCharCode(b);
-  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+function buildCuaViewerTokenFromFile(file: ProjectFile, slug?: string): string {
+  const parsedBucket = bucketFromPublicUrl(file.public_url);
+  return encodeCuaViewerToken({
+    bucket: parsedBucket || file.storage_bucket || "visualisation",
+    docx: file.public_url || file.storage_path || "",
+    file_id: file.id,
+    slug,
+  });
 }
 
 function bucketFromPublicUrl(url?: string): string | null {
@@ -73,7 +82,8 @@ function bucketFromPublicUrl(url?: string): string | null {
 }
 
 export default function ProjectPage() {
-  const { slug } = useParams<{ slug: string }>();
+  const { slug, communeSlug } = useParams<{ slug: string; communeSlug?: string }>();
+  const portalSlug = communeSlug || "latresne";
   const [project, setProject] = useState<HistoryPipeline | null>(null);
   const [files, setFiles] = useState<ProjectFile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -86,6 +96,9 @@ export default function ProjectPage() {
   const [mapIframeSrc, setMapIframeSrc] = useState<string>("");
   const [mapLoading, setMapLoading] = useState<boolean>(false);
   const [mapError, setMapError] = useState<string | null>(null);
+  const [cuaHtml, setCuaHtml] = useState<string>("");
+  const [cuaLoading, setCuaLoading] = useState(false);
+  const [cuaError, setCuaError] = useState<string | null>(null);
 
   const projectLink = useMemo(() => {
     if (!project) return null;
@@ -104,40 +117,48 @@ export default function ProjectPage() {
   }, [project]);
 
   const cuaDocxFile = useMemo(() => {
-    return (
+    const fromFiles =
       files.find((f) => f.file_kind === "cua_docx" && (f.storage_path || f.public_url)) ||
       files.find(
         (f) =>
           (f.mime_type || "").includes(
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
           ) && (f.storage_path || f.public_url),
-      ) ||
-      null
-    );
-  }, [files]);
+      );
+    if (fromFiles) return fromFiles;
+
+    const outputCua = (project as HistoryPipeline & { output_cua?: string })?.output_cua;
+    if (outputCua) {
+      return {
+        id: "pipeline-output-cua",
+        file_kind: "cua_docx",
+        filename: "CUA_unite_fonciere.docx",
+        public_url: outputCua,
+        storage_bucket: "visualisation",
+        storage_path: slug ? `${slug}/CUA_unite_fonciere.docx` : "",
+      } satisfies ProjectFile;
+    }
+    return null;
+  }, [files, project, slug]);
 
   const openCuaViewer = (file: ProjectFile) => {
-    const parsedBucket = bucketFromPublicUrl(file.public_url);
-    const token = encodeViewerToken({
-      bucket: parsedBucket || file.storage_bucket || "project-directories",
-      // On privilégie l'URL publique complète pour éviter les ambiguïtés bucket/path.
-      docx: file.public_url || file.storage_path || "",
-      file_id: file.id,
-      slug,
-    });
+    const token = buildCuaViewerTokenFromFile(file, slug);
     window.open(`/cua?t=${encodeURIComponent(token)}`, "_blank", "noopener,noreferrer");
   };
 
-  const cuaEmbeddedSrc = useMemo(() => {
+  const downloadCuaFile = async (file: ProjectFile) => {
+    const token = buildCuaViewerTokenFromFile(file, slug);
+    try {
+      await downloadCuaDocx(token);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Impossible de télécharger le DOCX.";
+      alert(`❌ ${msg}`);
+    }
+  };
+
+  const cuaViewerToken = useMemo(() => {
     if (!cuaDocxFile) return "";
-    const parsedBucket = bucketFromPublicUrl(cuaDocxFile.public_url);
-    const token = encodeViewerToken({
-      bucket: parsedBucket || cuaDocxFile.storage_bucket || "project-directories",
-      docx: cuaDocxFile.public_url || cuaDocxFile.storage_path || "",
-      file_id: cuaDocxFile.id,
-      slug,
-    });
-    return `/cua?t=${encodeURIComponent(token)}`;
+    return buildCuaViewerTokenFromFile(cuaDocxFile, slug);
   }, [cuaDocxFile, slug]);
 
   const loadAll = async () => {
@@ -214,6 +235,48 @@ export default function ProjectPage() {
     };
   }, [activeTab, mapSelected, map2dUrl, map3dUrl]);
 
+  useEffect(() => {
+    if (activeTab !== "cua" || !cuaViewerToken) {
+      setCuaHtml("");
+      setCuaError(null);
+      setCuaLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadCuaPreview() {
+      setCuaLoading(true);
+      setCuaError(null);
+      try {
+        const res = await fetch(`${API_BASE}/cua/html?t=${encodeURIComponent(cuaViewerToken)}&v=${Date.now()}`, {
+          cache: "no-store",
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data?.detail || data?.error || `Erreur ${res.status}`);
+        }
+        if (typeof data?.html !== "string") {
+          throw new Error("Réponse invalide : HTML manquant");
+        }
+        if (!cancelled) setCuaHtml(data.html);
+      } catch (e: unknown) {
+        if (!cancelled) {
+          setCuaHtml("");
+          setCuaError(e instanceof Error ? e.message : "Impossible de charger le CUA");
+        }
+      } finally {
+        if (!cancelled) setCuaLoading(false);
+      }
+    }
+
+    void loadCuaPreview();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, cuaViewerToken]);
+
   const onUpload = async (file: File, fileKind: string) => {
     if (!slug) return;
     setIsUploading(true);
@@ -258,13 +321,13 @@ export default function ProjectPage() {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-gray-50 text-[#0b131f]">
+    <div className="min-h-0 flex-1 overflow-y-auto bg-gray-50 text-[#0b131f]">
       <main className="max-w-6xl mx-auto px-4 py-6 pb-8">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="text-xl font-semibold">Dossier projet</h1>
           </div>
-          <Link to="/latresne/cua" className="text-sm px-3 py-2 rounded border border-gray-300 hover:bg-white">
+          <Link to={`/${portalSlug}/cua`} className="text-sm px-3 py-2 rounded border border-gray-300 hover:bg-white">
             Retour cartographie
           </Link>
         </div>
@@ -343,17 +406,30 @@ export default function ProjectPage() {
 
                   <div>
                     <span className="text-xs font-medium text-gray-500">N° CU</span>
-                    <div className="font-mono text-gray-800">{project.cerfa_data?.numero_cu || "—"}</div>
+                    <div className="font-mono text-gray-800">
+                      {project.cerfa_data?.numero_cu
+                        || (project as { metadata?: { dossier?: { numero_cu?: string } } }).metadata?.dossier?.numero_cu
+                        || "—"}
+                    </div>
                   </div>
 
                   <div>
                     <span className="text-xs font-medium text-gray-500">Demandeur</span>
-                    <div className="text-gray-800">{project.cerfa_data?.demandeur || "—"}</div>
+                    <div className="text-gray-800">
+                      {project.cerfa_data?.demandeur
+                        || (project as { metadata?: { dossier?: { demandeur?: string } } }).metadata?.dossier?.demandeur
+                        || "—"}
+                    </div>
                   </div>
 
                   <div>
                     <span className="text-xs font-medium text-gray-500">Date de dépôt</span>
-                    <div className="text-gray-800">{formatDate(project.cerfa_data?.date_depot)}</div>
+                    <div className="text-gray-800">
+                      {formatDate(
+                        project.cerfa_data?.date_depot
+                          || (project as { metadata?: { dossier?: { date_depot?: string } } }).metadata?.dossier?.date_depot,
+                      )}
+                    </div>
                   </div>
 
                   <div>
@@ -366,26 +442,38 @@ export default function ProjectPage() {
                     <div className="text-gray-800">{formatAdresse(project.cerfa_data?.adresse_terrain)}</div>
                   </div>
 
-                  {project.cerfa_data?.parcelles && project.cerfa_data.parcelles.length > 0 && (
+                  {(() => {
+                    const parcelles =
+                      project.cerfa_data?.parcelles
+                      || (project as { parcelles?: Array<{ section: string; numero: string }> }).parcelles
+                      || [];
+                    if (parcelles.length === 0) return null;
+                    return (
                     <div className="rounded border border-teal-200 bg-teal-50 p-2">
                       <span className="text-xs font-medium text-teal-800">
-                        Parcelles ({project.cerfa_data.parcelles.length})
+                        Parcelles ({parcelles.length})
                       </span>
                       <div className="mt-1 flex flex-wrap gap-1">
-                        {project.cerfa_data.parcelles.map((p, i) => (
+                        {parcelles.map((p, i) => (
                           <span key={i} className="inline-flex items-center rounded bg-teal-100 px-2 py-0.5 text-xs text-teal-800">
                             {p.section} {p.numero}
                           </span>
                         ))}
                       </div>
                     </div>
-                  )}
+                    );
+                  })()}
 
-                  {typeof project.cerfa_data?.superficie === "number" && (
+                  {(typeof project.cerfa_data?.superficie === "number"
+                    || typeof (project as { metadata?: { surface_cadastrale?: number } }).metadata?.surface_cadastrale === "number") && (
                     <div>
                       <span className="text-xs font-medium text-gray-500">Superficie</span>
                       <div className="text-gray-800">
-                        {project.cerfa_data.superficie.toLocaleString("fr-FR", {
+                        {(
+                          project.cerfa_data?.superficie
+                          ?? (project as { metadata?: { surface_cadastrale?: number } }).metadata?.surface_cadastrale
+                          ?? 0
+                        ).toLocaleString("fr-FR", {
                           minimumFractionDigits: 0,
                           maximumFractionDigits: 2,
                         })}{" "}
@@ -500,14 +588,13 @@ export default function ProjectPage() {
                               CUA
                             </button>
                             {f.public_url && (
-                              <a
-                                href={f.public_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                              <button
+                                type="button"
+                                onClick={() => void downloadCuaFile(f)}
                                 className="text-xs px-2 py-1 rounded border border-gray-300 hover:bg-gray-50"
                               >
                                 Télécharger
-                              </a>
+                              </button>
                             )}
                           </>
                         ) : (
@@ -601,30 +688,52 @@ export default function ProjectPage() {
           <section className="bg-white border border-gray-200 rounded-lg p-4">
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-medium">CUA du projet</h2>
-              {cuaDocxFile && (
-                <button
-                  type="button"
-                  onClick={() => openCuaViewer(cuaDocxFile)}
-                  className="inline-flex text-sm px-3 py-2 rounded bg-teal-600 hover:bg-teal-700 text-white transition-colors"
-                >
-                  Ouvrir dans un nouvel onglet
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                {cuaViewerToken && (
+                  <button
+                    type="button"
+                    onClick={() => void downloadCuaDocx(cuaViewerToken)}
+                    className="inline-flex text-sm px-3 py-2 rounded border border-gray-300 hover:bg-gray-50"
+                  >
+                    Télécharger DOCX
+                  </button>
+                )}
+                {cuaDocxFile && (
+                  <button
+                    type="button"
+                    onClick={() => openCuaViewer(cuaDocxFile)}
+                    className="inline-flex text-sm px-3 py-2 rounded bg-teal-600 hover:bg-teal-700 text-white transition-colors"
+                  >
+                    Ouvrir l&apos;éditeur
+                  </button>
+                )}
+              </div>
             </div>
 
-            {cuaEmbeddedSrc ? (
-              <div className="relative h-[78vh] rounded border border-gray-200 overflow-hidden bg-white">
-                <iframe
-                  src={cuaEmbeddedSrc}
-                  sandbox="allow-scripts allow-same-origin allow-forms"
-                  style={{ width: "100%", height: "100%", border: "none", background: "white" }}
-                />
-              </div>
-            ) : (
-              <div className="h-[40vh] flex items-center justify-center text-sm text-gray-500 px-4 text-center border border-dashed border-gray-300 rounded">
-                Aucun document CUA disponible pour ce projet.
+            {cuaLoading && (
+              <div className="h-[40vh] flex items-center justify-center text-sm text-gray-600 border border-gray-200 rounded bg-white">
+                Chargement du CUA…
               </div>
             )}
+
+            {cuaError && (
+              <div className="mb-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded p-3">
+                {cuaError}
+              </div>
+            )}
+
+            {!cuaLoading && !cuaError && cuaHtml ? (
+              <div
+                className="h-[78vh] overflow-auto rounded border border-gray-200 bg-white p-6 text-sm leading-relaxed text-gray-900"
+                dangerouslySetInnerHTML={{ __html: cuaHtml }}
+              />
+            ) : null}
+
+            {!cuaLoading && !cuaError && !cuaHtml && !cuaDocxFile ? (
+              <div className="h-[40vh] flex items-center justify-center text-sm text-gray-500 px-4 text-center border border-dashed border-gray-300 rounded bg-white">
+                Aucun document CUA disponible pour ce projet.
+              </div>
+            ) : null}
           </section>
         )}
       </main>

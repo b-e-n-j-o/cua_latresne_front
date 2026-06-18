@@ -14,6 +14,7 @@ import {
 import { LidarVisualizationEmbed } from "../lidar/LidarVisualizationEmbed";
 import { MntVisualizationEmbed } from "../mnt/MntVisualizationEmbed";
 import { ManualCuaForm } from "../../../pages/communes/latresne/cua/cerfa/ManualCuaForm";
+import { buildCuaViewerPath } from "../../../utils/cuaViewer";
 
 type UFParcelle = {
   section: string;
@@ -60,6 +61,8 @@ type Props = {
   embedded?: boolean;
   /** Schéma PostGIS (ex. `argeles`) → `db_schema` sur les appels identité foncière. */
   dbSchema?: string | null;
+  /** Slug commune pour le pipeline CUA v2 (ex. `argeles`). */
+  communeSlug?: string | null;
 };
 
 function mapLayerStatus(raw: string, intersected: boolean): LayerRowState["status"] {
@@ -82,6 +85,7 @@ export default function UniteFonciereCard({
   onClose,
   embedded = false,
   dbSchema,
+  communeSlug,
 }: Props) {
   const [showCUA, setShowCUA] = useState(false);
   /** Visualisation terrain : MNT (1ère parcelle) ou LiDAR (toute l'UF) */
@@ -96,6 +100,16 @@ export default function UniteFonciereCard({
   const [publierError, setPublierError] = useState<string | null>(null);
   const [storedCarteUrl, setStoredCarteUrl] = useState<string | null>(null);
   const [storedPdfUrl, setStoredPdfUrl] = useState<string | null>(null);
+
+  const [cuaLoading, setCuaLoading] = useState(false);
+  const [cuaError, setCuaError] = useState<string | null>(null);
+  const [cuaViewerUrl, setCuaViewerUrl] = useState<string | null>(null);
+  const [cuaDocxUrl, setCuaDocxUrl] = useState<string | null>(null);
+  const [cuaSlug, setCuaSlug] = useState<string | null>(null);
+  const [cuaStarted, setCuaStarted] = useState(false);
+
+  const useArgelesCuaPipeline = (communeSlug ?? "").trim().toLowerCase() === "argeles"
+    || (dbSchema ?? "").trim().toLowerCase() === "argeles";
 
   const totalSurface = ufParcelles.reduce((sum, p) => sum + (p.surface_m2 || 0), 0);
 
@@ -212,6 +226,70 @@ export default function UniteFonciereCard({
       setPublierError((e as Error).message || "Erreur lors de la publication.");
     } finally {
       setPublierLoading(false);
+    }
+  };
+
+  const runGenerateCua = async () => {
+    const slug = (communeSlug ?? "").trim().toLowerCase() || "argeles";
+    if (!useArgelesCuaPipeline) {
+      setShowCUA(true);
+      return;
+    }
+
+    setCuaStarted(true);
+    setCuaLoading(true);
+    setCuaError(null);
+    setCuaViewerUrl(null);
+    setCuaDocxUrl(null);
+    setCuaSlug(null);
+
+    try {
+      const apiBase = (import.meta.env.VITE_API_BASE || "http://localhost:8000").replace(/\/$/, "");
+      const body: Record<string, unknown> = {
+        refs: parcellesCadastrales,
+        persist: true,
+      };
+      if (userId?.trim()) {
+        body.user_id = userId.trim();
+        if (userEmail?.trim()) body.user_email = userEmail.trim();
+      }
+
+      const response = await fetch(`${apiBase}/communes/${slug}/cua/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = (await response.json()) as {
+        slug?: string;
+        cua_viewer_url?: string | null;
+        output_cua?: string | null;
+        n_couches_concernees?: number;
+        detail?: unknown;
+      };
+
+      if (!response.ok) {
+        const d = data.detail;
+        const msg =
+          typeof d === "string"
+            ? d
+            : Array.isArray(d)
+              ? d.map((x) => (typeof x === "object" && x !== null && "msg" in x ? String((x as { msg: string }).msg) : String(x))).join(", ")
+              : `HTTP ${response.status}`;
+        throw new Error(msg);
+      }
+
+      if (data.slug) {
+        setCuaSlug(data.slug);
+        onPipelineCreated?.(data.slug);
+      }
+      if (data.output_cua) {
+        setCuaDocxUrl(data.output_cua);
+        setCuaViewerUrl(buildCuaViewerPath(data.output_cua));
+      }
+    } catch (e) {
+      setCuaError((e as Error).message || "Erreur lors de la génération du CUA.");
+    } finally {
+      setCuaLoading(false);
     }
   };
 
@@ -338,6 +416,7 @@ export default function UniteFonciereCard({
 
   const cifReady = Boolean(storedCarteUrl && storedPdfUrl);
   const cifBusy = cifLoading || publierLoading;
+  const cuaReady = Boolean(cuaViewerUrl || cuaDocxUrl);
 
   return (
     <>
@@ -381,11 +460,12 @@ export default function UniteFonciereCard({
           </button>
 
           <button
-            onClick={() => setShowCUA(true)}
-            className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-2 px-3 rounded text-sm transition-colors"
+            onClick={() => void runGenerateCua()}
+            disabled={cuaLoading}
+            className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-2 px-3 rounded text-sm transition-colors disabled:opacity-60"
           >
-            <FileText size={16} />
-            <span>Certificat d'urbanisme</span>
+            {cuaLoading ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
+            <span>{cuaLoading ? "Génération CUA en cours..." : "Certificat d'urbanisme"}</span>
           </button>
 
           <div className="text-xs text-slate-500 pt-1 border-t border-slate-100 mt-2">
@@ -415,6 +495,53 @@ export default function UniteFonciereCard({
             <span>Nuage LiDAR HD</span>
           </button>
         </div>
+
+        {cuaStarted && useArgelesCuaPipeline && (
+          <div className="mt-3 p-2.5 bg-emerald-50 border border-emerald-200 rounded-md text-xs">
+            <div className="flex items-center gap-2 mb-2 text-emerald-800 font-medium">
+              {cuaReady ? (
+                <CheckCircle2 size={14} className="text-emerald-600" />
+              ) : cuaLoading ? (
+                <Loader2 size={14} className="animate-spin text-emerald-600" />
+              ) : (
+                <AlertCircle size={14} className="text-red-600" />
+              )}
+              <span>
+                {cuaReady
+                  ? "Certificat d'urbanisme disponible"
+                  : cuaLoading
+                    ? "Intersections et rédaction du CUA en cours..."
+                    : "Échec de la génération CUA"}
+              </span>
+            </div>
+
+            {cuaError && <div className="text-red-600 mb-2">{cuaError}</div>}
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => cuaViewerUrl && window.open(cuaViewerUrl, "_blank", "noopener,noreferrer")}
+                disabled={!cuaViewerUrl}
+                className="inline-flex items-center gap-1.5 rounded bg-emerald-700 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-emerald-800 disabled:opacity-50"
+              >
+                <FileText size={13} />
+                Visualiser le CUA
+              </button>
+              <button
+                type="button"
+                onClick={() => cuaDocxUrl && window.open(cuaDocxUrl, "_blank", "noopener,noreferrer")}
+                disabled={!cuaDocxUrl}
+                className="inline-flex items-center gap-1.5 rounded border border-emerald-300 bg-white px-2.5 py-1.5 text-xs font-medium text-emerald-900 hover:bg-emerald-50 disabled:opacity-50"
+              >
+                <FileDown size={13} />
+                DOCX
+              </button>
+            </div>
+            {cuaSlug && (
+              <div className="mt-2 text-emerald-700/80">Dossier : {cuaSlug}</div>
+            )}
+          </div>
+        )}
 
         {cifStarted && (
           <div className="mt-3 p-2.5 bg-slate-50 border border-slate-200 rounded-md text-xs">
@@ -514,7 +641,7 @@ export default function UniteFonciereCard({
         </div>
       )}
 
-      {showCUA && (
+      {showCUA && !useArgelesCuaPipeline && (
         <div className="absolute top-20 left-80 z-50 bg-white shadow-xl rounded-lg p-6 w-96 max-h-[80vh] overflow-y-auto">
           <div className="flex justify-between items-start mb-4">
             <h3 className="font-semibold text-lg">Générer le CUA (UF)</h3>
