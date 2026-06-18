@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useParams, Navigate } from "react-router-dom";
-import { BookOpen, FileText, MessageSquare } from "lucide-react";
+import { BookOpen, FileStack, FileText, MessageSquare } from "lucide-react";
 import { useCommuneAccess } from "../auth/CommuneAccessContext";
 import { canAccessCommuneSlug, resolveCommuneRedirectPath } from "../auth/communeAccess";
 import {
@@ -17,6 +17,7 @@ const TOOL_META: Record<
   cua: { segment: "cua", title: "Certificats d’urbanisme", Icon: FileText },
   chat: { segment: "chat", title: "Assistant PLU", Icon: MessageSquare },
   reglements: { segment: "reglements", title: "Règlements", Icon: BookOpen },
+  documents: { segment: "documents", title: "Documents officiels", Icon: FileStack },
 };
 
 export default function CommuneLayout() {

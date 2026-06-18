@@ -41,9 +41,11 @@ interface Source {
   list_secondary: string | null;
   search_cols: string[];
   columns: Col[];
+  kind?: string;
   aggregated?: boolean;
   creatable?: boolean;
   deletable?: boolean;
+  readonly?: boolean;
 }
 
 type Row = Record<string, any>;

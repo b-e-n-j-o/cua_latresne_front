@@ -2,6 +2,7 @@ import { useEffect, useState, type ComponentType } from "react";
 import { useParams } from "react-router-dom";
 import supabase from "../supabaseClient";
 import ReglementsArgeles from "../pages/reglements/ReglementsArgeles";
+import DocumentsOfficiels from "../pages/documents/DocumentsOfficiels";
 import PluChat from "../pages/plu-chat/PluChat";
 import type { PluCommuneSlug } from "../pages/plu-chat/communeConfig";
 import LatresneCuaPage from "../pages/communes/latresne/cua/LatresnePage";
@@ -82,11 +83,38 @@ export function CommuneReglementsRoute() {
   return <ReglementsArgeles apiBase={API_BASE} token={token} communeSlug={communeSlug} />;
 }
 
-function CommuneToolUnavailable({ tool }: { tool: "cua" | "chat" | "reglements" }) {
+export function CommuneDocumentsRoute() {
+  const { communeSlug } = useParams<{ communeSlug: string }>();
+  const portal = getCommunePortal(communeSlug);
+  const [token, setToken] = useState<string | undefined>(
+    () => import.meta.env.VITE_ADMIN_API_TOKEN || undefined,
+  );
+
+  useEffect(() => {
+    if (import.meta.env.VITE_ADMIN_API_TOKEN) return;
+    supabase.auth.getSession().then(({ data }) => {
+      setToken(data.session?.access_token);
+    });
+  }, []);
+
+  if (!portal?.tools.includes("documents") || !communeSlug) {
+    return <CommuneToolUnavailable tool="documents" />;
+  }
+
+  return <DocumentsOfficiels apiBase={API_BASE} token={token} communeSlug={communeSlug} />;
+}
+
+function CommuneToolUnavailable({ tool }: { tool: "cua" | "chat" | "reglements" | "documents" }) {
   const { communeSlug } = useParams<{ communeSlug: string }>();
   const portal = getCommunePortal(communeSlug);
   const label =
-    tool === "cua" ? "CUA" : tool === "chat" ? "Assistant PLU" : "Règlements";
+    tool === "cua"
+      ? "CUA"
+      : tool === "chat"
+        ? "Assistant PLU"
+        : tool === "reglements"
+          ? "Règlements"
+          : "Documents officiels";
   const fallback = portal && isCommunePortalSlug(communeSlug) ? defaultToolPath(communeSlug) : "/";
 
   return (
