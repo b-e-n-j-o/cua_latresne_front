@@ -52,7 +52,7 @@ export type StudyZoneModeState = {
 };
 
 export const STUDY_ZONE_BUFFER_MAX_DEFAULT = 200;
-export const STUDY_ZONE_DISPLAY_CLIP_M = 1000;
+export const STUDY_ZONE_DISPLAY_CLIP_M = 200;
 
 export function studyZoneParcellesKey(
   parcelles: StudyZoneParcelleRef[]

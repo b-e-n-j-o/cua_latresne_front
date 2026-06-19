@@ -32,7 +32,7 @@ export default function StudyZoneControls({
               Zone d&apos;étude · {label}
             </div>
             <p className="text-[10px] text-blue-700/80 mt-0.5 leading-snug">
-              Géométries découpées à {context.display_clip_m ?? 1000} m — survol pour le détail
+              Géométries découpées à {context.display_clip_m ?? 200} m — survol pour le détail
             </p>
           </div>
           <button
