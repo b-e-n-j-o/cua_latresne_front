@@ -54,14 +54,24 @@ interface Props {
   apiBase?: string;
   token?: string;
   communeSlug: string;
+  /** commune = portail communal ; admin = back-office Kerelia superadmin */
+  apiMode?: "commune" | "admin";
+  disabledMessage?: string | null;
 }
 
 type Toast = { id: number; type: "ok" | "error"; msg: string } | null;
 
-export default function ReglementsAdmin({ apiBase = "", token, communeSlug }: Props) {
+export function ReglementsEditor({
+  apiBase = "",
+  token,
+  communeSlug,
+  apiMode = "commune",
+  disabledMessage = null,
+}: Props) {
   const [sources, setSources] = useState<Source[]>([]);
   const [active, setActive] = useState<string | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
+  const [rowsSource, setRowsSource] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [form, setForm] = useState<Row | null>(null);
@@ -72,20 +82,23 @@ export default function ReglementsAdmin({ apiBase = "", token, communeSlug }: Pr
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<Toast>(null);
   const toastTimer = useRef<number | null>(null);
+  const listGenRef = useRef(0);
+  const skipSearchLoadRef = useRef(false);
 
   const api = useCallback(
     async (path: string, opts: RequestInit = {}) => {
-      const res = await fetch(
-        `${apiBase}/communes/${encodeURIComponent(communeSlug)}/reglements${path}`,
-        {
+      const base =
+        apiMode === "admin"
+          ? `${apiBase}/admin/reglements/${encodeURIComponent(communeSlug)}`
+          : `${apiBase}/communes/${encodeURIComponent(communeSlug)}/reglements`;
+      const res = await fetch(`${base}${path}`, {
         ...opts,
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...(opts.headers || {}),
         },
-      }
-      );
+      });
       if (!res.ok) {
         let detail = res.statusText;
         try {
@@ -99,7 +112,7 @@ export default function ReglementsAdmin({ apiBase = "", token, communeSlug }: Pr
       if (res.status === 204) return null;
       return res.json();
     },
-    [apiBase, token, communeSlug]
+    [apiBase, token, communeSlug, apiMode]
   );
 
   const flash = useCallback((type: "ok" | "error", msg: string) => {
@@ -129,33 +142,52 @@ export default function ReglementsAdmin({ apiBase = "", token, communeSlug }: Pr
   // -- chargement de la liste --
   const loadList = useCallback(
     async (src: string, q: string) => {
+      const gen = ++listGenRef.current;
       setLoadingList(true);
       try {
         const qs = q ? `?search=${encodeURIComponent(q)}` : "";
         const data = await api(`/${src}${qs}`);
-        setRows(data);
+        if (gen !== listGenRef.current) return;
+        setRows(Array.isArray(data) ? data : []);
+        setRowsSource(src);
       } catch (e: any) {
+        if (gen !== listGenRef.current) return;
         flash("error", e.message);
         setRows([]);
+        setRowsSource(src);
       } finally {
-        setLoadingList(false);
+        if (gen === listGenRef.current) setLoadingList(false);
       }
     },
     [api, flash]
   );
 
+  const visibleRows = useMemo(() => {
+    if (!active || rowsSource !== active) return [];
+    return rows;
+  }, [active, rows, rowsSource]);
+
   useEffect(() => {
     if (!active) return;
+    skipSearchLoadRef.current = true;
+    listGenRef.current += 1;
     setSelectedKey(null);
     setForm(null);
     setOriginal(null);
-    loadList(active, "");
+    setMode("edit");
+    setRows([]);
+    setRowsSource(null);
     setSearch("");
+    loadList(active, "");
   }, [active, loadList]);
 
-  // recherche (debounce léger)
+  // recherche (debounce léger) — ignoré juste après un changement d'onglet
   useEffect(() => {
     if (!active) return;
+    if (skipSearchLoadRef.current) {
+      skipSearchLoadRef.current = false;
+      return;
+    }
     const t = window.setTimeout(() => loadList(active, search), 250);
     return () => window.clearTimeout(t);
   }, [search, active, loadList]);
@@ -280,6 +312,12 @@ export default function ReglementsAdmin({ apiBase = "", token, communeSlug }: Pr
     <div className="rga-root">
       <style>{CSS}</style>
 
+      {disabledMessage && (
+        <div className="rga-disabled-banner" role="status">
+          {disabledMessage}
+        </div>
+      )}
+
       {/* Rail : choix du document */}
       <nav className="rga-rail" aria-label="Type de document">
         <div className="rga-rail-head">Documents</div>
@@ -291,7 +329,9 @@ export default function ReglementsAdmin({ apiBase = "", token, communeSlug }: Pr
             aria-current={active === s.source}
           >
             <span className="rga-rail-label">{s.label}</span>
-            {active === s.source && <span className="rga-rail-count">{rows.length}</span>}
+            {active === s.source && rowsSource === s.source && (
+              <span className="rga-rail-count">{rows.length}</span>
+            )}
           </button>
         ))}
       </nav>
@@ -314,8 +354,10 @@ export default function ReglementsAdmin({ apiBase = "", token, communeSlug }: Pr
         </div>
 
         <div className="rga-list-body">
-          {loadingList && <div className="rga-muted">Chargement…</div>}
-          {!loadingList && rows.length === 0 && (
+          {loadingList && visibleRows.length === 0 && (
+            <div className="rga-muted">Chargement…</div>
+          )}
+          {!loadingList && visibleRows.length === 0 && (
             <div className="rga-empty">
               {canCreate
                 ? "Aucune entrée. Crée-en une avec « Nouvelle entrée »."
@@ -324,15 +366,28 @@ export default function ReglementsAdmin({ apiBase = "", token, communeSlug }: Pr
           )}
           {!loadingList &&
             activeSource &&
-            rows.map((r) => {
-              const keyVal = String(r[activeSource.pk]);
-              const primary = r[activeSource.list_primary] ?? keyVal;
-              const secondary = activeSource.list_secondary
-                ? r[activeSource.list_secondary]
-                : null;
+            visibleRows.map((r, idx) => {
+              const rawKey = r[activeSource.pk];
+              const keyVal =
+                rawKey != null && String(rawKey).trim() !== ""
+                  ? String(rawKey)
+                  : `__missing_pk_${idx}`;
+              const primary =
+                r[activeSource.list_primary] != null &&
+                String(r[activeSource.list_primary]).trim() !== ""
+                  ? String(r[activeSource.list_primary])
+                  : keyVal.startsWith("__missing_pk_")
+                    ? "—"
+                    : keyVal;
+              const secondary =
+                activeSource.list_secondary &&
+                r[activeSource.list_secondary] != null &&
+                String(r[activeSource.list_secondary]).trim() !== ""
+                  ? String(r[activeSource.list_secondary])
+                  : null;
               return (
                 <button
-                  key={keyVal}
+                  key={`${activeSource.source}-${keyVal}`}
                   className={`rga-row ${selectedKey === keyVal ? "is-selected" : ""}`}
                   onClick={() => selectRow(activeSource, keyVal)}
                 >
@@ -680,6 +735,11 @@ const CSS = `
   font-family:var(--font-ui); font-weight:400; background:var(--paper);
   border:1px solid var(--line); border-radius:12px; overflow:hidden;
 }
+.rga-disabled-banner{padding:10px 16px; background:#fff8e6; border-bottom:1px solid #f0d48a; color:#7a5b00; font-size:13px; grid-column:1/-1;}
+.rga-root:has(.rga-disabled-banner){grid-template-rows:auto 1fr;}
+.rga-root:has(.rga-disabled-banner) .rga-rail,
+.rga-root:has(.rga-disabled-banner) .rga-list,
+.rga-root:has(.rga-disabled-banner) .rga-editor{grid-row:2;}
 .rga-root *{box-sizing:border-box;}
 
 /* rail (noir) */
@@ -821,3 +881,9 @@ const CSS = `
   .rga-root *{transition:none !important;}
 }
 `;
+
+export default function ReglementsArgeles(
+  props: Omit<Props, "apiMode" | "disabledMessage">
+) {
+  return <ReglementsEditor apiMode="commune" {...props} />;
+}

@@ -9,11 +9,13 @@ export type CommuneAccessSnapshot = {
   /** null = toutes les communes portail */
   allowedSlugs: CommunePortalSlug[] | null;
   unrestricted: boolean;
+  isSuperadmin?: boolean;
 };
 
 type ApiCommuneAccessResponse = {
   success?: boolean;
   unrestricted?: boolean;
+  is_superadmin?: boolean;
   allowed_commune_slugs?: string[] | null;
 };
 
@@ -60,12 +62,17 @@ export async function fetchCommuneAccess(user: User): Promise<CommuneAccessSnaps
       return accessFromMetadata(user);
     }
     if (data.unrestricted || data.allowed_commune_slugs == null) {
-      return { allowedSlugs: null, unrestricted: true };
+      return {
+        allowedSlugs: null,
+        unrestricted: true,
+        isSuperadmin: Boolean(data.is_superadmin),
+      };
     }
     const slugs = normalizeSlugList(data.allowed_commune_slugs);
     return {
       allowedSlugs: slugs,
       unrestricted: false,
+      isSuperadmin: Boolean(data.is_superadmin),
     };
   } catch {
     return accessFromMetadata(user);

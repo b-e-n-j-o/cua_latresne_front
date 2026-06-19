@@ -8,6 +8,7 @@ import LandingPageDev from "./pages/website/landingpage_dev/LandingPage";
 import RedirectSlugPage from "./routes/RedirectSlugPage";
 import HistoryPanel from "./HistoryPanel";
 import AdminPage from "./routes/AdminPage";
+import ReglementsAdminPage from "./pages/reglements/ReglementsAdmin";
 import CuaViewer from "./routes/CuaViewer";
 import PluChat from "./pages/plu-chat/PluChat";
 import LidarViewerPage from "./pages/visualisations_de_test/lidar/LidarViewerPage";
@@ -110,6 +111,7 @@ export default function App() {
       <Routes>
         <Route path="/history" element={<HistoryPage />} />
         <Route path="/admin" element={<AdminPage />} />
+        <Route path="/admin/reglement" element={<ReglementsAdminPage />} />
         <Route path="/markdown" element={<MarkdownBatchPage />} />
         {/* Ancien portail démo — distinct du portail commune /:commune/outil */}
         <Route path="/portail/*" element={<PortailApp />} />
