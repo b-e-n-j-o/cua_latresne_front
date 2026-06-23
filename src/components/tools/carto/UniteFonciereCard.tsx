@@ -105,6 +105,7 @@ export default function UniteFonciereCard({
   const [cuaError, setCuaError] = useState<string | null>(null);
   const [cuaViewerUrl, setCuaViewerUrl] = useState<string | null>(null);
   const [cuaDocxUrl, setCuaDocxUrl] = useState<string | null>(null);
+  const [cuaCarteUrl, setCuaCarteUrl] = useState<string | null>(null);
   const [cuaSlug, setCuaSlug] = useState<string | null>(null);
   const [cuaStarted, setCuaStarted] = useState(false);
 
@@ -241,6 +242,7 @@ export default function UniteFonciereCard({
     setCuaError(null);
     setCuaViewerUrl(null);
     setCuaDocxUrl(null);
+    setCuaCarteUrl(null);
     setCuaSlug(null);
 
     try {
@@ -263,6 +265,7 @@ export default function UniteFonciereCard({
         slug?: string;
         cua_viewer_url?: string | null;
         output_cua?: string | null;
+        carte_context_url?: string | null;
         n_couches_concernees?: number;
         detail?: unknown;
       };
@@ -285,6 +288,9 @@ export default function UniteFonciereCard({
       if (data.output_cua) {
         setCuaDocxUrl(data.output_cua);
         setCuaViewerUrl(buildCuaViewerPath(data.output_cua));
+      }
+      if (data.carte_context_url) {
+        setCuaCarteUrl(data.carte_context_url);
       }
     } catch (e) {
       setCuaError((e as Error).message || "Erreur lors de la génération du CUA.");
@@ -535,6 +541,15 @@ export default function UniteFonciereCard({
               >
                 <FileDown size={13} />
                 DOCX
+              </button>
+              <button
+                type="button"
+                onClick={() => cuaCarteUrl && window.open(cuaCarteUrl, "_blank", "noopener,noreferrer")}
+                disabled={!cuaCarteUrl}
+                className="inline-flex items-center gap-1.5 rounded bg-slate-700 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+              >
+                <MapPin size={13} />
+                Carte d&apos;urbanisme
               </button>
             </div>
             {cuaSlug && (

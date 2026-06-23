@@ -16,6 +16,7 @@ import {
   type ParcelleResumeView,
 } from "../../../../utils/argeles/sigResume";
 import FullIntersectionsPanel from "./FullIntersectionsPanel";
+import ParcelleCuaGenerateAction from "./ParcelleCuaGenerateAction";
 
 type Props = {
   communeSlug?: string;
@@ -32,6 +33,9 @@ type Props = {
   intersectionsLoading?: boolean;
   intersectionsError?: string | null;
   onRecalculateIntersections?: () => void;
+  userId?: string | null;
+  userEmail?: string | null;
+  onPipelineCreated?: (slug: string) => void;
 };
 
 const SIG_LAYER_UI: Record<
@@ -120,7 +124,7 @@ function StudyZoneActionButton({
       ) : (
         <>
           <MapIcon className="w-5 h-5 shrink-0" strokeWidth={2.25} />
-          Afficher le zonage de la zone d&apos;étude
+          Afficher le zonage de la zone sélectionnée
         </>
       )}
     </button>
@@ -307,6 +311,9 @@ export default function ParcelleResumePanel({
   intersectionsLoading = false,
   intersectionsError = null,
   onRecalculateIntersections,
+  userId,
+  userEmail,
+  onPipelineCreated,
 }: Props) {
   const [apiResumes, setApiResumes] = useState<Record<string, SigResume>>({});
   const [loading, setLoading] = useState(false);
@@ -378,6 +385,14 @@ export default function ParcelleResumePanel({
         loading={studyZoneLoading}
         active={studyZoneActive}
         onEnter={onEnterStudyZone}
+      />
+
+      <ParcelleCuaGenerateAction
+        communeSlug={communeSlug}
+        parcelles={parcelles}
+        userId={userId}
+        userEmail={userEmail}
+        onPipelineCreated={onPipelineCreated}
       />
 
       {studyZoneActive ? (

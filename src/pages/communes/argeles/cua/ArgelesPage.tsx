@@ -2233,6 +2233,12 @@ export default function ArgelesPage() {
                         intersectionsLoading={intersectionsLoading}
                         intersectionsError={intersectionsError}
                         onRecalculateIntersections={() => void enterStudyZone(true)}
+                        userId={userId}
+                        userEmail={userEmail}
+                        onPipelineCreated={(newSlug) => {
+                          refreshHistoryPipelines(newSlug);
+                          navigate(`/argeles/cua/projects/${newSlug}`);
+                        }}
                       />
                       {studyZoneError ? (
                         <p className="text-xs text-red-700 bg-red-50 border border-red-100 rounded p-2 mt-2">
