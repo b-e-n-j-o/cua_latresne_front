@@ -12,6 +12,8 @@ import MiosCuaPage from "../pages/communes/mios/MiosPage";
 import LatresneProjectPage from "../pages/communes/latresne/cua/ProjectPage";
 import MiosProjectPage from "../pages/communes/mios/ProjectPage";
 import ArgelesProjectPage from "../pages/communes/argeles/cua/ProjectPage";
+import VeilleRaaPage from "../pages/raa/Raa";
+import { isRaaCommuneSlug } from "../pages/raa/raaConfig";
 import {
   defaultToolPath,
   getCommunePortal,
@@ -104,7 +106,18 @@ export function CommuneDocumentsRoute() {
   return <DocumentsOfficiels apiBase={API_BASE} token={token} communeSlug={communeSlug} />;
 }
 
-function CommuneToolUnavailable({ tool }: { tool: "cua" | "chat" | "reglements" | "documents" }) {
+export function CommuneRaaRoute() {
+  const { communeSlug } = useParams<{ communeSlug: string }>();
+  const portal = getCommunePortal(communeSlug);
+
+  if (!portal?.tools.includes("raa") || !communeSlug || !isRaaCommuneSlug(communeSlug)) {
+    return <CommuneToolUnavailable tool="raa" />;
+  }
+
+  return <VeilleRaaPage communeSlug={communeSlug} />;
+}
+
+function CommuneToolUnavailable({ tool }: { tool: "cua" | "chat" | "reglements" | "documents" | "raa" }) {
   const { communeSlug } = useParams<{ communeSlug: string }>();
   const portal = getCommunePortal(communeSlug);
   const label =
@@ -114,7 +127,9 @@ function CommuneToolUnavailable({ tool }: { tool: "cua" | "chat" | "reglements" 
         ? "Assistant PLU"
         : tool === "reglements"
           ? "Règlements"
-          : "Documents officiels";
+          : tool === "raa"
+            ? "Veille réglementaire"
+            : "Documents officiels";
   const fallback = portal && isCommunePortalSlug(communeSlug) ? defaultToolPath(communeSlug) : "/";
 
   return (

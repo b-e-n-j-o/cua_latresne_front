@@ -8,6 +8,7 @@ export type ArgelesCuaParcelleRef = {
 export type GenerateArgelesCuaOptions = {
   communeSlug?: string;
   refs: ArgelesCuaParcelleRef[];
+  numeroCu: string;
   userId?: string | null;
   userEmail?: string | null;
   persist?: boolean;
@@ -40,10 +41,16 @@ export async function generateArgelesCua(
   options: GenerateArgelesCuaOptions,
 ): Promise<GenerateArgelesCuaSuccess> {
   const slug = (options.communeSlug ?? "argeles").trim().toLowerCase();
+  const numeroCu = options.numeroCu.trim();
+  if (!numeroCu) {
+    throw new Error("Référence du dossier requise pour générer le certificat d'urbanisme.");
+  }
+
   const apiBase = (import.meta.env.VITE_API_BASE || "http://localhost:8000").replace(/\/$/, "");
 
   const body: Record<string, unknown> = {
     refs: options.refs.map((p) => ({ section: p.section.trim(), numero: p.numero.trim() })),
+    dossier: { numero_cu: numeroCu },
     persist: options.persist ?? true,
   };
   if (options.userId?.trim()) {

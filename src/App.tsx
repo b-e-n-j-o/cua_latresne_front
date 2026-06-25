@@ -23,6 +23,7 @@ import {
   CommuneProjectRoute,
   CommuneReglementsRoute,
   CommuneDocumentsRoute,
+  CommuneRaaRoute,
 } from "./layouts/communePortalRoutes";
 import DemoRequestPage from "./pages/website/DemoRequestPage";
 import MarkdownBatchPage from "./pages/tools/MarkdownBatchPage";
@@ -125,6 +126,7 @@ export default function App() {
           <Route path="chat" element={<CommuneChatRoute />} />
           <Route path="reglements" element={<CommuneReglementsRoute />} />
           <Route path="documents" element={<CommuneDocumentsRoute />} />
+          <Route path="raa" element={<CommuneRaaRoute />} />
         </Route>
         <Route path="*" element={<div>Page introuvable</div>} />
       </Routes>
