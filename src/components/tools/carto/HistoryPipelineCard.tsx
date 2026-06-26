@@ -26,6 +26,9 @@ export type HistoryPipeline = {
   output_cua?: string;
   qr_url?: string;
   created_at?: string;
+  /** Préfixe email du compte ayant généré le CUA (avant @) */
+  creator_label?: string;
+  user_id?: string;
   /** Étape de suivi : 1=Dossier reçu, 2=Dossier traité, 3=Validé/corrigé, 4=CUA délivré */
   suivi?: number;
 };
@@ -159,6 +162,16 @@ export default function HistoryPipelineCard({
               <div className={`font-mono text-gray-800 ${textSizeClass}`}>
                 {cerfa.numero_cu}
               </div>
+            </div>
+          </div>
+        )}
+
+        {pipeline.creator_label && (
+          <div className="flex items-start gap-1.5">
+            <User size={iconSize} className="text-teal-600 mt-0.5 shrink-0" />
+            <div className="min-w-0">
+              <span className={`${labelClass} font-medium text-gray-500`}>Généré par</span>
+              <div className="text-gray-800">{pipeline.creator_label}</div>
             </div>
           </div>
         )}

@@ -1,6 +1,7 @@
 import type { User } from "@supabase/supabase-js";
 import type { CommunePortalSlug } from "../layouts/communePortalConfig";
 import { defaultToolPath, isCommunePortalSlug } from "../layouts/communePortalConfig";
+import { apiFetch } from "../api/apiFetch";
 import { inseeCodesFromMetadata, slugFromInsee } from "./communeRegistry";
 
 const API_BASE = (import.meta.env.VITE_API_BASE || "").replace(/\/$/, "");
@@ -37,13 +38,10 @@ function normalizeSlugList(values: string[] | null | undefined): CommunePortalSl
 function accessFromMetadata(user: User): CommuneAccessSnapshot {
   const codes = inseeCodesFromMetadata(user.user_metadata as Record<string, unknown>);
   if (codes.length === 0) {
-    return { allowedSlugs: null, unrestricted: true };
+    return { allowedSlugs: [], unrestricted: false };
   }
   const slugs = slugsFromInseeCodes(codes);
-  return {
-    allowedSlugs: slugs.length > 0 ? slugs : null,
-    unrestricted: slugs.length === 0,
-  };
+  return { allowedSlugs: slugs, unrestricted: false };
 }
 
 export async function fetchCommuneAccess(user: User): Promise<CommuneAccessSnapshot> {
@@ -52,8 +50,7 @@ export async function fetchCommuneAccess(user: User): Promise<CommuneAccessSnaps
   }
 
   try {
-    const url = `${API_BASE}/account/commune-access?user_id=${encodeURIComponent(user.id)}`;
-    const res = await fetch(url);
+    const res = await apiFetch("/account/commune-access");
     if (!res.ok) {
       return accessFromMetadata(user);
     }

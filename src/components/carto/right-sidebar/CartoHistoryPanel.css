@@ -22,6 +22,8 @@
 }
 
 .carto-history-panel--left .carto-history-panel__body {
+  flex: 1;
+  min-height: 0;
   max-height: none;
 }
 

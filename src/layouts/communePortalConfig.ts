@@ -29,7 +29,7 @@ export const COMMUNE_PORTAL: Record<CommunePortalSlug, CommunePortalEntry> = {
   mios: {
     slug: "mios",
     label: "Mios",
-    tools: ["cua", "chat"],
+    tools: ["chat"],
   },
   france: {
     slug: "france",
@@ -53,7 +53,7 @@ export function defaultToolPath(slug: CommunePortalSlug): string {
 }
 
 /** Communes avec une page CUA dédiée (pas le template chat). */
-export const CUA_PAGE_SLUGS = ["latresne", "argeles", "mios"] as const;
+export const CUA_PAGE_SLUGS = ["latresne", "argeles"] as const;
 export type CuaPageSlug = (typeof CUA_PAGE_SLUGS)[number];
 
 export function isCuaPageSlug(slug: string | undefined): slug is CuaPageSlug {

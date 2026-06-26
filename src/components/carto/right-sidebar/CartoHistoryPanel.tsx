@@ -1,4 +1,4 @@
-import { useMemo, useState, type ComponentType, type ComponentProps } from "react";
+import { useEffect, useMemo, useState, type ComponentType, type ComponentProps } from "react";
 import { Clock, MapPin, Search, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { type HistoryPipeline } from "../../tools/carto/HistoryPipelineCard";
 import ProjectHistoryCard from "../left-sidebar/ProjectHistoryCard";
@@ -109,6 +109,42 @@ export default function CartoHistoryPanel({
     }));
   };
 
+  useEffect(() => {
+    if (!selectedSlug) return;
+    const row = rows.find((r) => r.slug === selectedSlug);
+    if (!row) return;
+    const monthKey = `cua:${formatMonthGroupLabel(row.created_at)}`;
+    setOpenMonthGroups((prev) => ({ ...prev, [monthKey]: true }));
+  }, [selectedSlug, rows]);
+
+  useEffect(() => {
+    if (!selectedSlug) return;
+    const timer = window.setTimeout(() => {
+      document
+        .querySelector(`[data-history-slug="${CSS.escape(selectedSlug)}"]`)
+        ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }, 50);
+    return () => window.clearTimeout(timer);
+  }, [selectedSlug, rows, openMonthGroups]);
+
+  useEffect(() => {
+    if (!selectedIdentiteProjectId) return;
+    const row = identiteRows.find((r) => r.project_id === selectedIdentiteProjectId);
+    if (!row) return;
+    const monthKey = `cif:${formatMonthGroupLabel(row.created_at)}`;
+    setOpenMonthGroups((prev) => ({ ...prev, [monthKey]: true }));
+  }, [selectedIdentiteProjectId, identiteRows]);
+
+  useEffect(() => {
+    if (!selectedIdentiteProjectId) return;
+    const timer = window.setTimeout(() => {
+      document
+        .querySelector(`[data-identite-id="${CSS.escape(selectedIdentiteProjectId)}"]`)
+        ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }, 50);
+    return () => window.clearTimeout(timer);
+  }, [selectedIdentiteProjectId, identiteRows, openMonthGroups]);
+
   const { matched, others } = useMemo(() => {
     if (!searchTerm.trim()) {
       return { matched: rows, others: [] as HistoryPipeline[] };
@@ -134,7 +170,7 @@ export default function CartoHistoryPanel({
             .map((p) => `${(p.section || "").toUpperCase()} ${p.numero || ""}`.trim())
             .join(", ")
         : "";
-      const haystack = `${numeroCu} ${demandeur} ${adresse} ${parcelles}`.toLowerCase();
+      const haystack = `${numeroCu} ${demandeur} ${adresse} ${parcelles} ${row.creator_label || ""}`.toLowerCase();
       if (haystack.includes(term)) matches.push(row);
       else rest.push(row);
     }
@@ -298,6 +334,7 @@ export default function CartoHistoryPanel({
                         return (
                           <div
                             key={row.slug}
+                            data-history-slug={row.slug}
                             className={`cua-history-card${isSelected ? " cua-history-card--selected" : ""}`}
                           >
                             <ProjectCard
@@ -368,6 +405,7 @@ export default function CartoHistoryPanel({
                       return (
                         <div
                           key={r.project_id}
+                          data-identite-id={r.project_id}
                           className={`identite-row${isSel ? " identite-row--selected" : ""}`}
                         >
                           <div className="flex items-stretch gap-0">

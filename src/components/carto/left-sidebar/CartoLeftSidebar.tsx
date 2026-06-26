@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from "react";
-import { ChevronDown, ChevronRight, ChevronLeft } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { ChevronDown, ChevronRight, ChevronLeft, Clock } from "lucide-react";
 import CartoHistoryPanel, { type CartoHistoryPanelProps } from "../right-sidebar/CartoHistoryPanel";
 import "./CartoLeftSidebar.css";
 
@@ -29,10 +29,9 @@ type CartoLeftSidebarProps = {
   searchBlock?: CartoSidebarBlock | null;
   newCuTitle?: string;
   defaultNewCuOpen?: boolean;
-  defaultHistoryOpen?: boolean;
   defaultParcelleOpen?: boolean;
-  /** Historique rendu à l'intérieur du bloc « Certificat d'urbanisme » (pas de section séparée). */
-  historyInsideNewCu?: boolean;
+  /** Historique ouvert par défaut (section repliable en bas de sidebar). */
+  defaultHistoryOpen?: boolean;
 };
 
 function LeftSidebarBlock({
@@ -104,10 +103,17 @@ export default function CartoLeftSidebar({
   searchBlock = null,
   newCuTitle = "Nouveau Certificat d'Urbanisme",
   defaultNewCuOpen = false,
-  defaultHistoryOpen = false,
   defaultParcelleOpen = true,
-  historyInsideNewCu = false,
+  defaultHistoryOpen = true,
 }: CartoLeftSidebarProps) {
+  const [historyOpen, setHistoryOpen] = useState(defaultHistoryOpen);
+
+  useEffect(() => {
+    if (history.selectedSlug || history.selectedIdentiteProjectId) {
+      setHistoryOpen(true);
+    }
+  }, [history.selectedSlug, history.selectedIdentiteProjectId]);
+
   return (
     <>
       {!isOpen ? (
@@ -170,11 +176,6 @@ export default function CartoLeftSidebar({
                   ))
                 )}
               </div>
-              {historyInsideNewCu ? (
-                <div className="carto-left-sidebar__history carto-left-sidebar__history--nested">
-                  <CartoHistoryPanel {...history} variant="left" />
-                </div>
-              ) : null}
             </LeftSidebarBlock>
 
             {parcelleBlock ? (
@@ -185,15 +186,30 @@ export default function CartoLeftSidebar({
                 <div className="carto-left-sidebar__parcelle">{parcelleBlock.content}</div>
               </LeftSidebarBlock>
             ) : null}
-
-            {!historyInsideNewCu ? (
-              <LeftSidebarBlock title="Historique" defaultOpen={defaultHistoryOpen}>
-                <div className="carto-left-sidebar__history">
-                  <CartoHistoryPanel {...history} variant="left" />
-                </div>
-              </LeftSidebarBlock>
-            ) : null}
           </div>
+
+          <section
+            className={`carto-left-sidebar__history-pinned${historyOpen ? " carto-left-sidebar__history-pinned--open" : " carto-left-sidebar__history-pinned--collapsed"}`}
+            aria-label="Historique"
+          >
+            <button
+              type="button"
+              className="carto-left-sidebar__history-pinned-trigger"
+              onClick={() => setHistoryOpen((v) => !v)}
+              aria-expanded={historyOpen}
+            >
+              <span className="carto-left-sidebar__history-pinned-trigger-label">
+                <Clock size={14} aria-hidden />
+                <span>Historique</span>
+              </span>
+              {historyOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            </button>
+            {historyOpen ? (
+              <div className="carto-left-sidebar__history-pinned-body">
+                <CartoHistoryPanel {...history} variant="left" />
+              </div>
+            ) : null}
+          </section>
         </div>
         ) : null}
       </aside>

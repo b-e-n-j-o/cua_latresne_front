@@ -15,6 +15,7 @@ import { LidarVisualizationEmbed } from "../lidar/LidarVisualizationEmbed";
 import { MntVisualizationEmbed } from "../mnt/MntVisualizationEmbed";
 import { ManualCuaForm } from "../../../pages/communes/latresne/cua/cerfa/ManualCuaForm";
 import { buildCuaViewerPath } from "../../../utils/cuaViewer";
+import { apiFetch } from "../../../api/apiFetch";
 
 type UFParcelle = {
   section: string;
@@ -246,17 +247,12 @@ export default function UniteFonciereCard({
     setCuaSlug(null);
 
     try {
-      const apiBase = (import.meta.env.VITE_API_BASE || "http://localhost:8000").replace(/\/$/, "");
       const body: Record<string, unknown> = {
         refs: parcellesCadastrales,
         persist: true,
       };
-      if (userId?.trim()) {
-        body.user_id = userId.trim();
-        if (userEmail?.trim()) body.user_email = userEmail.trim();
-      }
 
-      const response = await fetch(`${apiBase}/communes/${slug}/cua/generate`, {
+      const response = await apiFetch(`/communes/${slug}/cua/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

@@ -17,6 +17,7 @@ import type { ParcelleResumeRef } from "../../../../types/sigResume";
 import { buildIntersectionsReportFromCartoContext } from "../../../../utils/argeles/fullIntersections";
 import ParcelleResumePanel from "./ParcelleResumePanel";
 import supabase from "../../../../supabaseClient";
+import { apiFetch } from "../../../../api/apiFetch";
 import { MapLoadingOverlay, MapTooltipOverlay, UfBuilderModeBanner } from "./ArgelesMapOverlays";
 import type { IdentiteFonciereHistoryRow } from "../../../../components/carto/right-sidebar/CartoHistoryPanel";
 import { CARTO_LAYERS } from "./cartoLayers";
@@ -431,6 +432,8 @@ export default function ArgelesPage() {
   const getZonageForUFRef = useRef<((insee: string, parcelles: Array<{ section: string; numero: string }>) => Promise<ZonageInfo[]>) | null>(null);
   const showCerfaParcellesRef = useRef<((parcelles: Array<{ section: string; numero: string }>, commune: string, insee: string) => Promise<void>) | null>(null);
   const isHoveringHistoryPingRef = useRef(false);
+  const handleSelectHistoryFromSlugRef = useRef<(slug: string) => void>(() => {});
+  const handleSelectIdentiteProjectRef = useRef<(projectId: string) => void>(() => {});
 
   function toggleUfParcelle(next: {
     section: string;
@@ -518,6 +521,7 @@ export default function ArgelesPage() {
     const pipeline = historyPipelinesRef.current.find((p) => p.slug === slug);
     if (!pipeline) return;
 
+    setLeftSidebarOpen(true);
     setHistorySidebarTab("cua");
     setSelectedIdentiteProjectId(null);
     setSelectedHistoryPipeline(pipeline);
@@ -544,6 +548,7 @@ export default function ArgelesPage() {
 
   const handleSelectIdentiteProject = (projectId: string) => {
     const row = identiteFonciereHistoryRef.current.find((p) => p.project_id === projectId);
+    setLeftSidebarOpen(true);
     setHistorySidebarTab("cif");
     setSelectedIdentiteProjectId(projectId);
     setSelectedHistoryPipeline(null);
@@ -559,6 +564,11 @@ export default function ArgelesPage() {
       });
     }
   };
+
+  useEffect(() => {
+    handleSelectHistoryFromSlugRef.current = handleSelectHistoryFromSlug;
+    handleSelectIdentiteProjectRef.current = handleSelectIdentiteProject;
+  });
 
   const updateHistoryPipelineInState = (slug: string, updater: (p: HistoryPipeline) => HistoryPipeline) => {
     setHistoryPipelines((prev) => prev.map((p) => (p.slug === slug ? updater(p) : p)));
@@ -581,9 +591,7 @@ export default function ArgelesPage() {
       };
     }
   ) => {
-    const base = (API_BASE || "http://localhost:8000").replace(/\/$/, "");
-    const qs = userId ? `?user_id=${encodeURIComponent(userId)}` : "";
-    const res = await fetch(`${base}/pipelines/${slug}${qs}`, {
+    const res = await apiFetch(`/pipelines/${slug}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -607,9 +615,7 @@ export default function ArgelesPage() {
   };
 
   const handleDeleteHistoryProject = async (slug: string) => {
-    const base = (API_BASE || "http://localhost:8000").replace(/\/$/, "");
-    const qs = userId ? `?user_id=${encodeURIComponent(userId)}` : "";
-    const res = await fetch(`${base}/pipelines/${slug}${qs}`, { method: "DELETE" });
+    const res = await apiFetch(`/pipelines/${slug}`, { method: "DELETE" });
     const data = await res.json();
     if (!res.ok || !data?.success) {
       throw new Error(data?.detail || data?.error || "Erreur de suppression");
@@ -626,8 +632,7 @@ export default function ArgelesPage() {
     const map = mapRef.current;
     if (!map || !userId) return;
     try {
-      const base = API_BASE.replace(/\/$/, "");
-      const res = await fetch(`${base}/pipelines/by_user?user_id=${userId}&commune_slug=argeles`);
+      const res = await apiFetch("/pipelines/by_user?commune_slug=argeles");
       const j = await res.json();
       if (!j.success || !Array.isArray(j.pipelines)) {
         console.warn("⚠️ Impossible de charger l'historique des pipelines pour la carte");
@@ -635,9 +640,8 @@ export default function ArgelesPage() {
       }
 
       const normalized = normalizeHistoryPipelines(j.pipelines);
+      historyPipelinesRef.current = normalized;
       setHistoryPipelines(normalized);
-
-      const pipelinesWithCentroid = normalized.filter((p) => getPipelineCentroid(p) !== null);
 
       const features = buildHistoryMapFeatures(normalized);
 
@@ -648,24 +652,7 @@ export default function ArgelesPage() {
       }
 
       if (focusSlug) {
-        const created = pipelinesWithCentroid.find((p) => p.slug === focusSlug);
-        if (created) {
-          const centroid = getPipelineCentroid(created);
-          if (!centroid) return;
-          setSelectedHistoryPipeline(created);
-          const point = map.project([centroid.lon, centroid.lat]);
-          const container = map.getContainer();
-          const cw = container.clientWidth;
-          const ch = container.clientHeight;
-          const placement = getPopupPlacement(point.x, point.y, cw, ch);
-          const x = clampPopupX(point.x, cw);
-          setHistoryPopupPosition({ x, y: point.y, placement });
-          map.flyTo({
-            center: [centroid.lon, centroid.lat],
-            zoom: Math.max(map.getZoom(), 16),
-            duration: 600,
-          });
-        }
+        handleSelectHistoryFromSlugRef.current(focusSlug);
       }
     } catch (e) {
       console.error("Erreur chargement des pings d'historique sur la carte:", e);
@@ -675,10 +662,7 @@ export default function ArgelesPage() {
   const refreshIdentiteFonciereHistory = async () => {
     if (!userId) return;
     try {
-      const base = (API_BASE || "http://localhost:8000").replace(/\/$/, "");
-      const res = await fetch(
-        `${base}/api/identite-fonciere/history/by_user?user_id=${encodeURIComponent(userId)}&limit=100`
-      );
+      const res = await apiFetch("/api/identite-fonciere/history/by_user?limit=100");
       const j = await res.json();
       if (!j.success || !Array.isArray(j.projects)) {
         if (j?.error) console.warn("Historique CIF:", j.error);
@@ -692,9 +676,8 @@ export default function ArgelesPage() {
 
   const handleDeleteIdentiteProject = async (projectId: string) => {
     if (!userId) throw new Error("Connexion requise.");
-    const base = (API_BASE || "http://localhost:8000").replace(/\/$/, "");
-    const res = await fetch(
-      `${base}/api/identite-fonciere/history/${encodeURIComponent(projectId)}?user_id=${encodeURIComponent(userId)}`,
+    const res = await apiFetch(
+      `/api/identite-fonciere/history/${encodeURIComponent(projectId)}`,
       { method: "DELETE" }
     );
     let data: { success?: boolean; error?: string; detail?: string } = {};
@@ -1040,20 +1023,7 @@ export default function ArgelesPage() {
         const props = feature.properties as any;
         const slug = props.slug;
         if (!slug) return;
-        const pipeline = historyPipelinesRef.current.find((p: HistoryPipeline) => p.slug === slug);
-        if (pipeline) {
-          setHistorySidebarTab("cua");
-          setSelectedIdentiteProjectId(null);
-          setSelectedHistoryPipeline(pipeline);
-          const container = map.getContainer();
-          const cw = container.clientWidth;
-          const ch = container.clientHeight;
-          const placement = getPopupPlacement(e.point.x, e.point.y, cw, ch);
-          const x = clampPopupX(e.point.x, cw);
-          setHistoryPopupPosition({ x, y: e.point.y, placement });
-          const [lon, lat] = (feature.geometry as GeoJSON.Point).coordinates;
-          map.flyTo({ center: [lon, lat], zoom: Math.max(map.getZoom(), 16), duration: 600 });
-        }
+        handleSelectHistoryFromSlugRef.current(slug);
       });
 
       map.addSource("identite-fonciere-history", {
@@ -1110,13 +1080,8 @@ export default function ArgelesPage() {
         const props = feature.properties as Record<string, unknown>;
         const projectId = String(props.project_id || "").trim();
         if (!projectId) return;
-        setHistorySidebarTab("cif");
-        setSelectedHistoryPipeline(null);
-        setHistoryPopupPosition(null);
-        setSelectedIdentiteProjectId(projectId);
         setRightLegendOpen(true);
-        const [lon, lat] = (feature.geometry as GeoJSON.Point).coordinates;
-        map.flyTo({ center: [lon, lat], zoom: Math.max(map.getZoom(), 16), duration: 600 });
+        handleSelectIdentiteProjectRef.current(projectId);
       });
 
       // Hover sur cadastre avec feature-state
@@ -2156,9 +2121,8 @@ export default function ArgelesPage() {
               <SuiviInstructionCard
                 pipeline={selectedHistoryPipeline}
                 onSuiviChange={async (suivi) => {
-                  const base = (API_BASE || "http://localhost:8000").replace(/\/$/, "");
                   try {
-                    const res = await fetch(`${base}/pipelines/${selectedHistoryPipeline.slug}/suivi`, {
+                    const res = await apiFetch(`/pipelines/${selectedHistoryPipeline.slug}/suivi`, {
                       method: "PATCH",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ suivi }),
@@ -2190,7 +2154,6 @@ export default function ArgelesPage() {
           isOpen={leftSidebarOpen}
           onToggle={() => setLeftSidebarOpen((v) => !v)}
           newCuTitle="Certificat d'urbanisme"
-          historyInsideNewCu
           searchBlock={{
             title: "Rechercher une parcelle",
             defaultOpen: false,

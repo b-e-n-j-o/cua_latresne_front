@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import AuthGate from "./auth/AuthGate";
 import LoginForm from "./auth/LoginForm";
+import SignupForm from "./auth/SignupForm";
 import ResetPasswordPage from "./auth/ResetPasswordPage";
 import UpdatePasswordPage from "./auth/UpdatePasswordPage";
 import LandingPage from "./pages/website/landingpage/LandingPage";
@@ -47,6 +48,7 @@ const PUBLIC_EXACT_ROUTES = [
   "/",
   "/landing-dev",
   "/login",
+  "/signup",
   "/demo",
   "/reset-password",
   "/update-password",
@@ -82,6 +84,7 @@ export default function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/landing-dev" element={<LandingPageDev />} />
         <Route path="/login" element={<LoginForm />} />
+        <Route path="/signup" element={<SignupForm />} />
         <Route path="/demo" element={<DemoRequestPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/update-password" element={<UpdatePasswordPage />} />

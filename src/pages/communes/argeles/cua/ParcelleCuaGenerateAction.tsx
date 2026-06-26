@@ -53,8 +53,6 @@ export default function ParcelleCuaGenerateAction({
         communeSlug,
         refs: parcelles.map((p) => ({ section: p.section, numero: p.numero })),
         numeroCu,
-        userId,
-        userEmail,
       });
 
       if (result.slug) {

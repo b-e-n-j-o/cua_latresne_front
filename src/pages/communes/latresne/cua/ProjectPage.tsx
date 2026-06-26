@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { UploadCloud } from "lucide-react";
 import type { HistoryPipeline } from "../../../../components/tools/carto/HistoryPipelineCard";
 import { encodeCuaViewerToken, downloadCuaDocx } from "../../../../utils/cuaViewer";
+import { apiFetch } from "../../../../api/apiFetch";
 
 type ProjectFile = {
   id: string;
@@ -167,15 +168,19 @@ export default function ProjectPage() {
     setError(null);
     try {
       const [projectRes, filesRes] = await Promise.all([
-        fetch(`${API_BASE}/pipelines/by_slug?slug=${encodeURIComponent(slug)}`),
-        fetch(`${API_BASE}/pipelines/${encodeURIComponent(slug)}/files`),
+        apiFetch(`/pipelines/by_slug?slug=${encodeURIComponent(slug)}`),
+        apiFetch(`/pipelines/${encodeURIComponent(slug)}/files`),
       ]);
 
       const projectJson = await projectRes.json();
       const filesJson = await filesRes.json();
 
       if (!projectRes.ok || !projectJson?.success) {
-        throw new Error(projectJson?.error || "Impossible de charger le projet");
+        const detail =
+          typeof projectJson?.detail === "string"
+            ? projectJson.detail
+            : projectJson?.error || "Impossible de charger le projet";
+        throw new Error(detail);
       }
       setProject(projectJson.pipeline || null);
       setFiles(Array.isArray(filesJson?.files) ? filesJson.files : []);
@@ -285,13 +290,15 @@ export default function ProjectPage() {
       const form = new FormData();
       form.append("file", file);
       form.append("file_kind", fileKind);
-      const res = await fetch(`${API_BASE}/pipelines/${encodeURIComponent(slug)}/files/upload`, {
+      const res = await apiFetch(`/pipelines/${encodeURIComponent(slug)}/files/upload`, {
         method: "POST",
         body: form,
       });
       const data = await res.json();
       if (!res.ok || !data?.success) {
-        throw new Error(data?.error || "Erreur d'upload");
+        const detail =
+          typeof data?.detail === "string" ? data.detail : data?.error || "Erreur d'upload";
+        throw new Error(detail);
       }
       await loadAll();
     } catch (e: any) {
@@ -307,12 +314,16 @@ export default function ProjectPage() {
     if (!ok) return;
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/pipelines/${encodeURIComponent(slug)}/files/${fileId}`, {
+      const res = await apiFetch(`/pipelines/${encodeURIComponent(slug)}/files/${fileId}`, {
         method: "DELETE",
       });
       const data = await res.json();
       if (!res.ok || !data?.success) {
-        throw new Error(data?.error || "Erreur suppression fichier");
+        const detail =
+          typeof data?.detail === "string"
+            ? data.detail
+            : data?.error || "Erreur suppression fichier";
+        throw new Error(detail);
       }
       await loadAll();
     } catch (e: any) {

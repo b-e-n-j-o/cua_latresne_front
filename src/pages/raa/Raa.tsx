@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   RefreshCw, ExternalLink, FileText, ChevronDown,
-  AlertTriangle, Loader2, MapPin, Search,
+  AlertTriangle, Loader2, MapPin, Search, Check,
 } from "lucide-react";
 import { getRaaConfig, normaliseArreteNature, type ArreteNature, type RaaCommuneConfig } from "./raaConfig";
 
@@ -9,7 +9,7 @@ import { getRaaConfig, normaliseArreteNature, type ArreteNature, type RaaCommune
  *  Veille réglementaire RAA — multi-commune (slug portail)
  *  GET  {API_BASE}/{slug}/raa?annee=YYYY
  *  GET  {API_BASE}/{slug}/raa/{id}
- *  POST {API_BASE}/{slug}/raa/{id}/analyser
+ *  POST {API_BASE}/{slug}/raa/{id}/marquer-vu
  *  Si l'API est injoignable -> bascule en MODE DÉMO (données d'exemple).
  * ------------------------------------------------------------------ */
 
@@ -25,6 +25,7 @@ type RaaItem = {
   page_url: string;
   taille_mo?: number;
   statut: string;
+  vu?: boolean;
   niveau_alerte?: string | null;
   nb_arretes_total?: number;
   nb_arretes_pertinents?: number;
@@ -111,7 +112,7 @@ function buildDemo(cfg: RaaCommuneConfig): RaaItem[] {
   return [
     {
       id: 5, titre: "Recueil du 22 juin 2026", date_publication: "2026-06-22",
-      pdf_url: "#", page_url: "#", taille_mo: 5.2, statut: "analyse",
+      pdf_url: "#", page_url: "#", taille_mo: 5.2, statut: "analyse", vu: false,
       niveau_alerte: "ROUGE", nb_arretes_total: 9, nb_arretes_pertinents: 1,
       commune_mentionnee: true,
       resume_global: `Recueil de 9 arrêtés. Un arrêté concerne directement ${c}.`,
@@ -202,8 +203,44 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
     }
   };
 
+  const startPolling = (id: number) => {
+    if (pollers.current[id]) return;
+    let n = 0;
+    pollers.current[id] = setInterval(async () => {
+      n += 1;
+      try {
+        const r = await fetch(`${raaBase}/${id}`);
+        const d = await r.json();
+        if (d.statut !== "en_cours" || n >= POLL_MAX) {
+          clearInterval(pollers.current[id]);
+          delete pollers.current[id];
+          patch(id, d.statut === "en_cours"
+            ? { statut: "erreur", erreur: "L'analyse prend plus de temps que prévu. Réessayez dans un instant." }
+            : d);
+        }
+      } catch { /* on retentera au prochain tick */ }
+    }, POLL_MS);
+  };
+
+  const marquerVu = async (id: number) => {
+    if (demo) {
+      patch(id, { vu: true });
+      return;
+    }
+    patch(id, { vu: true });
+    try {
+      await fetch(`${raaBase}/${id}/marquer-vu`, { method: "POST" });
+    } catch {
+      patch(id, { vu: false });
+    }
+  };
+
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [annee, raaBase]);
   useEffect(() => () => Object.values(pollers.current).forEach(clearInterval), []);
+  useEffect(() => {
+    if (demo) return;
+    items.filter((it) => it.statut === "en_cours").forEach((it) => startPolling(it.id));
+  }, [items, demo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const patch = (id: number, fields: Partial<RaaItem>) =>
     setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...fields } : it)));
@@ -249,7 +286,7 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
     patch(id, { statut: "en_cours", erreur: null });
     setTimeout(() => {
       patch(id, {
-        statut: "analyse", niveau_alerte: "VERT", nb_arretes_total: 5,
+        statut: "analyse", vu: false, niveau_alerte: "VERT", nb_arretes_total: 5,
         nb_arretes_pertinents: 0, commune_mentionnee: false,
         resume_global: `Analyse simulée (mode démo) — 5 arrêtés, aucun pertinent pour ${cfg.communeLabel}.`,
         arretes: [],
@@ -266,27 +303,24 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
       patch(id, { statut: "erreur", erreur: "Impossible de joindre le serveur." });
       return;
     }
-    let n = 0;
-    pollers.current[id] = setInterval(async () => {
-      n += 1;
-      try {
-        const r = await fetch(`${raaBase}/${id}`);
-        const d = await r.json();
-        if (d.statut !== "en_cours" || n >= POLL_MAX) {
-          clearInterval(pollers.current[id]);
-          delete pollers.current[id];
-          patch(id, d.statut === "en_cours"
-            ? { erreur: "L'analyse prend plus de temps que prévu. Réessayez dans un instant." }
-            : d);
-        }
-      } catch { /* on retentera au prochain tick */ }
-    }, POLL_MS);
+    startPolling(id);
   };
+
+  const isNouveau = (it: RaaItem) => it.statut === "analyse" && it.vu === false;
 
   const groups = useMemo(() => {
     const by: Record<string, RaaItem[]> = {};
     for (const it of items) (by[it.date_publication || ""] ||= []).push(it);
-    return Object.entries(by).sort((a, b) => (a[0] < b[0] ? 1 : -1));
+    return Object.entries(by)
+      .sort((a, b) => (a[0] < b[0] ? 1 : -1))
+      .map(([d, list]) => [
+        d,
+        [...list].sort((a, b) => {
+          const na = isNouveau(a) ? 0 : 1;
+          const nb = isNouveau(b) ? 0 : 1;
+          return na - nb;
+        }),
+      ] as [string, RaaItem[]]);
   }, [items]);
 
   const stats = useMemo(() => {
@@ -294,6 +328,7 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
     return {
       total: items.length,
       analyses: a.length,
+      nonLus: a.filter((i) => i.vu === false).length,
       rouge: a.filter((i) => i.niveau_alerte === "ROUGE").length,
       orange: a.filter((i) => i.niveau_alerte === "ORANGE").length,
     };
@@ -308,19 +343,18 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
           <div className="rv__eyebrow">{cfg.departementLabel} · {cfg.communeLabel}</div>
           <h1 className="rv__title">Veille réglementaire</h1>
           <p className="rv__sub">
-            Recueils des actes administratifs de la préfecture, analysés chaque jour.
-            Les recueils qui concernent la commune ou ses environs sont signalés.
+            Recueils des actes administratifs de la préfecture, synchronisés et analysés chaque matin.
+            Les recueils non encore consultés sont signalés comme nouveaux.
           </p>
         </div>
-        <button className="rv__refresh" onClick={load} title="Recharger">
-          <RefreshCw size={15} /> Recharger
-        </button>
       </header>
 
       <div className="rv__stats">
         <span><b>{stats.total}</b> recueils</span>
         <span className="rv__dot" />
         <span><b>{stats.analyses}</b> analysés</span>
+        {stats.nonLus > 0 && (<><span className="rv__dot" />
+          <span className="rv__stat--new"><b>{stats.nonLus}</b> nouveau(x)</span></>)}
         {stats.rouge > 0 && (<><span className="rv__dot" />
           <span className="rv__stat--r"><i style={{ background: niveau.ROUGE.dot }} />{stats.rouge} concerne(nt) {cfg.communeShort}</span></>)}
         {stats.orange > 0 && (<><span className="rv__dot" />
@@ -349,6 +383,7 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
                 detailLoading={detailLoading.has(it.id)}
                 onToggle={() => toggleDetail(it.id)}
                 onAnalyser={() => analyser(it.id)}
+                onMarquerVu={() => marquerVu(it.id)}
               />
             ))}
           </section>
@@ -366,19 +401,22 @@ type CardProps = {
   detailLoading: boolean;
   onToggle: () => void;
   onAnalyser: () => void;
+  onMarquerVu: () => void;
 };
 
-function Card({ it, cfg, niveau, expanded, detailLoading, onToggle, onAnalyser }: CardProps) {
+function Card({ it, cfg, niveau, expanded, detailLoading, onToggle, onAnalyser, onMarquerVu }: CardProps) {
   const niveauItem = it.niveau_alerte ? niveau[it.niveau_alerte] : null;
   const enCours = it.statut === "en_cours";
   const erreur = it.statut === "erreur";
   const analyse = it.statut === "analyse";
   const detecte = it.statut === "detecte";
+  const nouveau = analyse && it.vu === false;
   const arretes = sortArretes(it.arretes ?? []);
   const nbTotal = it.nb_arretes_total ?? arretes.length;
   const showDetailToggle = analyse && nbTotal > 0;
 
   const cls = ["rv__card"];
+  if (nouveau) cls.push("rv__card--new");
   if (it.niveau_alerte === "ROUGE") cls.push("rv__card--r");
   if (it.niveau_alerte === "ORANGE") cls.push("rv__card--o");
   if (detecte || enCours) cls.push("rv__card--muted");
@@ -392,6 +430,9 @@ function Card({ it, cfg, niveau, expanded, detailLoading, onToggle, onAnalyser }
           <div>
             <h3 className="rv__cardtitle">{it.titre}</h3>
             <div className="rv__meta">
+              {nouveau && (
+                <span className="rv__chip rv__chip--new">Nouveau</span>
+              )}
               {analyse && niveauItem && (
                 <span className="rv__niveau" style={{ color: niveauItem.dot }}>
                   <i style={{ background: niveauItem.dot }} /> {niveauItem.label}
@@ -409,6 +450,17 @@ function Card({ it, cfg, niveau, expanded, detailLoading, onToggle, onAnalyser }
               {it.taille_mo != null && <span className="rv__size">{it.taille_mo.toFixed(1)} Mo</span>}
             </div>
           </div>
+          {nouveau && (
+            <button
+              type="button"
+              className="rv__vu"
+              onClick={onMarquerVu}
+              title="Marquer comme lu"
+              aria-label="Marquer ce recueil comme lu"
+            >
+              <Check size={14} />
+            </button>
+          )}
         </div>
 
         {analyse && it.resume_global && <p className="rv__resume">{it.resume_global}</p>}
@@ -452,15 +504,21 @@ function Card({ it, cfg, niveau, expanded, detailLoading, onToggle, onAnalyser }
                           <div>
                             <div className="rv__arretehead">
                               <span className="rv__arretetitre">{a.titre}</span>
-                              <span className={`rv__nature ${nm.className}`}>{nm.label}</span>
+                              {a.pages && <span className="rv__arretepages">p. {a.pages}</span>}
+                            </div>
+                            <div className="rv__arretetags">
                               <span
                                 className="rv__arretetag"
                                 style={{ color: pm.dot }}
                                 title={pm.hint}
                               >
-                                {pm.label}
+                                <span className="rv__tagprefix">Concernant {cfg.communeShort} :</span>
+                                {" "}{pm.label}
                               </span>
-                              {a.pages && <span className="rv__arretepages">p. {a.pages}</span>}
+                              <span className={`rv__nature ${nm.className}`}>
+                                <span className="rv__tagprefix">Catégorie :</span>
+                                {" "}{nm.label}
+                              </span>
                             </div>
                             {a.reference && (
                               <div className="rv__arreteref">Réf. {a.reference}</div>
@@ -491,7 +549,7 @@ function Card({ it, cfg, niveau, expanded, detailLoading, onToggle, onAnalyser }
         )}
 
         <div className="rv__actions">
-          <a className="rv__link" href={it.pdf_url} target="_blank" rel="noreferrer">
+          <a className="rv__link rv__link--pdf" href={it.pdf_url} target="_blank" rel="noreferrer">
             <FileText size={13} /> PDF du recueil
           </a>
           <a className="rv__link" href={it.page_url} target="_blank" rel="noreferrer">
@@ -502,7 +560,7 @@ function Card({ it, cfg, niveau, expanded, detailLoading, onToggle, onAnalyser }
 
           <button className="rv__btn" onClick={onAnalyser} disabled={enCours}>
             {enCours ? <Loader2 size={14} className="rv__spin" /> : <RefreshCw size={14} />}
-            {detecte ? "Analyser" : enCours ? "En cours" : "Relancer"}
+            {detecte ? "Analyser" : enCours ? "En cours" : "Relancer l'analyse"}
           </button>
         </div>
       </div>
@@ -528,7 +586,10 @@ const CSS = `
 .rv__refresh{flex-shrink:0; display:inline-flex; align-items:center; gap:.4rem; padding:.5rem .8rem;
   border:1px solid var(--border); border-radius:.6rem; background:#fff; font:inherit; font-size:.82rem;
   font-weight:500; color:var(--text); cursor:pointer; transition:border-color .15s, background .15s;}
-.rv__refresh:hover{border-color:var(--accent); background:var(--accent-soft);}
+.rv__refresh:hover:not(:disabled){border-color:var(--accent); background:var(--accent-soft);}
+.rv__refresh:disabled{opacity:.6; cursor:default;}
+
+.rv__stat--new{color:#1a6fa8; font-weight:600;}
 
 .rv__stats{display:flex; align-items:center; flex-wrap:wrap; gap:.55rem; font-size:.82rem;
   color:var(--muted); padding:.7rem .9rem; background:var(--surface); border:1px solid var(--border);
@@ -545,9 +606,11 @@ const CSS = `
   letter-spacing:.03em; margin:0 0 .6rem; padding-bottom:.35rem; border-bottom:1px solid var(--border);}
 
 .rv__card{position:relative; display:flex; gap:0; background:#fff; border:1px solid var(--border);
-  border-radius:.85rem; margin-bottom:.7rem; overflow:hidden; transition:box-shadow .15s, border-color .15s;}
-.rv__card:hover{box-shadow:0 1px 6px rgba(0,0,0,.05);}
+  border-radius:.85rem; margin-bottom:1.15rem; overflow:hidden;
+  transition:box-shadow .15s, border-color .15s; box-shadow:0 1px 3px rgba(0,0,0,.04);}
+.rv__card:hover{box-shadow:0 2px 10px rgba(0,0,0,.07);}
 .rv__card--muted{background:var(--surface);}
+.rv__card--new{border-color:#b8d4f0; box-shadow:0 0 0 1px rgba(26,111,168,.08);}
 .rv__card--r{border-color:#f3c6c0;}
 .rv__card--o{border-color:#f6e0b8;}
 .rv__bar{flex-shrink:0; width:4px;}
@@ -562,7 +625,13 @@ const CSS = `
   background:#f0f1f3; color:var(--muted); font-weight:500;}
 .rv__chip--soft{background:transparent; color:var(--faint); padding-left:0; padding-right:0;}
 .rv__chip--commune{background:var(--accent-soft); color:#1f7a08; font-weight:600;}
+.rv__chip--new{background:#e8f4fd; color:#1a6fa8; font-weight:700; letter-spacing:.02em;}
 .rv__size{color:var(--faint); margin-left:.1rem;}
+
+.rv__vu{flex-shrink:0; display:inline-flex; align-items:center; justify-content:center;
+  width:1.75rem; height:1.75rem; border:1px solid #b8d4f0; border-radius:.45rem;
+  background:#e8f4fd; color:#1a6fa8; cursor:pointer; transition:background .15s, border-color .15s;}
+.rv__vu:hover{background:#d4ebfa; border-color:#1a6fa8;}
 
 .rv__resume{font-size:.88rem; line-height:1.55; color:var(--muted); margin:.6rem 0 .2rem;}
 
@@ -573,7 +642,7 @@ const CSS = `
   transition:border-color .15s, background .15s;}
 .rv__detail-toggle:hover{border-color:var(--accent); background:var(--accent-soft);}
 .rv__detail-hint{font-style:normal; font-weight:500; color:var(--muted);}
-.rv__detail-body{margin-top:.65rem;}
+.rv__detail-body{margin-top:.75rem; padding-top:.75rem; border-top:1px dashed var(--border);}
 
 .rv__statusline{display:flex; align-items:center; gap:.4rem; font-size:.82rem; color:var(--faint); margin:.6rem 0 .2rem;}
 .rv__statusline--wait{color:var(--muted);}
@@ -581,8 +650,11 @@ const CSS = `
 
 .rv__actions{display:flex; align-items:center; flex-wrap:wrap; gap:.6rem; margin-top:.8rem;}
 .rv__link{display:inline-flex; align-items:center; gap:.3rem; font-size:.8rem; color:var(--muted);
-  text-decoration:none; font-weight:500; transition:color .15s;}
+  text-decoration:none; font-weight:500; transition:color .15s, background .15s, border-color .15s;}
 .rv__link:hover{color:var(--accent-hover);}
+.rv__link--pdf{padding:.48rem .85rem; border-radius:.6rem; font-weight:600; font-size:.82rem;
+  color:#1a4d0f; background:rgba(133,227,114,.38); border:1px solid rgba(40,159,1,.25);}
+.rv__link--pdf:hover{color:#123608; background:rgba(133,227,114,.55); border-color:rgba(40,159,1,.4);}
 .rv__chevopen{transform:rotate(180deg);}
 .rv__spacer{flex:1;}
 
@@ -592,16 +664,19 @@ const CSS = `
 .rv__btn:hover:not(:disabled){border-color:var(--accent); background:var(--accent-soft);}
 .rv__btn:disabled{opacity:.6; cursor:default;}
 
-.rv__arretes{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.75rem;}
-.rv__arrete{display:flex; gap:.6rem; padding:.75rem .85rem; border:1px solid var(--border);
-  border-radius:.65rem; background:#fff;}
-.rv__arrete--pertinent{background:var(--surface); border-color:#dfe3e8;}
-.rv__arretedot{flex-shrink:0; width:8px; height:8px; border-radius:50%; margin-top:.4rem;}
-.rv__arretehead{display:flex; align-items:baseline; flex-wrap:wrap; gap:.5rem;}
-.rv__arretetitre{font-size:.86rem; font-weight:600;}
-.rv__arretetag{font-size:.68rem; font-weight:700; letter-spacing:.03em;}
-.rv__nature{display:inline-flex; align-items:center; padding:.1rem .45rem; border-radius:.4rem;
-  font-size:.66rem; font-weight:700; letter-spacing:.02em; text-transform:uppercase;}
+.rv__arretes{list-style:none; margin:0; padding:.25rem 0 0; display:flex; flex-direction:column; gap:1rem;}
+.rv__arrete{display:flex; gap:.75rem; padding:.9rem 1rem; border:1px solid #dfe3e8;
+  border-radius:.7rem; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.04);}
+.rv__arrete--pertinent{background:#f8faf9; border-color:#cfd8d2; box-shadow:0 1px 5px rgba(0,0,0,.06);}
+.rv__arretedot{flex-shrink:0; width:9px; height:9px; border-radius:50%; margin-top:.45rem;}
+.rv__arretehead{display:flex; align-items:baseline; flex-wrap:wrap; gap:.5rem; margin-bottom:.35rem;}
+.rv__arretetitre{font-size:.88rem; font-weight:600; line-height:1.35;}
+.rv__arretetags{display:flex; align-items:center; flex-wrap:wrap; gap:.45rem .65rem; margin-bottom:.25rem;}
+.rv__arretetag{font-size:.74rem; font-weight:600; letter-spacing:.01em;}
+.rv__tagprefix{font-weight:500; color:var(--muted);}
+.rv__nature{display:inline-flex; align-items:center; gap:.2rem; padding:.15rem .5rem; border-radius:.4rem;
+  font-size:.72rem; font-weight:600; letter-spacing:.01em;}
+.rv__nature .rv__tagprefix{font-weight:500; text-transform:none;}
 .rv__nature--urba{background:#e8f4fd; color:#1a6fa8;}
 .rv__nature--env{background:#e6f6ec; color:#1a7a3a;}
 .rv__nature--evt{background:#f3ebfa; color:#7d3c98;}

@@ -181,13 +181,79 @@
   background: #fff;
 }
 
-.carto-left-sidebar__history {
-  padding: 0.75rem;
+.carto-left-sidebar__history-pinned {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 0 0.75rem 0.75rem;
+  border: 1px solid #d5e1e3;
+  border-radius: 0.5rem;
+  background: #fff;
+  overflow: hidden;
 }
 
-.carto-left-sidebar__history--nested {
-  border-top: 1px solid #e5e7eb;
-  margin-top: 0.25rem;
+.carto-left-sidebar__history-pinned--open {
+  flex: 1 1 auto;
+  min-height: 12rem;
+  max-height: 48%;
+}
+
+.carto-left-sidebar__history-pinned--collapsed {
+  flex: 0 0 auto;
+}
+
+.carto-left-sidebar__history-pinned-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.65rem 0.75rem;
+  border: none;
+  background: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #0b131f;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.carto-left-sidebar__history-pinned-trigger:hover {
+  background: #f4f6f8;
+}
+
+.carto-left-sidebar__history-pinned-trigger svg:last-child {
+  flex-shrink: 0;
+  color: rgba(11, 19, 31, 0.4);
+}
+
+.carto-left-sidebar__history-pinned-trigger-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.carto-left-sidebar__history-pinned-trigger-label svg {
+  color: rgba(11, 19, 31, 0.45);
+}
+
+.carto-left-sidebar__history-pinned--open .carto-left-sidebar__history-pinned-trigger {
+  border-bottom: 1px solid #d5e1e3;
+}
+
+.carto-left-sidebar__history-pinned-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.carto-left-sidebar__history-pinned-body .carto-history-panel--left {
+  height: 100%;
+  min-height: 0;
 }
 
 /* Zone outil CUA : carte + sidebars — pas de scroll page */

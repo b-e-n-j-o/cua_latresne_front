@@ -13,6 +13,7 @@ import CerfaTool from "./cerfa/CerfaTool";
 import UniteFonciereCard from "../../../../components/tools/carto/UniteFonciereCard";
 import type { ParcelleInfo, ZonageInfo } from "../../../../types/parcelle";
 import supabase from "../../../../supabaseClient";
+import { apiFetch } from "../../../../api/apiFetch";
 import { MapLoadingOverlay, MapTooltipOverlay, UfBuilderModeBanner } from "./LatresneMapOverlays";
 import type { IdentiteFonciereHistoryRow } from "../../../../components/carto/right-sidebar/CartoHistoryPanel";
 import RightSidebarPatch from "../../../../components/carto/right-sidebar/RightSidebarPatch";
@@ -365,9 +366,7 @@ export default function LatresnePage() {
       };
     }
   ) => {
-    const base = (API_BASE || "http://localhost:8000").replace(/\/$/, "");
-    const qs = userId ? `?user_id=${encodeURIComponent(userId)}` : "";
-    const res = await fetch(`${base}/pipelines/${slug}${qs}`, {
+    const res = await apiFetch(`/pipelines/${slug}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -391,9 +390,7 @@ export default function LatresnePage() {
   };
 
   const handleDeleteHistoryProject = async (slug: string) => {
-    const base = (API_BASE || "http://localhost:8000").replace(/\/$/, "");
-    const qs = userId ? `?user_id=${encodeURIComponent(userId)}` : "";
-    const res = await fetch(`${base}/pipelines/${slug}${qs}`, { method: "DELETE" });
+    const res = await apiFetch(`/pipelines/${slug}`, { method: "DELETE" });
     const data = await res.json();
     if (!res.ok || !data?.success) {
       throw new Error(data?.detail || data?.error || "Erreur de suppression");
@@ -410,8 +407,7 @@ export default function LatresnePage() {
     const map = mapRef.current;
     if (!map || !userId) return;
     try {
-      const base = API_BASE.replace(/\/$/, "");
-      const res = await fetch(`${base}/pipelines/by_user?user_id=${userId}&commune_slug=latresne`);
+      const res = await apiFetch("/pipelines/by_user?commune_slug=latresne");
       const j = await res.json();
       if (!j.success || !Array.isArray(j.pipelines)) {
         console.warn("⚠️ Impossible de charger l'historique des pipelines pour la carte");
@@ -473,10 +469,7 @@ export default function LatresnePage() {
   const refreshIdentiteFonciereHistory = async () => {
     if (!userId) return;
     try {
-      const base = (API_BASE || "http://localhost:8000").replace(/\/$/, "");
-      const res = await fetch(
-        `${base}/api/identite-fonciere/history/by_user?user_id=${encodeURIComponent(userId)}&limit=100`
-      );
+      const res = await apiFetch("/api/identite-fonciere/history/by_user?limit=100");
       const j = await res.json();
       if (!j.success || !Array.isArray(j.projects)) {
         if (j?.error) console.warn("Historique CIF:", j.error);
@@ -490,9 +483,8 @@ export default function LatresnePage() {
 
   const handleDeleteIdentiteProject = async (projectId: string) => {
     if (!userId) throw new Error("Connexion requise.");
-    const base = (API_BASE || "http://localhost:8000").replace(/\/$/, "");
-    const res = await fetch(
-      `${base}/api/identite-fonciere/history/${encodeURIComponent(projectId)}?user_id=${encodeURIComponent(userId)}`,
+    const res = await apiFetch(
+      `/api/identite-fonciere/history/${encodeURIComponent(projectId)}`,
       { method: "DELETE" }
     );
     let data: { success?: boolean; error?: string; detail?: string } = {};
@@ -1668,9 +1660,8 @@ export default function LatresnePage() {
               <SuiviInstructionCard
                 pipeline={selectedHistoryPipeline}
                 onSuiviChange={async (suivi) => {
-                  const base = (API_BASE || "http://localhost:8000").replace(/\/$/, "");
                   try {
-                    const res = await fetch(`${base}/pipelines/${selectedHistoryPipeline.slug}/suivi`, {
+                    const res = await apiFetch(`/pipelines/${selectedHistoryPipeline.slug}/suivi`, {
                       method: "PATCH",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ suivi }),

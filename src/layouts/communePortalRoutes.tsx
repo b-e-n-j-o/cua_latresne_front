@@ -8,9 +8,7 @@ import type { PluCommuneSlug } from "../pages/plu-chat/communeConfig";
 import LatresneCuaPage from "../pages/communes/latresne/cua/LatresnePage";
 import ArgelesCuaPage from "../pages/communes/argeles/cua/ArgelesPage";
 import CuaCataloguePage from "../pages/communes/argeles/cua/CuaCataloguePage";
-import MiosCuaPage from "../pages/communes/mios/MiosPage";
 import LatresneProjectPage from "../pages/communes/latresne/cua/ProjectPage";
-import MiosProjectPage from "../pages/communes/mios/ProjectPage";
 import ArgelesProjectPage from "../pages/communes/argeles/cua/ProjectPage";
 import VeilleRaaPage from "../pages/raa/Raa";
 import { isRaaCommuneSlug } from "../pages/raa/raaConfig";
@@ -25,7 +23,6 @@ import {
 const CUA_PAGES: Record<CuaPageSlug, ComponentType> = {
   latresne: LatresneCuaPage,
   argeles: ArgelesCuaPage,
-  mios: MiosCuaPage,
 };
 
 function isPluChatCommune(slug: string | undefined): slug is PluCommuneSlug {
@@ -57,7 +54,6 @@ export function CommuneChatRoute() {
 export function CommuneProjectRoute() {
   const { communeSlug } = useParams<{ communeSlug: string }>();
   if (communeSlug === "latresne") return <LatresneProjectPage />;
-  if (communeSlug === "mios") return <MiosProjectPage />;
   if (communeSlug === "argeles") return <ArgelesProjectPage />;
   return <CommuneToolUnavailable tool="cua" />;
 }

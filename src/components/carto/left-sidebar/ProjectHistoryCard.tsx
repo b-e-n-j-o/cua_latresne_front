@@ -111,6 +111,11 @@ export default function ProjectHistoryCard({
             <div className="text-xs text-[#0b131f]/40 mt-0.5">
               Genere le : {formattedDate}
             </div>
+            {row.creator_label ? (
+              <div className="text-xs text-[#0b131f]/40 mt-0.5 truncate">
+                Généré par : {row.creator_label}
+              </div>
+            ) : null}
             <div className="text-xs text-[#0b131f]/40 truncate">
               {row.cerfa_data?.adresse_terrain
                 ? [

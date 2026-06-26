@@ -1,3 +1,4 @@
+import { apiFetch } from "../../api/apiFetch";
 import { buildCuaViewerPath } from "../cuaViewer";
 
 export type ArgelesCuaParcelleRef = {
@@ -9,8 +10,6 @@ export type GenerateArgelesCuaOptions = {
   communeSlug?: string;
   refs: ArgelesCuaParcelleRef[];
   numeroCu: string;
-  userId?: string | null;
-  userEmail?: string | null;
   persist?: boolean;
 };
 
@@ -46,22 +45,14 @@ export async function generateArgelesCua(
     throw new Error("Référence du dossier requise pour générer le certificat d'urbanisme.");
   }
 
-  const apiBase = (import.meta.env.VITE_API_BASE || "http://localhost:8000").replace(/\/$/, "");
-
-  const body: Record<string, unknown> = {
-    refs: options.refs.map((p) => ({ section: p.section.trim(), numero: p.numero.trim() })),
-    dossier: { numero_cu: numeroCu },
-    persist: options.persist ?? true,
-  };
-  if (options.userId?.trim()) {
-    body.user_id = options.userId.trim();
-    if (options.userEmail?.trim()) body.user_email = options.userEmail.trim();
-  }
-
-  const response = await fetch(`${apiBase}/communes/${slug}/cua/generate`, {
+  const response = await apiFetch(`/communes/${slug}/cua/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      refs: options.refs.map((p) => ({ section: p.section.trim(), numero: p.numero.trim() })),
+      dossier: { numero_cu: numeroCu },
+      persist: options.persist ?? true,
+    }),
   });
 
   const data = (await response.json()) as {

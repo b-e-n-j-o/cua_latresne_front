@@ -83,14 +83,18 @@ export default function LoginForm() {
         </button>
       </form>
 
-      {/* Lien Mot de passe oublié */}
-      <div className="mt-4 text-center">
-        {/* ⬅️ LIEN VERS LA NOUVELLE PAGE DE DEMANDE DE RÉINITIALISATION */}
-        <Link 
-          to="/reset-password" 
+      <div className="mt-4 flex flex-col items-center gap-2 text-center">
+        <Link
+          to="/reset-password"
           className="text-sm text-gray-600 hover:text-[#0B131F] transition-colors"
         >
           Mot de passe oublié ?
+        </Link>
+        <Link
+          to="/signup"
+          className="text-sm text-gray-600 hover:text-[#0B131F] transition-colors"
+        >
+          Pas encore de compte ? Créer un compte
         </Link>
       </div>
     </div>
