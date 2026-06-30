@@ -424,6 +424,29 @@ section[id] {
     border-color: rgba(0, 0, 0, 0.22) !important;
   }
 
+  /* Mon espace — pill verte pleine (accent landing) */
+  .kerelia-landing .kh__cta.kh__cta--mon-espace {
+    background: var(--kerelia-accent) !important;
+    color: #000 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  .kerelia-landing .kh__cta.kh__cta--mon-espace:hover {
+    background: var(--kerelia-accent-hover) !important;
+    color: #000 !important;
+  }
+  .kerelia-landing header.kh.kh--dark .kh__cta.kh__cta--mon-espace {
+    background: var(--kerelia-accent) !important;
+    color: #000 !important;
+    border-color: transparent !important;
+  }
+  .kerelia-landing header.kh.kh--dark .kh__cta.kh__cta--mon-espace:hover {
+    background: var(--kerelia-accent-hover) !important;
+    color: #000 !important;
+  }
+
   /* Lien connexion dans le panneau menu mobile uniquement (≤833px + menu ouvert) */
   .kerelia-landing header.kh .kh__nav-mobile-login {
     display: none !important;
@@ -2380,6 +2403,19 @@ section[id] {
       background: rgba(0, 0, 0, 0.05) !important;
       color: rgba(0, 0, 0, 0.88) !important;
       border-color: rgba(0, 0, 0, 0.22) !important;
+    }
+    .kerelia-landing header.kh.is-mobile-nav-open .kh__nav-mobile-login--mon-espace,
+    .kerelia-landing header.kh.kh--dark.is-mobile-nav-open .kh__nav-mobile-login--mon-espace {
+      background: var(--kerelia-accent) !important;
+      border-color: var(--kerelia-accent) !important;
+      color: #000 !important;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+    }
+    .kerelia-landing header.kh.is-mobile-nav-open .kh__nav-mobile-login--mon-espace:hover {
+      background: var(--kerelia-accent-hover) !important;
+      border-color: var(--kerelia-accent-hover) !important;
+      color: #000 !important;
     }
     .kerelia-landing header.kh.is-mobile-nav-open .kh__nav-item.kh__nav-item--dropdown {
       background: rgba(238, 238, 238, 0.06) !important;

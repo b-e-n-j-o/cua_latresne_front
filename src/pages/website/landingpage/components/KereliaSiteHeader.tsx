@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useLandingSessionCTA } from "../../../../auth/useLandingSessionCTA";
 import { KERELIA_LOGO_SRC } from "../lib/constants";
 import { cn } from "../lib/cn";
 
@@ -250,6 +251,7 @@ export function KereliaSiteHeader({ headerClassName }: KereliaSiteHeaderProps) {
   const headerRef = useRef<HTMLElement>(null);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const sessionCta = useLandingSessionCTA();
 
   const closeDropdown = useCallback(() => setActiveDropdown(null), []);
 
@@ -354,20 +356,30 @@ export function KereliaSiteHeader({ headerClassName }: KereliaSiteHeaderProps) {
                 />
               </Fragment>
             ))}
-            <a
-              className="kh__nav-mobile-login"
-              href="/login"
+            <Link
+              className={cn(
+                "kh__nav-mobile-login",
+                sessionCta.variant === "mon-espace" && "kh__nav-mobile-login--mon-espace",
+              )}
+              to={sessionCta.href}
               onClick={closeMobileNav}
-              aria-label="Se connecter"
+              aria-label={sessionCta.ariaLabel}
             >
-              Se connecter
-            </a>
+              {sessionCta.label}
+            </Link>
           </nav>
         </div>
 
-        <a className="kh__cta kh__cta--login" href="/login" aria-label="Se connecter">
-          Se connecter
-        </a>
+        <Link
+          className={cn(
+            "kh__cta",
+            sessionCta.variant === "mon-espace" ? "kh__cta--mon-espace" : "kh__cta--login",
+          )}
+          to={sessionCta.href}
+          aria-label={sessionCta.ariaLabel}
+        >
+          {sessionCta.label}
+        </Link>
 
         <button
           type="button"

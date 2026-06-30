@@ -11,6 +11,8 @@ export type CommuneAccessSnapshot = {
   allowedSlugs: CommunePortalSlug[] | null;
   unrestricted: boolean;
   isSuperadmin?: boolean;
+  /** Commune par défaut pour « Mon espace » (y compris superadmin via INSEE). */
+  homeCommuneSlug?: CommunePortalSlug | null;
 };
 
 type ApiCommuneAccessResponse = {
@@ -18,6 +20,7 @@ type ApiCommuneAccessResponse = {
   unrestricted?: boolean;
   is_superadmin?: boolean;
   allowed_commune_slugs?: string[] | null;
+  home_commune_slug?: string | null;
 };
 
 function slugsFromInseeCodes(codes: string[]): CommunePortalSlug[] {
@@ -35,13 +38,22 @@ function normalizeSlugList(values: string[] | null | undefined): CommunePortalSl
   return [...new Set(slugs)];
 }
 
+function normalizeHomeSlug(value: string | null | undefined): CommunePortalSlug | null {
+  const slug = (value || "").trim().toLowerCase();
+  return isCommunePortalSlug(slug) ? slug : null;
+}
+
 function accessFromMetadata(user: User): CommuneAccessSnapshot {
   const codes = inseeCodesFromMetadata(user.user_metadata as Record<string, unknown>);
   if (codes.length === 0) {
-    return { allowedSlugs: [], unrestricted: false };
+    return { allowedSlugs: [], unrestricted: false, homeCommuneSlug: null };
   }
   const slugs = slugsFromInseeCodes(codes);
-  return { allowedSlugs: slugs, unrestricted: false };
+  return {
+    allowedSlugs: slugs,
+    unrestricted: false,
+    homeCommuneSlug: slugs[0] ?? null,
+  };
 }
 
 export async function fetchCommuneAccess(user: User): Promise<CommuneAccessSnapshot> {
@@ -58,11 +70,13 @@ export async function fetchCommuneAccess(user: User): Promise<CommuneAccessSnaps
     if (!data.success) {
       return accessFromMetadata(user);
     }
+    const homeCommuneSlug = normalizeHomeSlug(data.home_commune_slug);
     if (data.unrestricted || data.allowed_commune_slugs == null) {
       return {
         allowedSlugs: null,
         unrestricted: true,
         isSuperadmin: Boolean(data.is_superadmin),
+        homeCommuneSlug,
       };
     }
     const slugs = normalizeSlugList(data.allowed_commune_slugs);
@@ -70,6 +84,7 @@ export async function fetchCommuneAccess(user: User): Promise<CommuneAccessSnaps
       allowedSlugs: slugs,
       unrestricted: false,
       isSuperadmin: Boolean(data.is_superadmin),
+      homeCommuneSlug: homeCommuneSlug ?? slugs?.[0] ?? null,
     };
   } catch {
     return accessFromMetadata(user);
@@ -84,19 +99,26 @@ export function canAccessCommuneSlug(
   return allowedSlugs.includes(slug);
 }
 
-export function resolvePostLoginPath(access: CommuneAccessSnapshot): string {
-  if (access.unrestricted || access.allowedSlugs === null) {
-    return "/";
+/** Chemin portail CUA/outil par défaut pour « Mon espace ». */
+export function resolveMonEspacePath(access: CommuneAccessSnapshot): string | null {
+  if (access.homeCommuneSlug) {
+    return defaultToolPath(access.homeCommuneSlug);
   }
-  if (access.allowedSlugs.length === 0) {
-    return "/login";
-  }
-  return defaultToolPath(access.allowedSlugs[0]);
-}
-
-export function resolveCommuneRedirectPath(access: CommuneAccessSnapshot): string {
   if (access.allowedSlugs && access.allowedSlugs.length > 0) {
     return defaultToolPath(access.allowedSlugs[0]);
   }
+  return null;
+}
+
+export function resolvePostLoginPath(access: CommuneAccessSnapshot): string {
+  const monEspace = resolveMonEspacePath(access);
+  if (monEspace) return monEspace;
+  if (!access.unrestricted && access.allowedSlugs?.length === 0) {
+    return "/login";
+  }
   return "/";
+}
+
+export function resolveCommuneRedirectPath(access: CommuneAccessSnapshot): string {
+  return resolveMonEspacePath(access) ?? "/";
 }
