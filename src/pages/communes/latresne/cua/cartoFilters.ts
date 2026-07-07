@@ -1,23 +1,17 @@
 import type maplibregl from "maplibre-gl";
+import {
+  EMPTY_GROUP_KEY,
+  applyLayerClassColors,
+} from "../../communs/carto/cartoClassColors";
+import {
+  groupKeyFromRaw,
+  mergeLegendCatalog,
+  queryViewportGroupValues,
+} from "../../communs/carto/cartoLegendDiscover";
 import type { CartoLayerDef } from "./cartoLayers";
 import { CARTO_LAYERS, findOverlayBeforeId } from "./cartoLayers";
 
-export const EMPTY_GROUP_KEY = "(NON RENSEIGNÉ)";
-
-/** Clé de regroupement (majuscules), alignée sur categoricalFillColor (longueur → palette). */
-export function groupKeyFromRaw(raw: unknown): string {
-  const s = raw != null ? String(raw).trim() : "";
-  return s ? s.toUpperCase() : EMPTY_GROUP_KEY;
-}
-
-export function colorForGroupKey(
-  key: string,
-  palette: readonly string[],
-  fallback: string
-): string {
-  if (key === EMPTY_GROUP_KEY) return fallback;
-  return palette[key.length % palette.length] ?? fallback;
-}
+export { EMPTY_GROUP_KEY, groupKeyFromRaw };
 
 /** Filtre MapLibre : n'affiche que les valeurs cochées du groupe. */
 export function buildGroupFilter(
@@ -48,53 +42,21 @@ export type CartoGroupItem = {
   label?: string;
 };
 
-/** Valeurs distinctes chargées dans les tuiles visibles. */
+/** Catalogue cumulatif : fusionne la vue courante + récolte communale. */
 export function discoverGroupValues(
   map: maplibregl.Map,
   def: CartoLayerDef
 ): CartoGroupItem[] {
-  if (!def.groupField || !map.getSource(def.id)) return [];
-
-  let features: maplibregl.MapGeoJSONFeature[] = [];
-  try {
-    features = map.querySourceFeatures(def.id, {
-      sourceLayer: def.sourceLayer,
-    }) as maplibregl.MapGeoJSONFeature[];
-  } catch {
-    return [];
-  }
-
-  const palette = def.filterPalette ?? [];
-  const fallback = def.filterFallback ?? "#888888";
-  const counts = new Map<string, number>();
-
-  for (const f of features) {
-    const key = groupKeyFromRaw((f.properties as Record<string, unknown>)?.[def.groupField]);
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-
-  return [...counts.entries()]
-    .sort(([a], [b]) => a.localeCompare(b, "fr"))
-    .map(([key, count]) => ({
-      key,
-      count,
-      color: def.groupColorMap?.[key] ?? colorForGroupKey(key, palette, fallback),
-    }));
+  const viewport = queryViewportGroupValues(map, def);
+  return mergeLegendCatalog(def, viewport);
 }
 
-/** Fusionne légende statique (config) et comptages issus des tuiles chargées. */
+/** Alias conservé pour l’API légende partagée. */
 export function mergeStaticGroupLegend(
   def: CartoLayerDef,
   discovered: CartoGroupItem[]
 ): CartoGroupItem[] {
-  if (!def.staticGroupLegend?.length) return discovered;
-  const countByKey = new Map(discovered.map((d) => [d.key, d.count]));
-  return def.staticGroupLegend.map((item) => ({
-    key: item.key,
-    label: item.label,
-    count: countByKey.get(item.key) ?? 0,
-    color: item.color,
-  }));
+  return mergeLegendCatalog(def, discovered);
 }
 
 /** Ajoute source + sous-couches PMTiles si besoin (visibilité « none » jusqu’à sync). */
@@ -134,7 +96,9 @@ export function ensureCartoLayerMounted(
 export function syncCartoOnMap(
   map: maplibregl.Map,
   layerVisible: Record<string, boolean>,
-  visibleGroups: Record<string, Set<string>>
+  visibleGroups: Record<string, Set<string>>,
+  classColors: Record<string, Record<string, string>> = {},
+  onAfterSync?: (map: maplibregl.Map) => void,
 ): void {
   if (!map.isStyleLoaded()) return;
 
@@ -165,5 +129,14 @@ export function syncCartoOnMap(
         map.setFilter(sub.id, on ? filter : null);
       }
     }
+
+    if (on && def.groupField) {
+      const layerColors = classColors[def.id];
+      if (layerColors && Object.keys(layerColors).length > 0) {
+        applyLayerClassColors(map, def, layerColors);
+      }
+    }
   }
+
+  onAfterSync?.(map);
 }

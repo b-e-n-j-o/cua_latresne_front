@@ -5,7 +5,7 @@ import * as pmtiles from "pmtiles";
 import CartoLegendPanel from "./CartoLegendPanel";
 import { CARTO_LAYERS } from "./cartoLayers";
 import { syncCartoOnMap } from "./cartoFilters";
-import type { CartoLayerDef } from "./cartoLayers";
+import { attachCartoHoverHandlers } from "../../../../components/carto/cartoTooltips";
 
 const protocol = new pmtiles.Protocol();
 maplibregl.addProtocol("pmtiles", protocol.tile);
@@ -17,57 +17,21 @@ const LATRESNE_BOUNDS: [number, number, number, number] = [
   -0.533033, 44.769809, -0.459991, 44.808794,
 ];
 
-function fillLayerId(def: CartoLayerDef): string | undefined {
-  return def.layers.find((l) => l.type === "fill")?.id;
-}
-
-function bindCartoLayerTooltip(
-  map: maplibregl.Map,
-  def: CartoLayerDef,
-  setTooltip: (t: { x: number; y: number; text: string } | null) => void
-): void {
-  const layerId = fillLayerId(def);
-  if (!layerId || !map.getLayer(layerId)) return;
-
-  map.on("mousemove", layerId, (e) => {
-    const f = e.features?.[0];
-    if (!f) return;
-    map.getCanvas().style.cursor = "pointer";
-    const p = f.properties as Record<string, unknown>;
-
-    let text: string;
-    if (def.id === "zonage") {
-      const code = p.zonage_reglement ?? p.typezone ?? "Zone";
-      const lib = p.libelle ? ` — ${p.libelle}` : "";
-      text = `${code}${lib}`;
-    } else if (def.tooltipField) {
-      const raw = p[def.tooltipField];
-      text =
-        raw != null && String(raw).trim()
-          ? String(raw).trim().toUpperCase()
-          : def.title.toUpperCase();
-    } else {
-      text = def.title;
-    }
-
-    setTooltip({ x: e.point.x, y: e.point.y, text });
-  });
-  map.on("mouseleave", layerId, () => {
-    map.getCanvas().style.cursor = "";
-    setTooltip(null);
-  });
-}
-
 export default function LatresneTilesPage() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
-  const tooltipBoundRef = useRef(new Set<string>());
+  const cartoHoverDetachRef = useRef<(() => void) | null>(null);
+  const layerVisibleRef = useRef<Record<string, boolean>>({});
   const [mapReady, setMapReady] = useState(false);
 
   const [layerVisible, setLayerVisible] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(CARTO_LAYERS.map((l) => [l.id, l.defaultVisible]))
   );
-  const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null);
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; content: string } | null>(null);
+
+  useEffect(() => {
+    layerVisibleRef.current = layerVisible;
+  }, [layerVisible]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -92,13 +56,23 @@ export default function LatresneTilesPage() {
         Object.fromEntries(CARTO_LAYERS.map((l) => [l.id, l.defaultVisible])),
         {}
       );
+      layerVisibleRef.current = Object.fromEntries(
+        CARTO_LAYERS.map((l) => [l.id, l.defaultVisible])
+      );
+      cartoHoverDetachRef.current = attachCartoHoverHandlers(map, {
+        defs: CARTO_LAYERS,
+        layerVisibleRef,
+        canShow: () => true,
+        setTooltip,
+      });
       setMapReady(true);
     });
 
     return () => {
+      cartoHoverDetachRef.current?.();
+      cartoHoverDetachRef.current = null;
       map.remove();
       mapRef.current = null;
-      tooltipBoundRef.current.clear();
       setMapReady(false);
     };
   }, []);
@@ -108,13 +82,6 @@ export default function LatresneTilesPage() {
     if (!map?.isStyleLoaded() || !mapReady) return;
 
     syncCartoOnMap(map, layerVisible, {});
-
-    for (const def of CARTO_LAYERS) {
-      if (!layerVisible[def.id] || tooltipBoundRef.current.has(def.id)) continue;
-      if (!fillLayerId(def) || !map.getLayer(fillLayerId(def)!)) continue;
-      bindCartoLayerTooltip(map, def, setTooltip);
-      tooltipBoundRef.current.add(def.id);
-    }
   }, [layerVisible, mapReady]);
 
   return (
@@ -136,7 +103,7 @@ export default function LatresneTilesPage() {
           className="absolute pointer-events-none z-50 px-2 py-1 rounded bg-[#0b131f] text-white text-xs shadow-lg"
           style={{ left: tooltip.x + 12, top: tooltip.y + 12, maxWidth: 240 }}
         >
-          {tooltip.text}
+          {tooltip.content}
         </div>
       )}
     </div>

@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import supabase from "../../supabaseClient";
 import { fetchCommuneAccess } from "../../auth/communeAccess";
-import { ReglementsEditor } from "./ReglementsArgeles";
+import { ReglementsEditor } from "./ReglementsParCommune";
 
 const API_BASE = (import.meta.env.VITE_API_BASE || "http://localhost:8000").replace(/\/$/, "");
 

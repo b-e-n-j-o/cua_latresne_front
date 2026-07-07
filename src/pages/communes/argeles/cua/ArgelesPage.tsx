@@ -4,13 +4,11 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import * as pmtiles from "pmtiles";
 import * as turf from "@turf/turf";
 import { useNavigate } from "react-router-dom";
-import CartoLeftSidebar, { type CartoToolSection } from "../../../../components/carto/left-sidebar/CartoLeftSidebar";
-import RightSidebarPatch from "../../../../components/carto/right-sidebar/RightSidebarPatch";
+import CartoLeftSidebar from "../../../../components/carto/left-sidebar/CartoLeftSidebar";
+import RightSidebarPatch from "../../communs/carto/layout/RightSidebarPatch";
 import ParcelleSearchForm from "../../../../components/tools/carto/ParcelleSearchform";
-import SearchUniteFonciere from "../../../../components/tools/carto/SearchUniteFonciere";
 import { type HistoryPipeline } from "../../../../components/tools/carto/HistoryPipelineCard";
 import SuiviInstructionCard from "../../../../components/tools/carto/SuiviInstructionCard";
-import UniteFonciereCard from "../../../../components/tools/carto/UniteFonciereCard";
 import type { ParcelleInfo, ZonageInfo } from "../../../../types/parcelle";
 import type { FullIntersectionsReport } from "../../../../types/fullIntersections";
 import type { ParcelleResumeRef } from "../../../../types/sigResume";
@@ -18,7 +16,7 @@ import { buildIntersectionsReportFromCartoContext } from "../../../../utils/arge
 import ParcelleResumePanel from "./ParcelleResumePanel";
 import supabase from "../../../../supabaseClient";
 import { apiFetch } from "../../../../api/apiFetch";
-import { MapLoadingOverlay, MapTooltipOverlay, UfBuilderModeBanner } from "./ArgelesMapOverlays";
+import { MapLoadingOverlay, MapLegendHarvestOverlay, MapTooltipOverlay, UfBuilderModeBanner } from "./ArgelesMapOverlays";
 import type { IdentiteFonciereHistoryRow } from "../../../../components/carto/right-sidebar/CartoHistoryPanel";
 import { CARTO_LAYERS } from "./cartoLayers";
 import { mountAllCartoLayers, syncCartoOnMap } from "./cartoFilters";
@@ -42,6 +40,7 @@ import { buildStudyZoneLegends } from "../../../../components/carto/studyZone/st
 import { buildInitialVisibleGroups, mergeVisibleGroupKeys } from "../../../../components/carto/studyZone/studyZoneCarto";
 import type { StudyZoneModeState } from "../../../../components/carto/studyZone/types";
 import { studyZoneParcellesKey, STUDY_ZONE_BUFFER_MAX_DEFAULT, STUDY_ZONE_DISPLAY_CLIP_M, studyZoneLabel } from "../../../../components/carto/studyZone/types";
+import { appendCartoTooltipLine, attachCartoHoverHandlers } from "../../../../components/carto/cartoTooltips";
 
 const cartoProtocol = new pmtiles.Protocol();
 maplibregl.addProtocol("pmtiles", cartoProtocol.tile);
@@ -49,6 +48,13 @@ maplibregl.addProtocol("pmtiles", cartoProtocol.tile);
 const ARGELLES_BOUNDS: [number, number, number, number] = [
   3.005104, 42.531832, 3.063641, 42.559276,
 ];
+
+const CADASTRE_GRID_LAYER_IDS = [
+  "latresne_parcelles-fill",
+  "latresne_parcelles-fill-hover",
+  "latresne_parcelles-outline",
+  "latresne_parcelles-labels",
+] as const;
 
 const CADASTRE_HIT_LAYER_IDS = [
   "latresne_parcelles-fill",
@@ -94,6 +100,19 @@ function bringCadastreHitLayersToFront(map: maplibregl.Map) {
   for (const id of CADASTRE_HIT_LAYER_IDS) moveLayerToTop(map, id);
   for (const id of CADASTRE_LABEL_LAYER_IDS) moveLayerToTop(map, id);
   for (const id of MAP_UI_TOP_LAYER_IDS) moveLayerToTop(map, id);
+}
+
+/** Grille cadastre GeoJSON (hors overlays sélection / UF). */
+function applyCadastreGridVisibility(map: maplibregl.Map, visible: boolean): void {
+  const vis: "visible" | "none" = visible ? "visible" : "none";
+  for (const id of CADASTRE_GRID_LAYER_IDS) {
+    if (!map.getLayer(id)) continue;
+    try {
+      map.setLayoutProperty(id, "visibility", vis);
+    } catch {
+      /* style IGN en cours de chargement */
+    }
+  }
 }
 
 /** Applique un paint uniquement si la couche existe (style IGN ≠ OSM). */
@@ -382,9 +401,27 @@ export default function ArgelesPage() {
   const [layerVisible, setLayerVisible] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(CARTO_LAYERS.map((l) => [l.id, l.defaultVisible]))
   );
+  const layerVisibleRef = useRef(layerVisible);
+  useEffect(() => {
+    layerVisibleRef.current = layerVisible;
+  }, [layerVisible]);
+
+  const handleCartoAfterSync = useCallback((map: maplibregl.Map) => {
+    applyCadastreGridVisibility(map, layerVisibleRef.current.parcelles !== false);
+    bringCadastreHitLayersToFront(map);
+  }, []);
+
+  const handleLayerVisibleChange = useCallback((layerId: string, on: boolean) => {
+    if (layerId === "parcelles") {
+      const map = mapRef.current;
+      if (map) applyCadastreGridVisibility(map, on);
+    }
+    setLayerVisible((v) => ({ ...v, [layerId]: on }));
+  }, []);
   const [rightLegendOpen, setRightLegendOpen] = useState(true);
   const [showHistoryPings, setShowHistoryPings] = useState(true);
   const [isLoadingCadastre, setIsLoadingCadastre] = useState(true);
+  const [isLegendHarvesting, setIsLegendHarvesting] = useState(false);
   const [ufState, setUfState] = useState<UFState | null>(null);
   const [historySidebarTab, setHistorySidebarTab] = useState<"cua" | "cif">("cua");
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
@@ -432,6 +469,7 @@ export default function ArgelesPage() {
   const getZonageForUFRef = useRef<((insee: string, parcelles: Array<{ section: string; numero: string }>) => Promise<ZonageInfo[]>) | null>(null);
   const showCerfaParcellesRef = useRef<((parcelles: Array<{ section: string; numero: string }>, commune: string, insee: string) => Promise<void>) | null>(null);
   const isHoveringHistoryPingRef = useRef(false);
+  const cartoHoverDetachRef = useRef<(() => void) | null>(null);
   const handleSelectHistoryFromSlugRef = useRef<(slug: string) => void>(() => {});
   const handleSelectIdentiteProjectRef = useRef<(projectId: string) => void>(() => {});
 
@@ -469,6 +507,20 @@ export default function ArgelesPage() {
         },
       ];
     });
+  }
+
+  function removeUfParcelle(section: string, numero: string) {
+    const normSection = normalizeUfSection(section);
+    const normNumero = normalizeUfNumero(numero);
+    if (!normSection || !normNumero) return;
+
+    setSelectedUfParcelles((prev) =>
+      prev.filter(
+        (p) =>
+          normalizeUfSection(p.section) !== normSection ||
+          normalizeUfNumero(p.numero) !== normNumero
+      )
+    );
   }
 
   useEffect(() => {
@@ -778,14 +830,16 @@ export default function ArgelesPage() {
           paint: PARCELLE_LABEL_PAINT,
         });
       }
+      applyCadastreGridVisibility(map, layerVisibleRef.current.parcelles !== false);
       setIsLoadingCadastre(false);
 
       mountAllCartoLayers(map);
       syncCartoOnMap(
         map,
-        Object.fromEntries(CARTO_LAYERS.map((l) => [l.id, l.defaultVisible])),
+        layerVisibleRef.current,
         {},
-        bringCadastreHitLayersToFront
+        {},
+        handleCartoAfterSync
       );
 
       // Sources supplémentaires
@@ -1116,10 +1170,17 @@ export default function ArgelesPage() {
         );
 
         map.getCanvas().style.cursor = "pointer";
+        const parcelleLabel = `Section ${props?.section ?? ""} – Parcelle ${props?.numero ?? ""}`;
         setTooltip({
           x: e.point.x,
           y: e.point.y,
-          content: `Section ${props?.section ?? ""} – Parcelle ${props?.numero ?? ""}`
+          content: appendCartoTooltipLine(
+            map,
+            e.point,
+            CARTO_LAYERS,
+            layerVisibleRef.current,
+            parcelleLabel
+          ),
         });
       });
 
@@ -1475,6 +1536,18 @@ export default function ArgelesPage() {
 
       bringCadastreHitLayersToFront(map);
 
+      cartoHoverDetachRef.current?.();
+      cartoHoverDetachRef.current = attachCartoHoverHandlers(map, {
+        defs: CARTO_LAYERS,
+        layerVisibleRef,
+        parcelleHitLayerId: "latresne_parcelles-fill",
+        canShow: () =>
+          !ufStateRef.current &&
+          !studyZoneActiveRef.current &&
+          !isHoveringHistoryPingRef.current,
+        setTooltip,
+      });
+
       map.on("zoom", () => setCurrentZoom(map.getZoom()));
       map.on("zoomend", () => {
         const zoom = map.getZoom();
@@ -1485,6 +1558,8 @@ export default function ArgelesPage() {
     });
 
     return () => {
+      cartoHoverDetachRef.current?.();
+      cartoHoverDetachRef.current = null;
       setMapReady(false);
       map.remove();
       mapRef.current = null;
@@ -1493,17 +1568,8 @@ export default function ArgelesPage() {
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map?.isStyleLoaded() || !mapReady) return;
-    const on = layerVisible.parcelles !== false;
-    const vis: "visible" | "none" = on ? "visible" : "none";
-    for (const id of [
-      "latresne_parcelles-fill",
-      "latresne_parcelles-fill-hover",
-      "latresne_parcelles-outline",
-      "latresne_parcelles-labels",
-    ]) {
-      if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", vis);
-    }
+    if (!map || !mapReady) return;
+    applyCadastreGridVisibility(map, layerVisible.parcelles !== false);
   }, [layerVisible.parcelles, mapReady]);
 
   useEffect(() => {
@@ -1774,7 +1840,7 @@ export default function ArgelesPage() {
     const map = mapRef.current;
     if (map?.isStyleLoaded()) {
       clearStudyZoneFromMap(map);
-      syncCartoOnMap(map, layerVisible, {}, bringCadastreHitLayersToFront);
+      syncCartoOnMap(map, layerVisible, {}, {}, handleCartoAfterSync);
     }
     setStudyZoneMode(null);
     studyZoneInitialFitRef.current = false;
@@ -1942,221 +2008,47 @@ export default function ArgelesPage() {
     else map.once("load", apply);
   }, [mapReady, studyZoneMode, studyFiltered, studyBufferPoly]);
 
-  const sidebarSections: CartoToolSection[] = [
-    {
-      id: "search-uf",
-      title: "Certificat d'Urbanisme (CUA) / Carte d'Identité Foncière (CIF)",
-      defaultOpen: true,
-      content: (
-        <SearchUniteFonciere
-          ufBuilderMode={ufBuilderMode}
-          selectedUfParcelles={selectedUfParcelles}
-          onUfBuilderToggle={setUfBuilderMode}
-          onUfParcelleRemove={(section, numero) => {
-            setSelectedUfParcelles((prev) =>
-              prev.filter(
-                (p) =>
-                  !(
-                    normalizeUfSection(p.section) === normalizeUfSection(section) &&
-                    normalizeUfNumero(p.numero) === normalizeUfNumero(numero)
-                  )
-              )
-            );
-          }}
-          onAddManualUfParcelleToMap={(section, numero, inseeInput) => {
-            const cadastre = cadastreDataRef.current;
-            if (!cadastre) return;
-            const normalizedSection = normalizeUfSection(section);
-            const normalizedNumero = normalizeUfNumero(numero);
-            const normalizedInsee = (inseeInput || "").trim();
-
-            if (selectedUfParcelles.length >= 20) {
-              alert("Maximum 20 parcelles pour une unité foncière");
-              return;
-            }
-
-            const alreadySelected = selectedUfParcelles.some(
-              (p) =>
-                normalizeUfSection(p.section) === normalizedSection &&
-                normalizeUfNumero(p.numero) === normalizedNumero
-            );
-            if (alreadySelected) return;
-
-            const found = cadastre.features.find((f: any) => {
-              const sameSectionNumero =
-                normalizeUfSection(f.properties?.section) === normalizedSection &&
-                normalizeUfNumero(f.properties?.numero) === normalizedNumero;
-              if (!sameSectionNumero) return false;
-              if (!normalizedInsee) return true;
-              return String(f.properties?.insee || "").trim() === normalizedInsee;
-            });
-
-            if (!found || !found.geometry) {
-              alert("Parcelle introuvable dans le cadastre local");
-              return;
-            }
-
-            const props: any = found.properties || {};
-
-            setSelectedUfParcelles((prev) => [
-              ...prev,
-              {
-                section: normalizedSection,
-                numero: normalizedNumero,
-                commune: props.commune || "Argeles",
-                insee: normalizedInsee || props.insee || "66008",
-                geometry: found.geometry as GeoJSON.Geometry,
-                addedVia: "manual",
-              },
-            ]);
-          }}
-          onConfirmUF={async (parcelles, unionGeometry, commune, insee) => {
-            const zonages =
-              (await getZonageForUFRef.current?.(insee, parcelles)) || [];
-
-            setSelectedParcelle({
-              section: parcelles.map((p) => p.section).join("+"),
-              numero: parcelles.map((p) => p.numero).join("+"),
-              commune,
-              insee,
-              isUF: true,
-              ufParcelles: parcelles,
-              ufUnionGeometry: unionGeometry,
-              zonages,
-            });
-
-            const parcellesWithSurface = parcelles.map((p) => {
-              const found = selectedUfParcelles.find(
-                (sp) => sp.section === p.section && sp.numero === p.numero
-              );
-              let surface_m2: number | undefined;
-              if (found?.geometry) {
-                try {
-                  surface_m2 = turf.area(found.geometry as any);
-                } catch {
-                  surface_m2 = undefined;
+  const suiviBlock = selectedHistoryPipeline
+    ? {
+        title: "Suivi du dossier",
+        defaultOpen: true,
+        content: (
+          <SuiviInstructionCard
+            pipeline={selectedHistoryPipeline}
+            onSuiviChange={async (suivi) => {
+              try {
+                const res = await apiFetch(`/pipelines/${selectedHistoryPipeline.slug}/suivi`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ suivi }),
+                });
+                const data = await res.json();
+                if (data?.success) {
+                  setSelectedHistoryPipeline((p) => (p ? { ...p, suivi } : null));
+                  setHistoryPipelines((prev) =>
+                    prev.map((p) => (p.slug === selectedHistoryPipeline.slug ? { ...p, suivi } : p))
+                  );
+                  historyPipelinesRef.current = historyPipelinesRef.current.map((p) =>
+                    p.slug === selectedHistoryPipeline.slug ? { ...p, suivi } : p
+                  );
                 }
+              } catch (e) {
+                console.error("Erreur mise à jour suivi:", e);
               }
-              return {
-                ...p,
-                surface_m2,
-              };
-            });
-
-            setUfState({
-              parcelles: parcellesWithSurface,
-              geometry: unionGeometry,
-              commune,
-              insee,
-            });
-
-            const source = mapRef.current?.getSource(
-              "uf-builder"
-            ) as maplibregl.GeoJSONSource;
-            if (source)
-              source.setData({
-                type: "FeatureCollection",
-                features: [],
-              });
-            setUfBuilderMode(false);
-            setSelectedUfParcelles([]);
-          }}
-          embedded={true}
-        />
-      ),
-    },
-    ...(ufState
-      ? [
-          {
-            id: "uf",
-            title: "Unité foncière active",
-            defaultOpen: true,
-            content: (
-              <UniteFonciereCard
-                ufParcelles={ufState.parcelles}
-                commune={ufState.commune}
-                insee={ufState.insee}
-                unionGeometry={ufState.geometry}
-                userId={userId}
-                userEmail={userEmail}
-                onIdentitePublished={() => {
-                  void refreshIdentiteFonciereHistory();
-                }}
-                onPipelineCreated={(newSlug) => {
-                  console.log("[CUA] Redirection vers page projet (UF)", { newSlug });
-                  refreshHistoryPipelines(newSlug);
-                  navigate(`/argeles/cua/projects/${newSlug}`);
-                }}
-                onParcellesDetected={async (parcelles, commune, insee) => {
-                  if (showCerfaParcellesRef.current) {
-                    await showCerfaParcellesRef.current(parcelles, commune, insee);
-                  }
-                }}
-                onClose={() => {
-                  setUfState(null);
-                  setSelectedParcelle(null);
-                  const source = mapRef.current?.getSource("uf-active") as maplibregl.GeoJSONSource;
-                  if (source) {
-                    source.setData({
-                      type: "FeatureCollection",
-                      features: [],
-                    });
-                  }
-                }}
-                dbSchema="argeles"
-                communeSlug="argeles"
-                embedded={true}
-              />
-            ),
-          } as CartoToolSection,
-        ]
-      : []),
-    ...(selectedHistoryPipeline
-      ? [
-          {
-            id: "suivi",
-            title: "Suivi du dossier",
-            defaultOpen: true,
-            content: (
-              <SuiviInstructionCard
-                pipeline={selectedHistoryPipeline}
-                onSuiviChange={async (suivi) => {
-                  try {
-                    const res = await apiFetch(`/pipelines/${selectedHistoryPipeline.slug}/suivi`, {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ suivi }),
-                    });
-                    const data = await res.json();
-                    if (data?.success) {
-                      setSelectedHistoryPipeline((p) => (p ? { ...p, suivi } : null));
-                      setHistoryPipelines((prev) =>
-                        prev.map((p) => (p.slug === selectedHistoryPipeline.slug ? { ...p, suivi } : p))
-                      );
-                      historyPipelinesRef.current = historyPipelinesRef.current.map((p) =>
-                        p.slug === selectedHistoryPipeline.slug ? { ...p, suivi } : p
-                      );
-                    }
-                  } catch (e) {
-                    console.error("Erreur mise à jour suivi:", e);
-                  }
-                }}
-              />
-            ),
-          } as CartoToolSection,
-        ]
-      : []),
-  ];
+            }}
+          />
+        ),
+      }
+    : null;
 
   return (
     <div className="cua-map-workspace">
         <CartoLeftSidebar
           isOpen={leftSidebarOpen}
           onToggle={() => setLeftSidebarOpen((v) => !v)}
-          newCuTitle="Certificat d'urbanisme"
           searchBlock={{
             title: "Rechercher une parcelle",
-            defaultOpen: false,
+            defaultOpen: true,
             content: (
               <ParcelleSearchForm
                 embedded
@@ -2167,7 +2059,9 @@ export default function ArgelesPage() {
               />
             ),
           }}
-          toolSections={sidebarSections}
+          toolSections={[]}
+          extraBlocks={suiviBlock ? [suiviBlock] : []}
+          defaultHistoryOpen={false}
           parcelleBlock={
             resumeParcelles?.length
               ? {
@@ -2202,6 +2096,7 @@ export default function ArgelesPage() {
                           refreshHistoryPipelines(newSlug);
                           navigate(`/argeles/cua/projects/${newSlug}`);
                         }}
+                        onRemoveDraftUfParcelle={removeUfParcelle}
                       />
                       {studyZoneError ? (
                         <p className="text-xs text-red-700 bg-red-50 border border-red-100 rounded p-2 mt-2">
@@ -2238,6 +2133,7 @@ export default function ArgelesPage() {
             isLoadingCadastre={isLoadingCadastre}
             isLoadingStudyZone={studyZoneLoading}
           />
+          <MapLegendHarvestOverlay active={isLegendHarvesting} />
           <UfBuilderModeBanner
             ufBuilderMode={ufBuilderMode}
             currentZoom={currentZoom}
@@ -2308,10 +2204,9 @@ export default function ArgelesPage() {
                 embedded
                 map={mapRef.current}
                 layerVisible={layerVisible}
-                onLayerVisibleChange={(layerId, on) =>
-                  setLayerVisible((v) => ({ ...v, [layerId]: on }))
-                }
-                onAfterSync={bringCadastreHitLayersToFront}
+                onLayerVisibleChange={handleLayerVisibleChange}
+                onAfterSync={handleCartoAfterSync}
+                onLegendHarvesting={setIsLegendHarvesting}
               />
             ) : null
           }

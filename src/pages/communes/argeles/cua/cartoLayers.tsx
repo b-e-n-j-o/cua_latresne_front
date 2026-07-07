@@ -1,4 +1,10 @@
 import type maplibregl from "maplibre-gl";
+import {
+  CARTO_FILL_OPACITY,
+  CARTO_OUTLINE_OPACITY,
+  CARTO_OUTLINE_WIDTH,
+  CARTO_OUTLINE_WIDTH_EMPHASIS,
+} from "../../communs/carto/cartoLayerStyle";
 
 /**
  * Catalogue PMTiles Argelès — config déclarative.
@@ -85,6 +91,56 @@ export const BATIMENT_PALETTE = [
   "#F5480A", "#EA580C", "#FB923C", "#C2410C", "#FDBA74",
   "#9A3412", "#F97316", "#FED7AA", "#7C2D12", "#431407",
 ];
+
+// —— Aléa feu PAC — légende fixe (libellés argeles.alea_feu) ——
+const ALEA_FEU_FALLBACK = "#9CA3AF";
+
+export const ALEA_FEU_COLORS: Record<string, string> = {
+  "TRÈS ÉLEVÉ": "#6B21A8",
+  "ÉLEVÉ": "#DC2626",
+  "ELEVÉ": "#DC2626",
+  "MOYEN": "#EA580C",
+  "FAIBLE": "#EAB308",
+  "NUL À TRÈS FAIBLE": "#F5F5DC",
+};
+
+export const ALEA_FEU_LEGEND: { key: string; label: string; color: string }[] = [
+  { key: "TRÈS ÉLEVÉ", label: "Très élevé", color: ALEA_FEU_COLORS["TRÈS ÉLEVÉ"] },
+  { key: "ÉLEVÉ", label: "Élevé", color: ALEA_FEU_COLORS["ÉLEVÉ"] },
+  { key: "MOYEN", label: "Moyen", color: ALEA_FEU_COLORS["MOYEN"] },
+  { key: "FAIBLE", label: "Faible", color: ALEA_FEU_COLORS["FAIBLE"] },
+  {
+    key: "NUL À TRÈS FAIBLE",
+    label: "Nul à très faible",
+    color: ALEA_FEU_COLORS["NUL À TRÈS FAIBLE"],
+  },
+];
+
+function colorByValue(
+  field: string,
+  colors: Record<string, string>,
+  fallback: string
+): maplibregl.ExpressionSpecification {
+  const code = [
+    "upcase",
+    ["to-string", ["coalesce", ["get", field], ""]],
+  ] as maplibregl.ExpressionSpecification;
+  const expr: unknown[] = ["match", code];
+  for (const [value, color] of Object.entries(colors)) {
+    expr.push(value, color);
+  }
+  expr.push(fallback);
+  return [
+    "case",
+    ["==", code, ""],
+    fallback,
+    expr,
+  ] as unknown as maplibregl.ExpressionSpecification;
+}
+
+function aleaFeuLibelleFillColor(): maplibregl.ExpressionSpecification {
+  return colorByValue("libelle", ALEA_FEU_COLORS, ALEA_FEU_FALLBACK);
+}
 
 function literalColor(color: string): maplibregl.ExpressionSpecification {
   return ["literal", color];
@@ -201,12 +257,16 @@ function surfLayers(
     {
       id: `${prefix}-fill`,
       type: "fill",
-      paint: { "fill-color": colorExpr, "fill-opacity": 0.4, "fill-antialias": true },
+      paint: { "fill-color": colorExpr, "fill-opacity": CARTO_FILL_OPACITY, "fill-antialias": true },
     },
     {
       id: `${prefix}-outline`,
       type: "line",
-      paint: { "line-color": colorExpr, "line-width": 1, "line-opacity": 0.85 },
+      paint: {
+        "line-color": colorExpr,
+        "line-width": CARTO_OUTLINE_WIDTH,
+        "line-opacity": CARTO_OUTLINE_OPACITY,
+      },
     },
     {
       id: `${prefix}-labels`,
@@ -233,7 +293,7 @@ function linLayers(
     {
       id: `${prefix}-line`,
       type: "line",
-      paint: { "line-color": colorExpr, "line-width": 2, "line-opacity": 0.9 },
+      paint: { "line-color": colorExpr, "line-width": 2, "line-opacity": CARTO_OUTLINE_OPACITY },
     },
     {
       id: `${prefix}-labels`,
@@ -289,16 +349,16 @@ function supSurfLayers(prefix: string): CartoSubLayer[] {
     {
       id: `${prefix}-fill`,
       type: "fill",
-      paint: { "fill-color": color, "fill-opacity": 0.35, "fill-antialias": true },
+      paint: { "fill-color": color, "fill-opacity": CARTO_FILL_OPACITY, "fill-antialias": true },
     },
     {
       id: `${prefix}-outline`,
       type: "line",
       paint: {
         "line-color": color,
-        "line-width": 1.2,
+        "line-width": CARTO_OUTLINE_WIDTH_EMPHASIS,
         "line-dasharray": [2, 1],
-        "line-opacity": 0.9,
+        "line-opacity": CARTO_OUTLINE_OPACITY,
       },
     },
   ];
@@ -322,12 +382,16 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
       {
         id: "argeles-zonage-fill",
         type: "fill",
-        paint: { "fill-color": zonageFillColor(), "fill-opacity": 0.5, "fill-antialias": true },
+        paint: { "fill-color": zonageFillColor(), "fill-opacity": CARTO_FILL_OPACITY, "fill-antialias": true },
       },
       {
         id: "argeles-zonage-outline",
         type: "line",
-        paint: { "line-color": "#5f6368", "line-width": 0.6, "line-opacity": 0.6 },
+        paint: {
+          "line-color": zonageFillColor(),
+          "line-width": CARTO_OUTLINE_WIDTH,
+          "line-opacity": CARTO_OUTLINE_OPACITY,
+        },
       },
     ],
   },
@@ -416,34 +480,17 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
   },
   // —— Servitudes ——
   {
-    id: "sup-assiette-s",
-    title: "Assiettes surfaciques",
+    id: "servitudes",
+    title: "Servitudes d'utilité publique",
     family: "servitudes",
     defaultVisible: false,
-    pmtilesUrl: tilesUrl("sup_assiette_s"),
-    sourceLayer: "sup_assiette_s",
+    pmtilesUrl: tilesUrl("servitudes"),
+    sourceLayer: "servitudes",
     tooltipField: "suptype",
     groupField: "suptype",
     filterPalette: SERVITUDE_PALETTE,
     filterFallback: SERVITUDE_FALLBACK,
-    layers: supSurfLayers("argeles-sup-assiette-s"),
-  },
-  {
-    id: "generateurs-sup-lineaires",
-    title: "Générateurs SUP linéaires",
-    family: "servitudes",
-    defaultVisible: false,
-    pmtilesUrl: tilesUrl("generateurs_sup_lineaires"),
-    sourceLayer: "generateurs_sup_lineaires",
-    tooltipField: "nomgen",
-    groupField: "suptype",
-    filterPalette: SERVITUDE_PALETTE,
-    filterFallback: SERVITUDE_FALLBACK,
-    layers: linLayers(
-      "argeles-generateurs-sup-lin",
-      categoricalFillColor("suptype", SERVITUDE_PALETTE, SERVITUDE_FALLBACK),
-      "nomgen"
-    ),
+    layers: supSurfLayers("argeles-servitudes"),
   },
   // —— Risques ——
   {
@@ -513,6 +560,20 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
       categoricalFillColor("niveau", RISQUE_PALETTE, RISQUE_FALLBACK),
       "niveau"
     ),
+  },
+  {
+    id: "alea-feu",
+    title: "Aléa incendie de forêt et de végétation (PAC)",
+    family: "risques",
+    defaultVisible: false,
+    pmtilesUrl: tilesUrl("alea_feu"),
+    sourceLayer: "alea_feu",
+    tooltipField: "libelle",
+    groupField: "libelle",
+    filterFallback: ALEA_FEU_FALLBACK,
+    groupColorMap: ALEA_FEU_COLORS,
+    staticGroupLegend: ALEA_FEU_LEGEND,
+    layers: surfLayers("argeles-alea-feu", aleaFeuLibelleFillColor(), "libelle"),
   },
   // —— Environnement ——
   {
@@ -661,7 +722,7 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
         type: "fill",
         paint: {
           "fill-color": categoricalFillColor("type", BATIMENT_PALETTE, BATIMENT_FALLBACK),
-          "fill-opacity": 0.55,
+          "fill-opacity": CARTO_FILL_OPACITY,
           "fill-antialias": true,
         },
       },
@@ -670,8 +731,8 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
         type: "line",
         paint: {
           "line-color": categoricalFillColor("type", BATIMENT_PALETTE, BATIMENT_FALLBACK),
-          "line-width": 0.8,
-          "line-opacity": 0.9,
+          "line-width": CARTO_OUTLINE_WIDTH,
+          "line-opacity": CARTO_OUTLINE_OPACITY,
         },
       },
     ],

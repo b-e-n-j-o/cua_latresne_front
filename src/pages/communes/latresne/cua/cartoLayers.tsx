@@ -1,4 +1,10 @@
 import type maplibregl from "maplibre-gl";
+import {
+  CARTO_FILL_OPACITY,
+  CARTO_OUTLINE_OPACITY,
+  CARTO_OUTLINE_WIDTH,
+  CARTO_OUTLINE_WIDTH_EMPHASIS,
+} from "../../communs/carto/cartoLayerStyle";
 
 /**
  * Catalogue des couches carto (config déclarative).
@@ -11,6 +17,22 @@ import type maplibregl from "maplibre-gl";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const TILES_BASE = `${SUPABASE_URL}/storage/v1/object/public/pmtiles/latresne`;
+
+// ---------------------------------------------------------------------------
+// Familles (légende repliable — aligné Argelès)
+// ---------------------------------------------------------------------------
+export const CARTO_FAMILIES = [
+  { id: "zonages_plu", title: "Zonage PLU" },
+  { id: "prescriptions", title: "Prescriptions" },
+  { id: "informations", title: "Informations" },
+  { id: "servitudes", title: "Servitudes" },
+  { id: "risques", title: "Risques" },
+  { id: "environnement", title: "Environnement" },
+  { id: "reseaux", title: "Réseaux" },
+  { id: "cadastre", title: "Cadastre" },
+] as const;
+
+export type CartoFamilyId = (typeof CARTO_FAMILIES)[number]["id"];
 
 // ---------------------------------------------------------------------------
 // Couleurs du zonage PLU (attribut `zonage_reglement`).
@@ -356,6 +378,7 @@ export interface CartoLayerDef {
   id: string;            // clé unique (= id de la source vector)
   title: string;         // libellé du toggle
   defaultVisible: boolean;
+  family?: CartoFamilyId;
   pmtilesUrl: string;    // URL complète du .pmtiles
   sourceLayer: string;   // = `-nln` du script de génération
   /** Attribut affiché au survol (majuscules). */
@@ -380,6 +403,7 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
   {
     id: "zonage",
     title: "Zonage PLU",
+    family: "zonages_plu",
     defaultVisible: true,
     pmtilesUrl: `${TILES_BASE}/latresne_zonage.pmtiles`,
     sourceLayer: "zonage",
@@ -391,7 +415,7 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
         type: "fill",
         paint: {
           "fill-color": zonageFillColor(),
-          "fill-opacity": 0.5,
+          "fill-opacity": CARTO_FILL_OPACITY,
           "fill-antialias": true,
         },
       },
@@ -399,9 +423,9 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
         id: "zonage-outline",
         type: "line",
         paint: {
-          "line-color": "#5f6368",
-          "line-width": 0.6,
-          "line-opacity": 0.6,
+          "line-color": zonageFillColor(),
+          "line-width": CARTO_OUTLINE_WIDTH,
+          "line-opacity": CARTO_OUTLINE_OPACITY,
         },
       },
       {
@@ -426,6 +450,7 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
   {
     id: "parcelles",
     title: "Cadastre",
+    family: "cadastre",
     defaultVisible: true,
     pmtilesUrl: `${TILES_BASE}/latresne_parcelles.pmtiles`,
     sourceLayer: "parcelles",
@@ -470,6 +495,7 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
   {
     id: "prescriptions-surf",
     title: "Prescriptions surfaciques",
+    family: "prescriptions",
     defaultVisible: false,
     pmtilesUrl: `${TILES_BASE}/prescriptions_surf_latresne.pmtiles`,
     sourceLayer: "prescriptions_surf_latresne",
@@ -483,7 +509,7 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
         type: "fill",
         paint: {
           "fill-color": categoricalFillColor("libelle", PRESCRIPTION_PALETTE, PRESCRIPTION_FALLBACK),
-          "fill-opacity": 0.4,
+          "fill-opacity": CARTO_FILL_OPACITY,
           "fill-antialias": true,
         },
       },
@@ -492,8 +518,8 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
         type: "line",
         paint: {
           "line-color": categoricalFillColor("libelle", PRESCRIPTION_PALETTE, PRESCRIPTION_FALLBACK),
-          "line-width": 1,
-          "line-opacity": 0.85,
+          "line-width": CARTO_OUTLINE_WIDTH,
+          "line-opacity": CARTO_OUTLINE_OPACITY,
         },
       },
       {
@@ -518,6 +544,7 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
   {
     id: "infos-surf",
     title: "Informations et préemption",
+    family: "informations",
     defaultVisible: false,
     pmtilesUrl: `${TILES_BASE}/infos_surf_latresne.pmtiles`,
     sourceLayer: "infos_surf",
@@ -531,7 +558,7 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
         type: "fill",
         paint: {
           "fill-color": infosSurfLibelleFillColor(),
-          "fill-opacity": 0.4,
+          "fill-opacity": CARTO_FILL_OPACITY,
           "fill-antialias": true,
         },
       },
@@ -540,8 +567,8 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
         type: "line",
         paint: {
           "line-color": infosSurfLibelleFillColor(),
-          "line-width": 1,
-          "line-opacity": 0.85,
+          "line-width": CARTO_OUTLINE_WIDTH,
+          "line-opacity": CARTO_OUTLINE_OPACITY,
         },
       },
       {
@@ -565,10 +592,11 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
   },
   {
     id: "servitudes",
-    title: "Servitudes (assiettes)",
+    title: "Servitudes d'utilité publique",
+    family: "servitudes",
     defaultVisible: false,
-    pmtilesUrl: `${TILES_BASE}/servitudes_latresne.pmtiles`,
-    sourceLayer: "sup_assiette_s",
+    pmtilesUrl: `${TILES_BASE}/servitudes.pmtiles`,
+    sourceLayer: "servitudes",
     tooltipField: "suptype",
     groupField: "suptype",
     filterPalette: SERVITUDE_PALETTE,
@@ -579,7 +607,7 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
         type: "fill",
         paint: {
           "fill-color": categoricalFillColor("suptype", SERVITUDE_PALETTE, SERVITUDE_FALLBACK),
-          "fill-opacity": 0.35,
+          "fill-opacity": CARTO_FILL_OPACITY,
           "fill-antialias": true,
         },
       },
@@ -588,9 +616,9 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
         type: "line",
         paint: {
           "line-color": categoricalFillColor("suptype", SERVITUDE_PALETTE, SERVITUDE_FALLBACK),
-          "line-width": 1.2,
+          "line-width": CARTO_OUTLINE_WIDTH_EMPHASIS,
           "line-dasharray": [2, 1],
-          "line-opacity": 0.9,
+          "line-opacity": CARTO_OUTLINE_OPACITY,
         },
       },
       {
@@ -598,7 +626,10 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
         type: "symbol",
         minzoom: 16,
         layout: {
-          "text-field": uppercaseField("suptype"),
+          "text-field": [
+            "upcase",
+            ["to-string", ["coalesce", ["get", "nomsuplitt"], ["get", "suptype"], ""]],
+          ] as maplibregl.ExpressionSpecification,
           "text-size": 11,
           "text-font": ["Noto Sans Regular"],
           "text-allow-overlap": false,
@@ -614,6 +645,7 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
   {
     id: "ppri",
     title: "PPRI (PM1)",
+    family: "risques",
     defaultVisible: false,
     pmtilesUrl: `${TILES_BASE}/ppri_latresne.pmtiles`,
     sourceLayer: "pm1_detaillee_gironde",
@@ -627,7 +659,7 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
         type: "fill",
         paint: {
           "fill-color": ppriNomCodeFillColor(),
-          "fill-opacity": 0.45,
+          "fill-opacity": CARTO_FILL_OPACITY,
           "fill-antialias": true,
         },
       },
@@ -636,8 +668,8 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
         type: "line",
         paint: {
           "line-color": ppriNomCodeFillColor(),
-          "line-width": 1,
-          "line-opacity": 0.85,
+          "line-width": CARTO_OUTLINE_WIDTH,
+          "line-opacity": CARTO_OUTLINE_OPACITY,
         },
       },
       {
@@ -676,7 +708,7 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
         type: "fill",
         paint: {
           "fill-color": batimentTypeFillColor(),
-          "fill-opacity": 0.55,
+          "fill-opacity": CARTO_FILL_OPACITY,
           "fill-antialias": true,
         },
       },
@@ -685,8 +717,8 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
         type: "line",
         paint: {
           "line-color": batimentTypeFillColor(),
-          "line-width": 0.8,
-          "line-opacity": 0.9,
+          "line-width": CARTO_OUTLINE_WIDTH,
+          "line-opacity": CARTO_OUTLINE_OPACITY,
         },
       },
     ],
@@ -694,6 +726,7 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
   {
     id: "pprmvt",
     title: "PPRMVT",
+    family: "risques",
     defaultVisible: false,
     pmtilesUrl: `${TILES_BASE}/pprmvt_latresne.pmtiles`,
     sourceLayer: "pprmvt",
@@ -707,7 +740,7 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
         type: "fill",
         paint: {
           "fill-color": pprmvtCodezoneFillColor(),
-          "fill-opacity": 0.45,
+          "fill-opacity": CARTO_FILL_OPACITY,
           "fill-antialias": true,
         },
       },
@@ -716,8 +749,8 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
         type: "line",
         paint: {
           "line-color": pprmvtCodezoneFillColor(),
-          "line-width": 1,
-          "line-opacity": 0.85,
+          "line-width": CARTO_OUTLINE_WIDTH,
+          "line-opacity": CARTO_OUTLINE_OPACITY,
         },
       },
       {
@@ -740,3 +773,15 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
     ],
   },
 ];
+
+export function layersForFamily(familyId: CartoFamilyId): CartoLayerDef[] {
+  return CARTO_LAYERS.filter((l) => l.family === familyId);
+}
+
+export function standaloneCartoLayers(): CartoLayerDef[] {
+  return CARTO_LAYERS.filter((l) => !l.family);
+}
+
+export function getCartoLayer(id: string): CartoLayerDef | undefined {
+  return CARTO_LAYERS.find((l) => l.id === id);
+}

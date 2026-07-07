@@ -3,8 +3,8 @@ import {
   ZONAGE_LEGEND,
   type CartoLayerDef,
 } from "../../../pages/communes/argeles/cua/cartoLayers";
+import { resolveClassColor } from "../../../pages/communes/communs/carto/cartoClassColors";
 import {
-  colorForGroupKey,
   EMPTY_GROUP_KEY,
   groupKeyFromRaw,
   type CartoGroupItem,
@@ -71,9 +71,7 @@ export function studyGroupColor(
   const staticItem = def?.staticGroupLegend?.find((i) => i.key === key);
   if (staticItem) return staticItem.color;
 
-  const palette = def?.filterPalette ?? [];
-  const fallback = def?.filterFallback ?? "#888888";
-  return colorForGroupKey(key, palette, fallback);
+  return resolveClassColor(key, def ?? {});
 }
 
 export function studyLayerFilterable(layer: StudyZoneLayerPayload): boolean {

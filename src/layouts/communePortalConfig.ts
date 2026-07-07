@@ -3,7 +3,7 @@
  * À terme : alimenter depuis l’API / droits utilisateur.
  */
 
-export type CommunePortalSlug = "latresne" | "argeles" | "mios" | "france";
+export type CommunePortalSlug = "latresne" | "argeles" | "france";
 
 export type PortalToolId = "cua" | "chat" | "reglements" | "documents" | "raa";
 
@@ -19,17 +19,12 @@ export const COMMUNE_PORTAL: Record<CommunePortalSlug, CommunePortalEntry> = {
   latresne: {
     slug: "latresne",
     label: "Latresne",
-    tools: ["cua", "chat", "raa"],
+    tools: ["cua", "chat", "reglements", "documents", "raa"],
   },
   argeles: {
     slug: "argeles",
     label: "Argelès-sur-Mer",
     tools: ["cua", "chat", "reglements", "documents", "raa"],
-  },
-  mios: {
-    slug: "mios",
-    label: "Mios",
-    tools: ["chat"],
   },
   france: {
     slug: "france",

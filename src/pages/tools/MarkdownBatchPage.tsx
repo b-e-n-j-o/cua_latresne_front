@@ -8,6 +8,7 @@ const GEMINI_MODELS = [
 ] as const;
 
 type GeminiModel = (typeof GEMINI_MODELS)[number];
+type PipelineMode = "full" | "laius";
 
 type SelectedFileInfo = {
   name: string;
@@ -31,6 +32,23 @@ function fileStem(filename: string): string {
   if (base.toLowerCase().endsWith(".txt")) base = base.slice(0, -4);
   const stem = base.replace(/[^\w.\-]/g, "_").replace(/^[._]+|[._]+$/g, "");
   return stem || "document";
+}
+
+/** Clé job API : nom complet du fichier .md pour le mode laïus. */
+function laiusOutputBasename(filename: string): string {
+  let base = filename.split(/[/\\]/).pop() || "document";
+  const lower = base.toLowerCase();
+  if (lower.endsWith(".markdown")) return `${base.slice(0, -9)}.md`;
+  if (!lower.endsWith(".md")) return `${base}.md`;
+  return base;
+}
+
+function fileJobKey(filename: string, mode: PipelineMode): string {
+  return mode === "laius" ? laiusOutputBasename(filename) : fileStem(filename);
+}
+
+function apiPrefixForMode(mode: PipelineMode): string {
+  return mode === "full" ? "/plu-txt-markdown" : "/plu-laius";
 }
 
 function formatChars(n: number): string {
@@ -134,6 +152,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default function MarkdownBatchPage() {
+  const [pipelineMode, setPipelineMode] = useState<PipelineMode>("full");
   const [files, setFiles] = useState<FileList | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<SelectedFileInfo[]>([]);
   const [geminiModel, setGeminiModel] = useState<GeminiModel>("gemini-3.1-pro-preview");
@@ -146,6 +165,7 @@ export default function MarkdownBatchPage() {
   const [compare, setCompare] = useState<FileCompare | null>(null);
   const [compareLoading, setCompareLoading] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const apiPrefix = apiPrefixForMode(pipelineMode);
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -154,12 +174,22 @@ export default function MarkdownBatchPage() {
     }
   }, []);
 
+  const resetJobState = useCallback(() => {
+    stopPolling();
+    setJobId(null);
+    setStatus(null);
+    setError(null);
+    setCompareZone(null);
+    setCompare(null);
+    setSubmitting(false);
+  }, [stopPolling]);
+
   const pollJob = useCallback(
-    (id: string) => {
+    (id: string, prefix: string) => {
       stopPolling();
       pollRef.current = setInterval(async () => {
         try {
-          const res = await fetch(`${API}/plu-txt-markdown/batch/jobs/${id}`);
+          const res = await fetch(`${API}${prefix}/batch/jobs/${id}`);
           if (!res.ok) {
             const body = await res.json().catch(() => ({}));
             throw new Error(body.detail || res.statusText);
@@ -190,7 +220,7 @@ export default function MarkdownBatchPage() {
       setCompare(null);
       try {
         const res = await fetch(
-          `${API}/plu-txt-markdown/batch/jobs/${jobId}/files/${encodeURIComponent(zone)}/compare`,
+          `${API}${apiPrefix}/batch/jobs/${jobId}/files/${encodeURIComponent(zone)}/compare`,
         );
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
@@ -204,7 +234,7 @@ export default function MarkdownBatchPage() {
         setCompareLoading(false);
       }
     },
-    [jobId],
+    [jobId, apiPrefix],
   );
 
   const onFilesChange = async (ev: ChangeEvent<HTMLInputElement>) => {
@@ -220,7 +250,7 @@ export default function MarkdownBatchPage() {
 
     const pending: SelectedFileInfo[] = Array.from(list).map((f) => ({
       name: f.name,
-      zone: fileStem(f.name),
+      zone: fileJobKey(f.name, pipelineMode),
       charCount: null,
       sizeBytes: f.size,
       loading: true,
@@ -233,7 +263,7 @@ export default function MarkdownBatchPage() {
           const text = await f.text();
           return {
             name: f.name,
-            zone: fileStem(f.name),
+            zone: fileJobKey(f.name, pipelineMode),
             charCount: [...text].length,
             sizeBytes: f.size,
             loading: false,
@@ -241,7 +271,7 @@ export default function MarkdownBatchPage() {
         } catch {
           return {
             name: f.name,
-            zone: fileStem(f.name),
+            zone: fileJobKey(f.name, pipelineMode),
             charCount: null,
             sizeBytes: f.size,
             loading: false,
@@ -267,7 +297,11 @@ export default function MarkdownBatchPage() {
     setCompare(null);
 
     if (!files?.length) {
-      setError("Sélectionnez au moins un fichier .txt");
+      setError(
+        pipelineMode === "full"
+          ? "Sélectionnez au moins un fichier .txt"
+          : "Sélectionnez au moins un fichier .md",
+      );
       return;
     }
 
@@ -276,9 +310,11 @@ export default function MarkdownBatchPage() {
 
     setSubmitting(true);
     try {
-      const url = new URL(`${API}/plu-txt-markdown/batch/jobs`);
-      url.searchParams.set("skip_judge", skipJudge ? "true" : "false");
+      const url = new URL(`${API}${apiPrefix}/batch/jobs`);
       url.searchParams.set("model", geminiModel);
+      if (pipelineMode === "full") {
+        url.searchParams.set("skip_judge", skipJudge ? "true" : "false");
+      }
 
       const res = await fetch(url.toString(), { method: "POST", body: form });
       if (!res.ok) {
@@ -287,7 +323,7 @@ export default function MarkdownBatchPage() {
       }
       const data = await res.json();
       setJobId(data.job_id);
-      pollJob(data.job_id);
+      pollJob(data.job_id, apiPrefix);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Échec du lancement");
       setSubmitting(false);
@@ -296,7 +332,7 @@ export default function MarkdownBatchPage() {
 
   const downloadZip = () => {
     if (!jobId) return;
-    window.open(`${API}/plu-txt-markdown/batch/jobs/${jobId}/download`, "_blank");
+    window.open(`${API}${apiPrefix}/batch/jobs/${jobId}/download`, "_blank");
   };
 
   const cancelJob = async () => {
@@ -305,14 +341,14 @@ export default function MarkdownBatchPage() {
       return;
     }
     try {
-      const res = await fetch(`${API}/plu-txt-markdown/batch/jobs/${jobId}/cancel`, {
+      const res = await fetch(`${API}${apiPrefix}/batch/jobs/${jobId}/cancel`, {
         method: "POST",
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.detail || res.statusText);
       }
-      const pollRes = await fetch(`${API}/plu-txt-markdown/batch/jobs/${jobId}`);
+      const pollRes = await fetch(`${API}${apiPrefix}/batch/jobs/${jobId}`);
       if (pollRes.ok) {
         setStatus(await pollRes.json());
       }
@@ -347,12 +383,58 @@ export default function MarkdownBatchPage() {
       </a>
 
       <h1 style={{ fontSize: 28, fontWeight: 600, marginTop: 24, marginBottom: 8 }}>
-        PLU — TXT → Markdown
+        PLU — Conversion réglementaire
       </h1>
-      <p style={{ color: "rgba(255,255,255,0.55)", maxWidth: 640, lineHeight: 1.6, marginBottom: 32 }}>
-        Conversion batch de textes bruts (OCR / export) en Markdown structuré, via le même pipeline
-        LLM que Latresne (retranscription fidèle + audit optionnel).
+      <p style={{ color: "rgba(255,255,255,0.55)", maxWidth: 720, lineHeight: 1.6, marginBottom: 24 }}>
+        {pipelineMode === "full"
+          ? "Conversion batch de textes bruts (OCR / export) en Markdown structuré fidèle, avec audit optionnel."
+          : "Résumé batch de règlements Markdown (.md) en laïus courts prêts à insérer en base."}
       </p>
+
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          marginBottom: 24,
+          flexWrap: "wrap",
+        }}
+      >
+        {(
+          [
+            { id: "full" as const, label: "Markdown complet", hint: "TXT → retranscription fidèle" },
+            { id: "laius" as const, label: "Résumé / laïus", hint: "MD → laïus réglementaire" },
+          ] as const
+        ).map((opt) => (
+          <button
+            key={opt.id}
+            type="button"
+            disabled={submitting}
+            onClick={() => {
+              if (opt.id === pipelineMode) return;
+              setPipelineMode(opt.id);
+              setFiles(null);
+              setSelectedFiles([]);
+              resetJobState();
+            }}
+            style={{
+              padding: "12px 18px",
+              borderRadius: 10,
+              border:
+                pipelineMode === opt.id
+                  ? "1px solid #c8e6a0"
+                  : "1px solid rgba(255,255,255,0.15)",
+              background:
+                pipelineMode === opt.id ? "rgba(200,230,160,0.15)" : "rgba(255,255,255,0.04)",
+              color: pipelineMode === opt.id ? "#c8e6a0" : "rgba(255,255,255,0.75)",
+              cursor: submitting ? "not-allowed" : "pointer",
+              textAlign: "left",
+            }}
+          >
+            <span style={{ display: "block", fontWeight: 600, fontSize: 14 }}>{opt.label}</span>
+            <span style={{ display: "block", fontSize: 11, opacity: 0.65, marginTop: 4 }}>{opt.hint}</span>
+          </button>
+        ))}
+      </div>
 
       <form
         onSubmit={onSubmit}
@@ -366,11 +448,13 @@ export default function MarkdownBatchPage() {
       >
         <label style={{ display: "block", marginBottom: 16 }}>
           <span style={{ display: "block", fontSize: 13, marginBottom: 8, opacity: 0.8 }}>
-            Fichiers .txt (max 20, 12 Mo chacun)
+            {pipelineMode === "full"
+              ? "Fichiers .txt (max 20, 12 Mo chacun)"
+              : "Fichiers .md — règlement complet (max 20, 12 Mo chacun)"}
           </span>
           <input
             type="file"
-            accept=".txt,text/plain"
+            accept={pipelineMode === "full" ? ".txt,text/plain" : ".md,.markdown,text/markdown"}
             multiple
             disabled={submitting}
             onChange={onFilesChange}
@@ -492,6 +576,7 @@ export default function MarkdownBatchPage() {
           </select>
         </label>
 
+        {pipelineMode === "full" && (
         <label
           style={{
             display: "flex",
@@ -510,6 +595,7 @@ export default function MarkdownBatchPage() {
           />
           Désactiver l&apos;audit juge (plus rapide, moins cher)
         </label>
+        )}
 
         <button
           type="submit"
@@ -524,7 +610,11 @@ export default function MarkdownBatchPage() {
             cursor: submitting ? "wait" : "pointer",
           }}
         >
-          {submitting ? "Traitement en cours…" : "Lancer la conversion"}
+          {submitting
+            ? "Traitement en cours…"
+            : pipelineMode === "full"
+              ? "Lancer la conversion Markdown"
+              : "Générer les laïus"}
         </button>
       </form>
 
@@ -601,7 +691,9 @@ export default function MarkdownBatchPage() {
             <>
               <p style={{ fontSize: 12, opacity: 0.55, marginTop: 16, marginBottom: 8 }}>
                 {jobFinished
-                  ? "Cliquez sur un fichier pour comparer le .txt source et le Markdown généré."
+                  ? pipelineMode === "full"
+                    ? "Cliquez sur un fichier pour comparer le .txt source et le Markdown généré."
+                    : "Cliquez sur un fichier pour comparer le règlement source et le laïus généré."
                   : "Jetons par fichier : entrée / sortie / réflexion"}
               </p>
               <table
@@ -624,7 +716,8 @@ export default function MarkdownBatchPage() {
                 </thead>
                 <tbody>
                   {status.results.map((r) => {
-                    const clickable = jobFinished && r.status !== "extract_failed";
+                    const clickable =
+                      jobFinished && r.status !== "extract_failed" && r.status !== "laius_failed";
                     const selected = compareZone === r.zone;
                     return (
                       <tr
@@ -677,7 +770,10 @@ export default function MarkdownBatchPage() {
                 Jetons Gemini — total du batch
               </p>
               <TokenDetail label="Total (tous fichiers)" usage={status.tokens_total.total} />
-              <TokenDetail label="Extraction" usage={status.tokens_total.extract} />
+              <TokenDetail
+                label={pipelineMode === "full" ? "Extraction" : "Génération laïus"}
+                usage={status.tokens_total.extract}
+              />
               {status.tokens_total.judge && (
                 <TokenDetail label="Audit juge" usage={status.tokens_total.judge} />
               )}
@@ -699,7 +795,7 @@ export default function MarkdownBatchPage() {
                 fontWeight: 500,
               }}
             >
-              Télécharger le ZIP (markdown + audits)
+              Télécharger le ZIP ({pipelineMode === "full" ? "markdown + audits" : "laïus"})
             </button>
           )}
 
@@ -750,7 +846,7 @@ export default function MarkdownBatchPage() {
                         borderBottom: "1px solid rgba(255,255,255,0.08)",
                       }}
                     >
-                      Texte source (.txt)
+                      {pipelineMode === "full" ? "Texte source (.txt)" : "Règlement source (.md)"}
                     </div>
                     <pre style={paneStyle}>{compare.source_txt}</pre>
                   </div>
@@ -774,10 +870,13 @@ export default function MarkdownBatchPage() {
                         color: "#c8e6a0",
                       }}
                     >
-                      Markdown généré
+                      {pipelineMode === "full" ? "Markdown généré" : "Laïus généré"}
                     </div>
                     <pre style={paneStyle}>
-                      {compare.markdown ?? "(Aucun markdown — échec d'extraction ou fichier non traité)"}
+                      {compare.markdown ??
+                        (pipelineMode === "full"
+                          ? "(Aucun markdown — échec d'extraction ou fichier non traité)"
+                          : "(Aucun laïus — échec de génération ou fichier non traité)")}
                     </pre>
                   </div>
                 </div>

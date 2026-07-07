@@ -9,9 +9,18 @@ export type ArgelesCuaParcelleRef = {
 export type GenerateArgelesCuaOptions = {
   communeSlug?: string;
   refs: ArgelesCuaParcelleRef[];
-  numeroCu: string;
+  numeroCu?: string;
+  demandeurNom?: string;
   persist?: boolean;
 };
+
+function buildAutoNumeroCu(refs: ArgelesCuaParcelleRef[]): string {
+  const parcelPart = refs
+    .map((p) => `${p.section.trim().toUpperCase()}${p.numero.trim()}`)
+    .filter(Boolean)
+    .join("+");
+  return parcelPart ? `CU-${parcelPart}` : `CU-${Date.now()}`;
+}
 
 export type GenerateArgelesCuaSuccess = {
   slug?: string;
@@ -40,17 +49,18 @@ export async function generateArgelesCua(
   options: GenerateArgelesCuaOptions,
 ): Promise<GenerateArgelesCuaSuccess> {
   const slug = (options.communeSlug ?? "argeles").trim().toLowerCase();
-  const numeroCu = options.numeroCu.trim();
-  if (!numeroCu) {
-    throw new Error("Référence du dossier requise pour générer le certificat d'urbanisme.");
-  }
+  const numeroCu = options.numeroCu?.trim() || buildAutoNumeroCu(options.refs);
+  const demandeur = options.demandeurNom?.trim();
 
   const response = await apiFetch(`/communes/${slug}/cua/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       refs: options.refs.map((p) => ({ section: p.section.trim(), numero: p.numero.trim() })),
-      dossier: { numero_cu: numeroCu },
+      dossier: {
+        numero_cu: numeroCu,
+        ...(demandeur ? { demandeur } : {}),
+      },
       persist: options.persist ?? true,
     }),
   });

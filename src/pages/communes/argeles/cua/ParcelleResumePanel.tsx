@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import * as turf from "@turf/turf";
 import { ChevronDown, ChevronRight, Loader2, Map as MapIcon, X } from "lucide-react";
 import type { FullIntersectionsReport } from "../../../../types/fullIntersections";
 import type { ParcelleResumeRef, SigResume, SigResumeLayerKey } from "../../../../types/sigResume";
@@ -16,7 +17,9 @@ import {
   type ParcelleResumeView,
 } from "../../../../utils/argeles/sigResume";
 import FullIntersectionsPanel from "./FullIntersectionsPanel";
-import ParcelleCuaGenerateAction from "./ParcelleCuaGenerateAction";
+import ParcelleCuaGenerateAction from "../../communs/carto/tools/ParcelleCuaGenerateAction";
+import ParcelleTerrainActions from "../../communs/carto/tools/ParcelleTerrainActions";
+import DraftUfParcelleList from "../../communs/carto/tools/DraftUfParcelleList";
 
 type Props = {
   communeSlug?: string;
@@ -36,6 +39,8 @@ type Props = {
   userId?: string | null;
   userEmail?: string | null;
   onPipelineCreated?: (slug: string) => void;
+  /** UF en construction sur la carte : retirer une parcelle de la sélection. */
+  onRemoveDraftUfParcelle?: (section: string, numero: string) => void;
 };
 
 const SIG_LAYER_UI: Record<
@@ -297,6 +302,36 @@ function ParcelleDetail({
   );
 }
 
+function resolveUnionGeometry(
+  parcelles: ParcelleResumeRef[],
+  cadastre: GeoJSON.FeatureCollection | null
+): GeoJSON.Geometry | null {
+  if (!cadastre?.features?.length || !parcelles.length) return null;
+
+  const feats: GeoJSON.Feature[] = [];
+  for (const p of parcelles) {
+    const match = cadastre.features.find((f) => {
+      const props = (f.properties ?? {}) as Record<string, unknown>;
+      const section = String(props.section ?? "").trim().toUpperCase();
+      const numero = String(props.numero ?? "").trim().padStart(4, "0");
+      return section === p.section.trim().toUpperCase() && numero === p.numero.trim().padStart(4, "0");
+    });
+    if (match?.geometry) {
+      feats.push({ type: "Feature", geometry: match.geometry, properties: {} });
+    }
+  }
+
+  if (!feats.length) return null;
+  if (feats.length === 1) return feats[0].geometry ?? null;
+
+  try {
+    const union = turf.union({ type: "FeatureCollection", features: feats });
+    return union?.geometry ?? feats[0].geometry ?? null;
+  } catch {
+    return feats[0].geometry ?? null;
+  }
+}
+
 export default function ParcelleResumePanel({
   communeSlug = "argeles",
   parcelles,
@@ -314,6 +349,7 @@ export default function ParcelleResumePanel({
   userId,
   userEmail,
   onPipelineCreated,
+  onRemoveDraftUfParcelle,
 }: Props) {
   const [apiResumes, setApiResumes] = useState<Record<string, SigResume>>({});
   const [loading, setLoading] = useState(false);
@@ -395,6 +431,15 @@ export default function ParcelleResumePanel({
         onPipelineCreated={onPipelineCreated}
       />
 
+      <ParcelleTerrainActions
+        parcelles={parcelles.map((p) => ({
+          section: p.section,
+          numero: p.numero,
+          insee: p.insee?.trim() || (communeSlug === "argeles" ? "66008" : "33234"),
+        }))}
+        unionGeometry={resolveUnionGeometry(parcelles, cadastre)}
+      />
+
       {studyZoneActive ? (
         <StudyZoneModeBanner label={studyZoneLabel} onExit={onExitStudyZone} />
       ) : null}
@@ -413,35 +458,45 @@ export default function ParcelleResumePanel({
         </p>
       ) : null}
 
-      <div
-        className={`rounded-md px-2.5 py-2 text-xs ${
-          isUf
-            ? "bg-amber-50 border border-amber-200 text-amber-900"
-            : "bg-slate-50 border border-slate-200 text-slate-800"
-        }`}
-      >
-        <div className="font-semibold">
-          {isUf
-            ? isDraftUf
-              ? `Unité foncière en cours (${views.length} parcelles)`
-              : `Unité foncière (${views.length} parcelles)`
-            : "Parcelle sélectionnée"}
+      {isDraftUf ? (
+        <DraftUfParcelleList
+          parcelles={views.map((view) => ({
+            section: view.section,
+            numero: view.numero,
+            subtitle: view.sig?.idu ?? null,
+          }))}
+          ufSurface={ufSurface}
+          onRemove={onRemoveDraftUfParcelle}
+        />
+      ) : (
+        <div
+          className={`rounded-md px-2.5 py-2 text-xs ${
+            isUf
+              ? "bg-amber-50 border border-amber-200 text-amber-900"
+              : "bg-slate-50 border border-slate-200 text-slate-800"
+          }`}
+        >
+          <div className="font-semibold">
+            {isUf
+              ? `Unité foncière (${views.length} parcelles)`
+              : "Parcelle sélectionnée"}
+          </div>
+          {isUf ? (
+            <div className="mt-1 text-[11px] opacity-90">
+              Surface indicative totale : {formatM2(ufSurface)}
+            </div>
+          ) : (
+            <div className="mt-1 font-medium">
+              {views[0].section} {views[0].numero}
+              {views[0].sig?.idu ? (
+                <span className="block text-[10px] font-normal text-gray-600 mt-0.5">
+                  {views[0].sig.idu}
+                </span>
+              ) : null}
+            </div>
+          )}
         </div>
-        {isUf ? (
-          <div className="mt-1 text-[11px] opacity-90">
-            Surface indicative totale : {formatM2(ufSurface)}
-          </div>
-        ) : (
-          <div className="mt-1 font-medium">
-            {views[0].section} {views[0].numero}
-            {views[0].sig?.idu ? (
-              <span className="block text-[10px] font-normal text-gray-600 mt-0.5">
-                {views[0].sig.idu}
-              </span>
-            ) : null}
-          </div>
-        )}
-      </div>
+      )}
 
       {isUf && ufAggregates ? (
         <section className="space-y-2">

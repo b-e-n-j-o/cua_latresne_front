@@ -1,7 +1,7 @@
 import { useEffect, useState, type ComponentType } from "react";
 import { useParams } from "react-router-dom";
 import supabase from "../supabaseClient";
-import ReglementsArgeles from "../pages/reglements/ReglementsArgeles";
+import ReglementsParCommune from "../pages/reglements/ReglementsParCommune";
 import DocumentsOfficiels from "../pages/documents/DocumentsOfficiels";
 import PluChat from "../pages/plu-chat/PluChat";
 import type { PluCommuneSlug } from "../pages/plu-chat/communeConfig";
@@ -66,11 +66,15 @@ export function CommuneReglementsRoute() {
   const [token, setToken] = useState<string | undefined>(
     () => import.meta.env.VITE_ADMIN_API_TOKEN || undefined,
   );
+  const [authReady, setAuthReady] = useState(
+    () => Boolean(import.meta.env.VITE_ADMIN_API_TOKEN),
+  );
 
   useEffect(() => {
     if (import.meta.env.VITE_ADMIN_API_TOKEN) return;
     supabase.auth.getSession().then(({ data }) => {
       setToken(data.session?.access_token);
+      setAuthReady(true);
     });
   }, []);
 
@@ -78,7 +82,15 @@ export function CommuneReglementsRoute() {
     return <CommuneToolUnavailable tool="reglements" />;
   }
 
-  return <ReglementsArgeles apiBase={API_BASE} token={token} communeSlug={communeSlug} />;
+  if (!authReady) {
+    return (
+      <div className="commune-portal-fallback">
+        <p>Chargement de l&apos;éditeur de règlements…</p>
+      </div>
+    );
+  }
+
+  return <ReglementsParCommune apiBase={API_BASE} token={token} communeSlug={communeSlug} />;
 }
 
 export function CommuneDocumentsRoute() {

@@ -2,11 +2,12 @@ import "./ArgelesMapOverlays.css";
 
 export {
   MapLoadingOverlay,
+  MapLegendHarvestOverlay,
   MapTooltipOverlay,
   HistoryPipelinePopup,
   type HistoryPopupPosition,
   type MapTooltipState,
-} from "../../latresne/cua/LatresneMapOverlays";
+} from "../../communs/carto/map/MapOverlays";
 
 function ufBannerMessage(selectedCount: number, maxCount: number): string {
   if (selectedCount === 0) return "Cliquer sur une parcelle";

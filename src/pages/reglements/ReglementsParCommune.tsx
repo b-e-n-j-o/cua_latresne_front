@@ -1,27 +1,21 @@
 /**
- * ReglementsAdmin.tsx
- * -------------------
- * Back-office d'édition des règlements (PLU / PPR / PPRIF / Servitudes).
+ * ReglementsParCommune.tsx
+ * ------------------------
+ * Éditeur de règlements communal (PLU, PPR, servitudes…), piloté par le catalogue backend.
  *
- * Entièrement piloté par le backend : il appelle GET /communes/{slug}/reglements/sources
- * pour connaître les tables, leurs colonnes et lesquelles sont du "texte long".
- * Ajouter une table côté backend = elle apparaît ici automatiquement.
+ * Appelle GET /communes/{slug}/reglements/sources pour connaître les tables, colonnes
+ * et champs « texte long ». Ajouter une source au catalogue JSON = elle apparaît ici.
  *
- * Usage :
- *   <ReglementsAdmin apiBase="https://api.kerelia.fr" token={jwt} />
+ * Usage (portail commune) :
+ *   <ReglementsParCommune apiBase="…" token={jwt} communeSlug="latresne" />
  *
- * Les champs "texte long" (règlement, résumé…) sont éditables en markdown avec
- * aperçu en direct (mode Édition / Côte à côte / Aperçu). Les modifications sont
- * persistées en base via PATCH.
- *
- * Dépendances : react-markdown, remark-gfm (déjà dans le projet, cf. PluChat).
- * Style isolé sous le préfixe .rga- — charte Kerelia (blanc / noir / vert).
+ * Le composant `ReglementsEditor` est réutilisé par ReglementsAdmin (mode superadmin).
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-type Kind = "text" | "longtext" | "bool" | "date" | "int";
+type Kind = "text" | "longtext" | "bool" | "date" | "int" | "json";
 
 interface Col {
   name: string;
@@ -78,6 +72,7 @@ export function ReglementsEditor({
   const [original, setOriginal] = useState<Row | null>(null);
   const [mode, setMode] = useState<"edit" | "create">("edit");
   const [loadingList, setLoadingList] = useState(false);
+  const [loadingSources, setLoadingSources] = useState(true);
   const [loadingRow, setLoadingRow] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<Toast>(null);
@@ -131,13 +126,21 @@ export function ReglementsEditor({
 
   // -- chargement initial des sources --
   useEffect(() => {
+    if (apiMode === "commune" && !token) {
+      setLoadingSources(false);
+      return;
+    }
+    setLoadingSources(true);
+    setSources([]);
+    setActive(null);
     api("/sources")
       .then((data: Source[]) => {
         setSources(data);
         if (data.length) setActive(data[0].source);
       })
-      .catch((e) => flash("error", `Chargement des sources : ${e.message}`));
-  }, [api, flash]);
+      .catch((e) => flash("error", `Chargement des sources : ${e.message}`))
+      .finally(() => setLoadingSources(false));
+  }, [api, flash, apiMode, token]);
 
   // -- chargement de la liste --
   const loadList = useCallback(
@@ -301,12 +304,27 @@ export function ReglementsEditor({
       : activeSource.columns;
   }, [activeSource, mode]);
 
-  const shortCols = visibleCols.filter((c) => c.kind !== "longtext");
+  const shortCols = visibleCols.filter((c) => c.kind !== "longtext" && c.kind !== "json");
   const longCols = visibleCols.filter((c) => c.kind === "longtext");
-  const hasReglementationCol = activeSource?.columns.some((c) => c.name === "reglementation") ?? false;
+  const jsonCols = visibleCols.filter((c) => c.kind === "json");
+  const isColEditable = (c: Col) => (mode === "create" ? c.creatable : c.editable);
+  const editableShort = shortCols.filter(isColEditable);
+  const readonlyShort = shortCols.filter((c) => !isColEditable(c));
+  const editableLong = longCols.filter(isColEditable);
+  const readonlyLong = longCols.filter((c) => !isColEditable(c));
+  const editableJson = jsonCols.filter(isColEditable);
+  const readonlyJson = jsonCols.filter((c) => !isColEditable(c));
+  const hasEditableFields = editableShort.length + editableLong.length + editableJson.length > 0;
+  const hasReadonlyFields = readonlyShort.length + readonlyLong.length + readonlyJson.length > 0;
+  const hasReglementationCol =
+    activeSource?.columns.some(
+      (c) => c.name === "reglementation" || c.name === "reglementation_generale"
+    ) ?? false;
 
   const isReglementationMissing = (row: Row) =>
     hasReglementationCol && row.reglementation_manquante === true;
+
+  const isPageLoading = !disabledMessage && loadingSources;
 
   return (
     <div className="rga-root">
@@ -318,7 +336,13 @@ export function ReglementsEditor({
         </div>
       )}
 
-      {/* Rail : choix du document */}
+      {isPageLoading ? (
+        <div className="rga-page-loading" role="status" aria-live="polite" aria-busy="true">
+          <LoadingSpinner />
+          <p className="rga-page-loading-text">Chargement des règlements…</p>
+        </div>
+      ) : (
+        <>
       <nav className="rga-rail" aria-label="Type de document">
         <div className="rga-rail-head">Documents</div>
         {sources.map((s) => (
@@ -355,7 +379,10 @@ export function ReglementsEditor({
 
         <div className="rga-list-body">
           {loadingList && visibleRows.length === 0 && (
-            <div className="rga-muted">Chargement…</div>
+            <div className="rga-list-loading">
+              <LoadingSpinner small />
+              <span>Chargement…</span>
+            </div>
           )}
           {!loadingList && visibleRows.length === 0 && (
             <div className="rga-empty">
@@ -439,29 +466,97 @@ export function ReglementsEditor({
 
               {!loadingRow && (
                 <>
-                  {/* champs courts en grille */}
-                  <div className="rga-grid">
-                    {shortCols.map((c) => (
-                      <Field
-                        key={c.name}
-                        col={c}
-                        value={form[c.name]}
-                        readOnly={mode === "edit" && !c.editable}
-                        onChange={(v) => setField(c.name, v)}
-                      />
-                    ))}
-                  </div>
+                  {(hasEditableFields || hasReadonlyFields) && (
+                    <div className="rga-editor-guide" role="note">
+                      <span className="rga-guide-item is-edit">
+                        <span className="rga-guide-dot" aria-hidden />
+                        Modifiable
+                      </span>
+                      <span className="rga-guide-item is-ref">
+                        <span className="rga-guide-dot" aria-hidden />
+                        Référence (non modifiable)
+                      </span>
+                      {hasEditableFields && (
+                        <span className="rga-guide-hint">
+                          Complétez les champs verts puis cliquez sur Enregistrer.
+                        </span>
+                      )}
+                    </div>
+                  )}
 
-                  {/* textes longs : éditable (markdown) + aperçu en direct */}
-                  {longCols.map((c) => (
-                    <LongTextField
-                      key={c.name}
-                      col={c}
-                      value={form[c.name] ?? ""}
-                      readOnly={mode === "edit" && !c.editable}
-                      onChange={(v) => setField(c.name, v)}
-                    />
-                  ))}
+                  {hasReadonlyFields && (
+                    <section className="rga-section rga-section-ref" aria-label="Informations de référence">
+                      <h3 className="rga-section-title">Informations de référence</h3>
+                      {readonlyShort.length > 0 && (
+                        <div className="rga-grid">
+                          {readonlyShort.map((c) => (
+                            <Field
+                              key={c.name}
+                              col={c}
+                              value={form[c.name]}
+                              readOnly
+                              onChange={(v) => setField(c.name, v)}
+                            />
+                          ))}
+                        </div>
+                      )}
+                      {readonlyLong.map((c) => (
+                        <LongTextField
+                          key={c.name}
+                          col={c}
+                          value={form[c.name] ?? ""}
+                          readOnly
+                          onChange={(v) => setField(c.name, v)}
+                        />
+                      ))}
+                      {readonlyJson.map((c) => (
+                        <JsonField
+                          key={c.name}
+                          col={c}
+                          value={form[c.name] ?? ""}
+                          readOnly
+                          onChange={(v) => setField(c.name, v)}
+                        />
+                      ))}
+                    </section>
+                  )}
+
+                  {hasEditableFields && (
+                    <section className="rga-section rga-section-edit" aria-label="Champs modifiables">
+                      <h3 className="rga-section-title">Champs à compléter ou modifier</h3>
+                      {editableShort.length > 0 && (
+                        <div className="rga-grid">
+                          {editableShort.map((c) => (
+                            <Field
+                              key={c.name}
+                              col={c}
+                              value={form[c.name]}
+                              readOnly={false}
+                              onChange={(v) => setField(c.name, v)}
+                            />
+                          ))}
+                        </div>
+                      )}
+                      {editableLong.map((c) => (
+                        <LongTextField
+                          key={c.name}
+                          col={c}
+                          value={form[c.name] ?? ""}
+                          readOnly={false}
+                          onChange={(v) => setField(c.name, v)}
+                        />
+                      ))}
+                      {editableJson.map((c) => (
+                        <JsonField
+                          key={c.name}
+                          col={c}
+                          value={form[c.name] ?? ""}
+                          readOnly={false}
+                          onChange={(v) => setField(c.name, v)}
+                        />
+                      ))}
+                    </section>
+                  )}
                 </>
               )}
             </div>
@@ -492,6 +587,8 @@ export function ReglementsEditor({
           </>
         )}
       </section>
+        </>
+      )}
 
       {toast && (
         <div className={`rga-toast ${toast.type === "error" ? "is-error" : "is-ok"}`} role="status">
@@ -540,7 +637,8 @@ function LongTextField({
   readOnly: boolean;
   onChange: (v: string) => void;
 }) {
-  const isReglement = col.name === "reglementation";
+  const isReglement =
+    col.name === "reglementation" || col.name === "reglementation_generale";
   // le règlement s'ouvre côte à côte (lecture confortable + édition) ;
   // les autres champs longs s'ouvrent en édition directe.
   const [view, setView] = useState<"edit" | "split" | "preview">(
@@ -571,11 +669,11 @@ function LongTextField({
   // lecture seule : aperçu uniquement
   if (readOnly) {
     return (
-      <div className="rga-longfield">
+      <div className={fieldShellClass(true, "rga-longfield")}>
         <div className="rga-longfield-head">
           <label className="rga-label">
             {col.label}
-            <span className="rga-ro">lecture seule</span>
+            <FieldBadge readOnly />
             <span className="rga-chars">{(value || "").length} caractères</span>
           </label>
         </div>
@@ -585,10 +683,11 @@ function LongTextField({
   }
 
   return (
-    <div className="rga-longfield">
+    <div className={fieldShellClass(false, "rga-longfield")}>
       <div className="rga-longfield-head">
         <label className="rga-label" htmlFor={view === "preview" ? undefined : `f-${col.name}`}>
           {col.label}
+          <FieldBadge readOnly={false} />
           <span className="rga-chars">{(value || "").length} caractères</span>
         </label>
         <div className="rga-view-toggle" role="tablist" aria-label={`Affichage — ${col.label}`}>
@@ -643,6 +742,147 @@ function LongTextField({
 }
 
 /* -------------------------------------------------------------------------- */
+/* Champ JSON structuré (lecture formatée / édition texte)                    */
+/* -------------------------------------------------------------------------- */
+function formatJsonDisplay(value: unknown): string {
+  if (value == null || value === "") return "";
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+    try {
+      return JSON.stringify(JSON.parse(trimmed), null, 2);
+    } catch {
+      return value;
+    }
+  }
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+function JsonField({
+  col,
+  value,
+  readOnly,
+  onChange,
+}: {
+  col: Col;
+  value: unknown;
+  readOnly: boolean;
+  onChange: (v: string) => void;
+}) {
+  const display = formatJsonDisplay(value);
+  const textValue = typeof value === "string" ? value : display;
+
+  if (readOnly) {
+    return (
+      <div className={fieldShellClass(true, "rga-longfield")}>
+        <div className="rga-longfield-head">
+          <label className="rga-label">
+            {col.label}
+            <FieldBadge readOnly />
+          </label>
+        </div>
+        <pre className="rga-json-block" aria-label={`${col.label} — JSON`}>
+          {display || "—"}
+        </pre>
+      </div>
+    );
+  }
+
+  return (
+    <div className={fieldShellClass(false, "rga-longfield")}>
+      <div className="rga-longfield-head">
+        <label className="rga-label" htmlFor={`f-${col.name}`}>
+          {col.label}
+          <FieldBadge readOnly={false} />
+        </label>
+      </div>
+      <textarea
+        id={`f-${col.name}`}
+        className="rga-textarea rga-json-textarea"
+        value={textValue}
+        onChange={(e) => onChange(e.target.value)}
+        spellCheck={false}
+        placeholder='{"cle": "valeur"}'
+      />
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Habillage champ : carte + badge modifiable / référence                       */
+/* -------------------------------------------------------------------------- */
+function fieldShellClass(readOnly: boolean, extra = ""): string {
+  return `rga-field-shell ${readOnly ? "is-readonly" : "is-editable"} ${extra}`.trim();
+}
+
+function FieldBadge({ readOnly }: { readOnly: boolean }) {
+  return (
+    <span className={`rga-field-badge ${readOnly ? "is-ref" : "is-edit"}`}>
+      {readOnly ? "Référence" : "Modifiable"}
+    </span>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Champs texte courts pouvant déborder (CES, mise hors d'eau…)               */
+/* -------------------------------------------------------------------------- */
+const EXPANDING_TEXT_FIELDS = new Set(["ces", "mise_hors_d_eau"]);
+
+function useAutoResizeTextarea(value: string) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "0px";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
+  return ref;
+}
+
+function isExpandingTextField(name: string, value: unknown): boolean {
+  if (EXPANDING_TEXT_FIELDS.has(name)) return true;
+  if (typeof value !== "string") return false;
+  return value.includes("\n") || value.length > 48;
+}
+
+function ExpandingTextField({
+  col,
+  value,
+  readOnly,
+  onChange,
+}: {
+  col: Col;
+  value: string;
+  readOnly: boolean;
+  onChange: (v: string) => void;
+}) {
+  const ref = useAutoResizeTextarea(value);
+  return (
+    <div className={fieldShellClass(readOnly, "rga-field rga-field-wide")}>
+      <div className="rga-field-head">
+        <label className="rga-label" htmlFor={`f-${col.name}`}>
+          {col.label}
+        </label>
+        <FieldBadge readOnly={readOnly} />
+      </div>
+      <textarea
+        ref={ref}
+        id={`f-${col.name}`}
+        className={`rga-input-auto${readOnly ? " is-readonly" : ""}`}
+        value={value}
+        readOnly={readOnly}
+        rows={1}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
 /* Champ générique (courts)                                                   */
 /* -------------------------------------------------------------------------- */
 function Field({
@@ -658,7 +898,11 @@ function Field({
 }) {
   if (col.kind === "bool") {
     return (
-      <div className="rga-field rga-field-bool">
+      <div className={fieldShellClass(readOnly, "rga-field rga-field-bool")}>
+        <div className="rga-field-head">
+          <span className="rga-label">{col.label}</span>
+          <FieldBadge readOnly={readOnly} />
+        </div>
         <label className="rga-switch">
           <input
             type="checkbox"
@@ -677,12 +921,25 @@ function Field({
   const v =
     col.kind === "date" && typeof value === "string" ? value.slice(0, 10) : value ?? "";
 
+  if (col.kind === "text" && isExpandingTextField(col.name, v)) {
+    return (
+      <ExpandingTextField
+        col={col}
+        value={String(v)}
+        readOnly={readOnly}
+        onChange={onChange}
+      />
+    );
+  }
+
   return (
-    <div className="rga-field">
-      <label className="rga-label" htmlFor={`f-${col.name}`}>
-        {col.label}
-        {readOnly && <span className="rga-ro">lecture seule</span>}
-      </label>
+    <div className={fieldShellClass(readOnly, "rga-field")}>
+      <div className="rga-field-head">
+        <label className="rga-label" htmlFor={`f-${col.name}`}>
+          {col.label}
+        </label>
+        <FieldBadge readOnly={readOnly} />
+      </div>
       <input
         id={`f-${col.name}`}
         className="rga-input"
@@ -698,6 +955,14 @@ function Field({
 /* -------------------------------------------------------------------------- */
 /* Icônes                                                                     */
 /* -------------------------------------------------------------------------- */
+function LoadingSpinner({ small = false }: { small?: boolean }) {
+  return (
+    <div
+      className={`rga-spinner${small ? " is-small" : ""}`}
+      aria-hidden
+    />
+  );
+}
 function SearchIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -726,8 +991,11 @@ function DocIcon() {
 const CSS = `
 .rga-root{
   --ink:#111111; --paper:#ffffff; --panel:#fafafa; --rail:#111111;
+  --canvas:#eceeea; --card:#ffffff;
   --line:#e8e8e8; --muted:#4b4b4b;
   --accent:#85e372; --accent-d:#289f01; --accent-soft:rgba(133,227,114,.14);
+  --edit-bg:#f4fbf1; --edit-border:#8fd67a; --edit-ring:rgba(40,159,1,.18);
+  --ref-bg:#f5f5f4; --ref-border:#d2d6d0;
   --green:#289f01; --danger:#c0362c;
   --font-ui:"Kerelia Sans","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
   display:grid; grid-template-columns:200px 320px 1fr;
@@ -741,6 +1009,23 @@ const CSS = `
 .rga-root:has(.rga-disabled-banner) .rga-list,
 .rga-root:has(.rga-disabled-banner) .rga-editor{grid-row:2;}
 .rga-root *{box-sizing:border-box;}
+
+.rga-page-loading{
+  grid-column:1/-1;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:14px; min-height:420px; color:var(--muted);
+}
+.rga-page-loading-text{margin:0; font-size:14px;}
+.rga-spinner{
+  width:40px; height:40px;
+  border:3px solid var(--line);
+  border-top-color:var(--accent-d);
+  border-radius:50%;
+  animation:rga-spin .75s linear infinite;
+}
+.rga-spinner.is-small{width:22px; height:22px; border-width:2px;}
+.rga-list-loading{display:flex; align-items:center; gap:10px; padding:16px; color:var(--muted); font-size:13px;}
+@keyframes rga-spin{to{transform:rotate(360deg);}}
 
 /* rail (noir) */
 .rga-rail{background:var(--rail); color:#d4d4d4; padding:18px 12px; display:flex; flex-direction:column; gap:4px;}
@@ -773,24 +1058,85 @@ const CSS = `
 .rga-empty,.rga-muted{color:var(--muted); font-size:13px; padding:16px; line-height:1.5;}
 
 /* éditeur */
-.rga-editor{display:flex; flex-direction:column; min-height:0; background:var(--paper);}
-.rga-editor-empty{flex:1; display:grid; place-items:center; color:var(--muted);}
+.rga-editor{display:flex; flex-direction:column; min-height:0; background:var(--canvas);}
+.rga-editor-empty{flex:1; display:grid; place-items:center; color:var(--muted); background:var(--paper);}
 .rga-editor-empty-inner{text-align:center; line-height:1.6;}
 .rga-editor-empty-inner svg{color:var(--line); margin-bottom:12px;}
-.rga-editor-head{display:flex; align-items:flex-start; justify-content:space-between; padding:20px 28px; border-bottom:1px solid var(--line);}
+.rga-editor-head{display:flex; align-items:flex-start; justify-content:space-between; padding:20px 28px; border-bottom:1px solid var(--line); background:var(--paper);}
 .rga-editor-kicker{font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--accent-d); font-weight:600;}
 .rga-editor-title{margin:4px 0 0; font-size:22px; font-weight:600; letter-spacing:-.01em;}
 .rga-badge-dirty{align-self:center; font-size:12px; font-weight:600; color:#fff; background:#111; padding:4px 10px; border-radius:999px;}
-.rga-editor-body{overflow:auto; padding:24px 28px; flex:1; min-height:0;}
-.rga-grid{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-bottom:20px;}
-.rga-field{display:flex; flex-direction:column; gap:6px;}
-.rga-field-bool{justify-content:flex-end;}
-.rga-label{font-size:12px; font-weight:600; color:#2a2a2a; display:flex; align-items:baseline; gap:8px;}
+.rga-editor-body{overflow:auto; padding:20px 24px 28px; flex:1; min-height:0; background:var(--canvas);}
+
+.rga-editor-guide{
+  display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px;
+  margin-bottom:18px; padding:12px 14px; border-radius:10px;
+  background:var(--paper); border:1px solid var(--line);
+  box-shadow:0 1px 2px rgba(0,0,0,.04); font-size:12px; color:var(--muted);
+}
+.rga-guide-item{display:inline-flex; align-items:center; gap:7px; font-weight:600; color:var(--ink);}
+.rga-guide-dot{width:10px; height:10px; border-radius:3px; flex-shrink:0;}
+.rga-guide-item.is-edit .rga-guide-dot{background:var(--accent-d); box-shadow:0 0 0 2px var(--edit-ring);}
+.rga-guide-item.is-ref .rga-guide-dot{background:#b8beb5;}
+.rga-guide-hint{font-weight:400; color:var(--muted);}
+
+.rga-section{margin-bottom:22px;}
+.rga-section-title{
+  margin:0 0 12px; font-size:13px; font-weight:700; letter-spacing:.04em;
+  text-transform:uppercase; color:var(--muted);
+}
+.rga-section-edit .rga-section-title{color:var(--accent-d);}
+.rga-section-ref .rga-section-title{color:#6b6f68;}
+
+.rga-field-shell{
+  background:var(--card); border:1px solid var(--line); border-radius:10px;
+  padding:12px 14px; box-shadow:0 1px 2px rgba(0,0,0,.04);
+}
+.rga-field-shell.is-editable{
+  border-color:var(--edit-border); background:var(--edit-bg);
+  box-shadow:0 1px 0 rgba(40,159,1,.06), 0 2px 8px rgba(40,159,1,.06);
+}
+.rga-field-shell.is-readonly{
+  border-color:var(--ref-border); background:var(--ref-bg);
+  border-style:dashed;
+}
+.rga-field-head{display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:8px;}
+.rga-field-badge{
+  flex-shrink:0; font-size:10px; font-weight:700; letter-spacing:.03em;
+  text-transform:uppercase; padding:3px 8px; border-radius:999px; line-height:1.3;
+}
+.rga-field-badge.is-edit{color:#1f5f12; background:#dff5d6; border:1px solid #b8e8a8;}
+.rga-field-badge.is-ref{color:#5f635c; background:#ececea; border:1px solid #d5d8d2;}
+
+.rga-grid{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin-bottom:4px;}
+.rga-field{display:flex; flex-direction:column; gap:8px;}
+.rga-field-wide{grid-column:1 / -1;}
+.rga-field-bool{justify-content:flex-end; gap:10px;}
+.rga-label{font-size:13px; font-weight:600; color:#1f1f1f; display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;}
 .rga-ro,.rga-chars{font-weight:400; font-size:11px; color:var(--muted);}
 .rga-chars{margin-left:auto;}
-.rga-input{font-family:inherit; font-size:14px; padding:9px 11px; border:1px solid var(--line); border-radius:8px; background:var(--paper); color:var(--ink); outline:0;}
-.rga-input:focus{border-color:var(--accent-d); box-shadow:0 0 0 3px var(--accent-soft);}
-.rga-input[readonly]{background:var(--panel); color:var(--muted);}
+.rga-input{
+  font-family:inherit; font-size:14px; padding:10px 12px;
+  border:1px solid #cfd4cc; border-radius:8px; background:#fff; color:var(--ink); outline:0;
+}
+.rga-field-shell.is-editable .rga-input{border-color:#b5ddb0; background:#fff;}
+.rga-field-shell.is-readonly .rga-input{
+  border-color:transparent; background:transparent; color:#3a3f38; padding-left:2px;
+}
+.rga-input:focus{border-color:var(--accent-d); box-shadow:0 0 0 3px var(--edit-ring);}
+.rga-input[readonly]{cursor:default;}
+.rga-input-auto{
+  width:100%; min-height:42px; resize:none; overflow:hidden;
+  font-family:inherit; font-size:14px; line-height:1.55;
+  padding:10px 12px; border:1px solid #cfd4cc; border-radius:8px;
+  background:#fff; color:var(--ink); outline:0;
+}
+.rga-field-shell.is-editable .rga-input-auto{border-color:#b5ddb0;}
+.rga-field-shell.is-readonly .rga-input-auto{
+  border-color:transparent; background:transparent; color:#3a3f38; padding-left:2px;
+}
+.rga-input-auto:focus{border-color:var(--accent-d); box-shadow:0 0 0 3px var(--edit-ring);}
+.rga-input-auto.is-readonly{cursor:default;}
 
 /* switch */
 .rga-switch{display:flex; align-items:center; gap:10px; cursor:pointer; font-size:14px;}
@@ -802,9 +1148,16 @@ const CSS = `
 .rga-switch input:focus-visible + .rga-switch-track{box-shadow:0 0 0 3px var(--accent-soft);}
 
 /* champ texte long */
-.rga-longfield{margin-bottom:20px;}
-.rga-longfield-head{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px; flex-wrap:wrap;}
+.rga-longfield{margin-bottom:14px;}
+.rga-longfield-head{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; flex-wrap:wrap;}
 .rga-longfield-head .rga-label{flex:1; min-width:0; margin:0;}
+.rga-field-shell.is-editable .rga-textarea{
+  border-color:#b5ddb0; background:#fff;
+}
+.rga-field-shell.is-readonly .rga-markdown,
+.rga-field-shell.is-readonly .rga-json-block{
+  border-color:transparent; background:transparent; box-shadow:none; padding-left:2px;
+}
 .rga-view-toggle{display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:var(--panel); flex-shrink:0;}
 .rga-view-toggle-btn{border:0; background:transparent; padding:6px 12px; font-family:inherit; font-size:12px; font-weight:500; color:var(--muted); cursor:pointer; transition:background .12s,color .12s;}
 .rga-view-toggle-btn:hover{color:var(--ink); background:#f0f0f0;}
@@ -816,13 +1169,19 @@ const CSS = `
 .rga-pane-tag{font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin-bottom:6px;}
 .rga-split .rga-textarea,.rga-split .rga-markdown{flex:1;}
 
-.rga-textarea{width:100%; font-family:inherit; font-size:14px; line-height:1.55; padding:12px 14px; border:1px solid var(--line); border-radius:8px; background:var(--paper); color:var(--ink); outline:0; resize:vertical; min-height:120px;}
-.rga-textarea:focus{border-color:var(--accent-d); box-shadow:0 0 0 3px var(--accent-soft);}
-.rga-textarea[readonly]{background:var(--panel); color:var(--muted);}
+.rga-textarea{width:100%; font-family:inherit; font-size:14px; line-height:1.55; padding:12px 14px; border:1px solid #cfd4cc; border-radius:8px; background:#fff; color:var(--ink); outline:0; resize:vertical; min-height:120px;}
+.rga-textarea:focus{border-color:var(--accent-d); box-shadow:0 0 0 3px var(--edit-ring);}
+.rga-textarea[readonly]{background:transparent; color:var(--muted);}
 .rga-textarea.is-reglement{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:13px; line-height:1.65; min-height:340px;}
+.rga-json-block{
+  margin:0; padding:14px 16px; border:1px solid var(--line); border-radius:8px;
+  background:#f8f8f8; color:var(--ink); font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:12px; line-height:1.55; white-space:pre-wrap; word-break:break-word; overflow:auto; max-height:420px;
+}
+.rga-json-textarea{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px; min-height:220px;}
 
-.rga-markdown{font-size:15px; line-height:1.7; color:var(--ink); padding:18px 20px; border:1px solid var(--line); border-radius:8px; background:var(--paper); min-height:120px; overflow:auto;}
-.rga-markdown.is-reglement{background:linear-gradient(var(--accent),var(--accent)) 14px 0/3px 100% no-repeat, var(--paper); padding-left:26px; min-height:340px;}
+.rga-markdown{font-size:15px; line-height:1.7; color:var(--ink); padding:14px 16px; border:1px solid #cfd4cc; border-radius:8px; background:#fff; min-height:120px; overflow:auto;}
+.rga-markdown.is-reglement{background:linear-gradient(var(--accent-d),var(--accent-d)) 14px 0/3px 100% no-repeat, #fff; padding-left:26px; min-height:340px;}
 .rga-markdown-empty{margin:0; color:var(--muted); font-style:italic;}
 .rga-markdown > :first-child{margin-top:0;}
 .rga-markdown > :last-child{margin-bottom:0;}
@@ -852,13 +1211,21 @@ const CSS = `
 .rga-markdown tbody tr:hover td{background:var(--accent-soft);}
 
 /* barre de sauvegarde */
-.rga-savebar{display:flex; align-items:center; justify-content:space-between; padding:14px 28px; border-top:1px solid var(--line); background:var(--panel);}
+.rga-savebar{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 28px; border-top:1px solid var(--line);
+  background:var(--paper); box-shadow:0 -4px 16px rgba(0,0,0,.04);
+}
 .rga-savebar-status{font-size:12px; color:var(--muted);}
 .rga-savebar-actions{display:flex; gap:10px;}
-.rga-btn-primary{background:#111; color:#fff; border:0; padding:10px 18px; border-radius:8px; font-family:inherit; font-weight:600; font-size:14px; cursor:pointer; transition:background .12s;}
-.rga-btn-primary:hover{background:var(--accent-d);}
-.rga-btn-primary:disabled{opacity:.45; cursor:default;}
-.rga-btn-primary:disabled:hover{background:#111;}
+.rga-btn-primary{
+  background:var(--accent-d); color:#fff; border:0; padding:10px 18px; border-radius:8px;
+  font-family:inherit; font-weight:600; font-size:14px; cursor:pointer; transition:background .12s, transform .12s;
+  box-shadow:0 2px 8px rgba(40,159,1,.25);
+}
+.rga-btn-primary:hover{background:#227d01;}
+.rga-btn-primary:disabled{opacity:.45; cursor:default; box-shadow:none;}
+.rga-btn-primary:disabled:hover{background:var(--accent-d);}
 .rga-btn-danger{background:transparent; color:var(--danger); border:1px solid #e6c6c3; padding:10px 16px; border-radius:8px; font-family:inherit; font-weight:600; font-size:14px; cursor:pointer;}
 .rga-btn-danger:hover{background:#fbeceb;}
 
@@ -879,10 +1246,11 @@ const CSS = `
 }
 @media (prefers-reduced-motion:reduce){
   .rga-root *{transition:none !important;}
+  .rga-spinner{animation:none; border-top-color:var(--accent-d); opacity:.85;}
 }
 `;
 
-export default function ReglementsArgeles(
+export default function ReglementsParCommune(
   props: Omit<Props, "apiMode" | "disabledMessage">
 ) {
   return <ReglementsEditor apiMode="commune" {...props} />;

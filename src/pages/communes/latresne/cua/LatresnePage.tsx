@@ -1,25 +1,39 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import * as pmtiles from "pmtiles";
 import * as turf from "@turf/turf";
 import { useNavigate } from "react-router-dom";
-import CartoLeftSidebar, { type CartoToolSection } from "../../../../components/carto/left-sidebar/CartoLeftSidebar";
-import ParcelleSearchForm from "../../../../components/tools/carto/ParcelleSearchform";
-import SearchUniteFonciere from "../../../../components/tools/carto/SearchUniteFonciere";
-import { type HistoryPipeline } from "../../../../components/tools/carto/HistoryPipelineCard";
-import SuiviInstructionCard from "../../../../components/tools/carto/SuiviInstructionCard";
-import CerfaTool from "./cerfa/CerfaTool";
-import UniteFonciereCard from "../../../../components/tools/carto/UniteFonciereCard";
-import type { ParcelleInfo, ZonageInfo } from "../../../../types/parcelle";
+import CartoLeftSidebar from "../../communs/carto/layout/CartoLeftSidebar";
+import ParcelleSearchForm from "../../communs/carto/tools/ParcelleSearchForm";
+import { type HistoryPipeline } from "../../communs/carto/tools/HistoryPipelineCard";
+import SuiviInstructionCard from "../../communs/carto/tools/SuiviInstructionCard";
+import type { ParcelleInfo } from "../../../../types/parcelle";
+import type { ParcelleResumeRef } from "../../../../types/sigResume";
 import supabase from "../../../../supabaseClient";
 import { apiFetch } from "../../../../api/apiFetch";
-import { MapLoadingOverlay, MapTooltipOverlay, UfBuilderModeBanner } from "./LatresneMapOverlays";
-import type { IdentiteFonciereHistoryRow } from "../../../../components/carto/right-sidebar/CartoHistoryPanel";
-import RightSidebarPatch from "../../../../components/carto/right-sidebar/RightSidebarPatch";
+import {
+  HistoryPipelinePopup,
+  MapLoadingOverlay,
+  MapLegendHarvestOverlay,
+  MapTooltipOverlay,
+  UfBuilderModeBanner,
+} from "../../communs/carto/map/MapOverlays";
+import type { IdentiteFonciereHistoryRow } from "../../communs/carto/layout/CartoHistoryPanel";
+import RightSidebarPatch from "../../communs/carto/layout/RightSidebarPatch";
+import ParcelleQuickActions from "../../communs/carto/tools/ParcelleQuickActions";
+import DraftUfParcelleList from "../../communs/carto/tools/DraftUfParcelleList";
+import {
+  buildHistoryMapFeatures,
+  getPingColor,
+  normalizeHistoryPipelines,
+  parseIdentiteCentroid,
+} from "../../communs/carto/history/historyMapUtils";
+import { getCerfaParcelleRefs } from "../../communs/carto/history/cerfaParcelleRefs";
 import { CARTO_LAYERS } from "./cartoLayers";
 import { syncCartoOnMap } from "./cartoFilters";
 import CartoLegendPanel from "./CartoLegendPanel";
+import { appendCartoTooltipLine, attachCartoHoverHandlers } from "../../communs/carto/cartoTooltips";
 
 const cartoProtocol = new pmtiles.Protocol();
 maplibregl.addProtocol("pmtiles", cartoProtocol.tile);
@@ -28,7 +42,22 @@ const LATRESNE_BOUNDS: [number, number, number, number] = [
   -0.533033, 44.769809, -0.459991, 44.808794
 ];
 
+const LATRESNE_INSEE = "33234";
+const LATRESNE_COMMUNE = "Latresne";
+const PARCELLE_SELECT_ZOOM = 17;
+
 const API_BASE = import.meta.env.VITE_API_BASE;
+
+function zoomMapToParcelGeometry(map: maplibregl.Map, geometry: GeoJSON.Geometry): void {
+  const center = turf.center(geometry);
+  const coords = center.geometry.coordinates as [number, number];
+  map.flyTo({
+    center: coords,
+    zoom: Math.max(map.getZoom(), PARCELLE_SELECT_ZOOM),
+    duration: 900,
+    essential: true,
+  });
+}
 
 function normalizeUfSection(raw: unknown): string {
   return String(raw ?? "").trim().toUpperCase();
@@ -41,6 +70,12 @@ function normalizeUfNumero(raw: unknown): string {
 }
 
 /** Couches GeoJSON cliquables au-dessus des PMTiles (zonage, bâtiments…). */
+const CADASTRE_GRID_LAYER_IDS = [
+  "latresne_parcelles-fill",
+  "latresne_parcelles-fill-hover",
+  "latresne_parcelles-outline",
+] as const;
+
 const CADASTRE_HIT_LAYER_IDS = [
   "latresne_parcelles-fill",
   "latresne_parcelles-fill-hover",
@@ -82,52 +117,52 @@ function bringCadastreHitLayersToFront(map: maplibregl.Map) {
   for (const id of MAP_UI_TOP_LAYER_IDS) moveLayerToTop(map, id);
 }
 
+/** Grille cadastre GeoJSON (hit-test). Visuel = PMTiles `parcelles-*` via légende. */
+function applyCadastreGridVisibility(map: maplibregl.Map, visible: boolean): void {
+  const vis: "visible" | "none" = visible ? "visible" : "none";
+  for (const id of CADASTRE_GRID_LAYER_IDS) {
+    if (!map.getLayer(id)) continue;
+    try {
+      map.setLayoutProperty(id, "visibility", vis);
+    } catch {
+      /* style en cours de chargement */
+    }
+  }
+  // Couches interactives invisibles : contours via PMTiles
+  if (visible) {
+    try {
+      if (map.getLayer("latresne_parcelles-fill")) {
+        map.setPaintProperty("latresne_parcelles-fill", "fill-opacity", 0);
+      }
+      if (map.getLayer("latresne_parcelles-outline")) {
+        map.setPaintProperty("latresne_parcelles-outline", "line-opacity", 0);
+      }
+    } catch {
+      /* style en cours de chargement */
+    }
+  }
+}
+
+function isCadastreLayerInteractive(map: maplibregl.Map, layerId: string): boolean {
+  if (!map.getLayer(layerId)) return false;
+  try {
+    return map.getLayoutProperty(layerId, "visibility") !== "none";
+  } catch {
+    return false;
+  }
+}
+
 function queryCadastreHitAtPoint(
   map: maplibregl.Map,
   point: maplibregl.PointLike
 ): { layerId: (typeof CADASTRE_HIT_LAYER_IDS)[number]; feature: maplibregl.MapGeoJSONFeature } | null {
-  const layers = CADASTRE_HIT_LAYER_IDS.filter((id) => !!map.getLayer(id));
+  const layers = CADASTRE_HIT_LAYER_IDS.filter((id) => isCadastreLayerInteractive(map, id));
   if (!layers.length) return null;
   const hits = map.queryRenderedFeatures(point, { layers: [...layers] });
   if (!hits.length) return null;
   const layerId = hits[0].layer?.id as (typeof CADASTRE_HIT_LAYER_IDS)[number] | undefined;
   if (!layerId || !CADASTRE_HIT_LAYER_IDS.includes(layerId)) return null;
   return { layerId, feature: hits[0] };
-}
-
-function getPingColor(createdAt: string | undefined): "green" | "yellow" | "red" {
-  if (!createdAt) return "green";
-  try {
-    const created = new Date(createdAt);
-    const expiry = new Date(created);
-    expiry.setMonth(expiry.getMonth() + 18);
-    const now = new Date();
-    if (now >= expiry) return "red";
-    const monthsLeft = (expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
-    return monthsLeft <= 3 ? "yellow" : "green";
-  } catch {
-    return "green";
-  }
-}
-
-/** Centroïde CIF : Supabase peut renvoyer un objet ou une chaîne JSON. */
-function parseIdentiteCentroid(raw: unknown): { lon: number; lat: number } | null {
-  if (raw == null) return null;
-  if (typeof raw === "object" && raw !== null && "lon" in raw && "lat" in raw) {
-    const o = raw as { lon: unknown; lat: unknown };
-    const lon = Number(o.lon);
-    const lat = Number(o.lat);
-    if (Number.isFinite(lon) && Number.isFinite(lat)) return { lon, lat };
-    return null;
-  }
-  if (typeof raw === "string") {
-    try {
-      return parseIdentiteCentroid(JSON.parse(raw) as unknown);
-    } catch {
-      return null;
-    }
-  }
-  return null;
 }
 
 const PARCELLE_CLICK_ZOOM = 13;
@@ -169,6 +204,7 @@ export default function LatresnePage() {
   
   const [tooltip, setTooltip] = useState<{ x: number; y: number; content: string } | null>(null);
   const [selectedParcelle, setSelectedParcelle] = useState<ParcelleInfo | null>(null);
+  const [selectedParcelleGeometry, setSelectedParcelleGeometry] = useState<GeoJSON.Geometry | null>(null);
   const [currentZoom, setCurrentZoom] = useState(5.5);
   const [userId, setUserId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
@@ -182,14 +218,34 @@ export default function LatresnePage() {
   const [layerVisible, setLayerVisible] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(CARTO_LAYERS.map((l) => [l.id, l.defaultVisible]))
   );
+  const layerVisibleRef = useRef(layerVisible);
+  useEffect(() => {
+    layerVisibleRef.current = layerVisible;
+  }, [layerVisible]);
+
+  const handleCartoAfterSync = useCallback((map: maplibregl.Map) => {
+    applyCadastreGridVisibility(map, layerVisibleRef.current.parcelles !== false);
+    bringCadastreHitLayersToFront(map);
+  }, []);
+
+  const handleLayerVisibleChange = useCallback((layerId: string, on: boolean) => {
+    if (layerId === "parcelles") {
+      const map = mapRef.current;
+      if (map) applyCadastreGridVisibility(map, on);
+      if (!on) setTooltip(null);
+    }
+    setLayerVisible((v) => ({ ...v, [layerId]: on }));
+  }, []);
+
   const [showHistoryPings, setShowHistoryPings] = useState(true);
   const [isLoadingCadastre, setIsLoadingCadastre] = useState(true);
+  const [isLegendHarvesting, setIsLegendHarvesting] = useState(false);
   const [ufState, setUfState] = useState<UFState | null>(null);
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
   const [rightLegendOpen, setRightLegendOpen] = useState(true);
   const [historySidebarTab, setHistorySidebarTab] = useState<"cua" | "cif">("cua");
   
-  // Mode UF actif par défaut pour permettre la sélection au clic dès l'arrivée sur la page
+  // Mode UF actif par défaut : sélection au clic sur le cadastre (comme Argelès)
   const [ufBuilderMode, setUfBuilderMode] = useState(true);
   const [selectedUfParcelles, setSelectedUfParcelles] = useState<
     Array<{
@@ -217,9 +273,12 @@ export default function LatresnePage() {
   >([]);
   
   const showParcelleResultRef = useRef<((geojson: any, addressPoint?: [number, number], targetZoom?: number) => void) | null>(null);
-  const getZonageForUFRef = useRef<((insee: string, parcelles: Array<{ section: string; numero: string }>) => Promise<ZonageInfo[]>) | null>(null);
+  const selectParcelleByRefRef = useRef<((section: string, numero: string) => Promise<void>) | null>(null);
   const showCerfaParcellesRef = useRef<((parcelles: Array<{ section: string; numero: string }>, commune: string, insee: string) => Promise<void>) | null>(null);
   const isHoveringHistoryPingRef = useRef(false);
+  const cartoHoverDetachRef = useRef<(() => void) | null>(null);
+  const handleSelectHistoryFromSlugRef = useRef<(slug: string) => void>(() => {});
+  const handleSelectIdentiteProjectRef = useRef<(projectId: string) => void>(() => {});
 
   function toggleUfParcelle(next: {
     section: string;
@@ -255,6 +314,20 @@ export default function LatresnePage() {
         },
       ];
     });
+  }
+
+  function removeUfParcelle(section: string, numero: string) {
+    const normSection = normalizeUfSection(section);
+    const normNumero = normalizeUfNumero(numero);
+    if (!normSection || !normNumero) return;
+
+    setSelectedUfParcelles((prev) =>
+      prev.filter(
+        (p) =>
+          normalizeUfSection(p.section) !== normSection ||
+          normalizeUfNumero(p.numero) !== normNumero
+      )
+    );
   }
 
   useEffect(() => {
@@ -303,6 +376,7 @@ export default function LatresnePage() {
     const pipeline = historyPipelinesRef.current.find((p) => p.slug === slug);
     if (!pipeline) return;
 
+    setLeftSidebarOpen(true);
     setHistorySidebarTab("cua");
     setSelectedIdentiteProjectId(null);
     setSelectedHistoryPipeline(pipeline);
@@ -329,6 +403,7 @@ export default function LatresnePage() {
 
   const handleSelectIdentiteProject = (projectId: string) => {
     const row = identiteFonciereHistoryRef.current.find((p) => p.project_id === projectId);
+    setLeftSidebarOpen(true);
     setHistorySidebarTab("cif");
     setSelectedIdentiteProjectId(projectId);
     setSelectedHistoryPipeline(null);
@@ -414,52 +489,20 @@ export default function LatresnePage() {
         return;
       }
 
-      setHistoryPipelines(j.pipelines);
+      const normalized = normalizeHistoryPipelines(j.pipelines);
+      historyPipelinesRef.current = normalized;
+      setHistoryPipelines(normalized);
 
-      const pipelinesWithCentroid = j.pipelines.filter(
-        (p: any) => p.centroid && typeof p.centroid.lon === "number" && typeof p.centroid.lat === "number"
-      );
-
-      const features: GeoJSON.Feature[] = pipelinesWithCentroid.map((p: any) => ({
-        type: "Feature",
-        geometry: {
-          type: "Point",
-          coordinates: [p.centroid.lon, p.centroid.lat],
-        },
-        properties: {
-          slug: p.slug,
-          numero_cu: p.cerfa_data?.numero_cu,
-          demandeur: p.cerfa_data?.demandeur,
-          section: p.cerfa_data?.parcelles?.[0]?.section,
-          numero: p.cerfa_data?.parcelles?.[0]?.numero,
-          commune: p.commune,
-          code_insee: p.code_insee,
-          pingColor: getPingColor(p.created_at),
-        },
-      }));
+      const features = buildHistoryMapFeatures(normalized);
 
       const source = map.getSource("pipelines-history") as maplibregl.GeoJSONSource | undefined;
       if (source) {
         source.setData({ type: "FeatureCollection", features });
+        bringCadastreHitLayersToFront(map);
       }
 
       if (focusSlug) {
-        const created = pipelinesWithCentroid.find((p: any) => p.slug === focusSlug);
-        if (created) {
-          setSelectedHistoryPipeline(created);
-          const point = map.project([created.centroid.lon, created.centroid.lat]);
-          const container = map.getContainer();
-          const cw = container.clientWidth;
-          const ch = container.clientHeight;
-          const placement = getPopupPlacement(point.x, point.y, cw, ch);
-          const x = clampPopupX(point.x, cw);
-          setHistoryPopupPosition({ x, y: point.y, placement });
-          map.flyTo({
-            center: [created.centroid.lon, created.centroid.lat],
-            zoom: Math.max(map.getZoom(), 16),
-            duration: 600,
-          });
-        }
+        handleSelectHistoryFromSlugRef.current(focusSlug);
       }
     } catch (e) {
       console.error("Erreur chargement des pings d'historique sur la carte:", e);
@@ -593,17 +636,13 @@ export default function LatresnePage() {
       // PMTiles : uniquement les couches cochées (évite flash + charge réseau inutile)
       syncCartoOnMap(
         map,
-        Object.fromEntries(CARTO_LAYERS.map((l) => [l.id, l.defaultVisible])),
-        {}
+        layerVisibleRef.current,
+        {},
+        {},
+        handleCartoAfterSync
       );
 
-      // Cadastre GeoJSON : invisible mais cliquable (contours PMTiles + labels via légende)
-      if (map.getLayer("latresne_parcelles-fill")) {
-        map.setPaintProperty("latresne_parcelles-fill", "fill-opacity", 0);
-      }
-      if (map.getLayer("latresne_parcelles-outline")) {
-        map.setPaintProperty("latresne_parcelles-outline", "line-opacity", 0);
-      }
+      applyCadastreGridVisibility(map, layerVisibleRef.current.parcelles !== false);
 
       // Sources supplémentaires
       map.addSource("parcelle-search", {
@@ -828,23 +867,9 @@ export default function LatresnePage() {
       map.on("click", "pipelines-history-halo", (e) => {
         const feature = e.features?.[0];
         if (!feature) return;
-        const props = feature.properties as any;
-        const slug = props.slug;
+        const slug = (feature.properties as { slug?: string })?.slug;
         if (!slug) return;
-        const pipeline = historyPipelinesRef.current.find((p: HistoryPipeline) => p.slug === slug);
-        if (pipeline) {
-          setHistorySidebarTab("cua");
-          setSelectedIdentiteProjectId(null);
-          setSelectedHistoryPipeline(pipeline);
-          const container = map.getContainer();
-          const cw = container.clientWidth;
-          const ch = container.clientHeight;
-          const placement = getPopupPlacement(e.point.x, e.point.y, cw, ch);
-          const x = clampPopupX(e.point.x, cw);
-          setHistoryPopupPosition({ x, y: e.point.y, placement });
-          const [lon, lat] = (feature.geometry as GeoJSON.Point).coordinates;
-          map.flyTo({ center: [lon, lat], zoom: Math.max(map.getZoom(), 16), duration: 600 });
-        }
+        handleSelectHistoryFromSlugRef.current(slug);
       });
 
       map.addSource("identite-fonciere-history", {
@@ -933,10 +958,17 @@ export default function LatresnePage() {
         );
 
         map.getCanvas().style.cursor = "pointer";
+        const parcelleLabel = `Section ${props?.section ?? ""} – Parcelle ${props?.numero ?? ""}`;
         setTooltip({
           x: e.point.x,
           y: e.point.y,
-          content: `Section ${props?.section ?? ""} – Parcelle ${props?.numero ?? ""}`
+          content: appendCartoTooltipLine(
+            map,
+            e.point,
+            CARTO_LAYERS,
+            layerVisibleRef.current,
+            parcelleLabel
+          ),
         });
       });
 
@@ -956,62 +988,126 @@ export default function LatresnePage() {
       });
 
       // Click parcelles : queryRenderedFeatures (PMTiles ne bloquent plus le hit-test)
-      map.on("click", async (e) => {
-        const hit = queryCadastreHitAtPoint(map, e.point);
-        if (!hit) return;
-        const { feature, layerId } = hit;
-        const props = feature.properties as Record<string, unknown>;
-        const normalizedSection = normalizeUfSection(String(props.section ?? ""));
-        const normalizedNumero = normalizeUfNumero(String(props.numero ?? ""));
+      async function selectParcelleFromFeature(
+        feature: GeoJSON.Feature,
+        layerId?: string
+      ) {
+        const props = (feature.properties ?? {}) as Record<string, unknown>;
+        const geometry = feature.geometry;
+        if (!geometry) return;
+
+        const normalizedSection = normalizeUfSection(props.section);
+        const normalizedNumero = normalizeUfNumero(props.numero);
         const insee =
           layerId === "parcelle-search-fill"
-            ? String(props.insee ?? props.code_insee ?? "33234")
-            : String(props.insee ?? "33234");
+            ? String(props.insee ?? props.code_insee ?? LATRESNE_INSEE)
+            : String(props.insee ?? LATRESNE_INSEE);
+        const commune = String(props.commune || LATRESNE_COMMUNE);
+
+        zoomMapToParcelGeometry(map, geometry as GeoJSON.Geometry);
 
         if (ufBuilderModeRef.current) {
           toggleUfParcelle({
             section: normalizedSection,
             numero: normalizedNumero,
-            commune: String(props.commune || "Latresne"),
+            commune,
             insee,
-            geometry: feature.geometry as GeoJSON.Geometry,
+            geometry: geometry as GeoJSON.Geometry,
             addedVia: "map",
           });
           return;
         }
 
-        const bbox = turf.bbox(feature.geometry as GeoJSON.Geometry);
-        map.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], {
-          padding: 80,
-          duration: layerId === "parcelle-search-fill" ? 1200 : 900,
-          easing: (t) => t * (2 - t),
-        });
+        const searchSource = map.getSource("parcelle-search") as maplibregl.GeoJSONSource | undefined;
+        if (searchSource) {
+          searchSource.setData({
+            type: "FeatureCollection",
+            features: [{
+              type: "Feature",
+              geometry: geometry as GeoJSON.Geometry,
+              properties: {
+                ...props,
+                section: props.section,
+                numero: props.numero,
+                commune,
+                insee,
+                code_insee: insee,
+                is_target: true,
+              },
+            }],
+          });
+        }
 
-        const zonageData = await getZonageAtPoint(insee, String(props.section), String(props.numero));
-
+        setSelectedParcelleGeometry(geometry as GeoJSON.Geometry);
+        setLeftSidebarOpen(true);
         setSelectedParcelle({
-          section: String(props.section),
-          numero: String(props.numero),
-          commune: String(props.commune || "Latresne"),
+          section: String(props.section ?? ""),
+          numero: String(props.numero ?? ""),
+          commune,
           insee,
-          zonage: zonageData?.etiquette,
-          zonages: zonageData
-            ? [
-                {
-                  section: String(props.section),
-                  numero: String(props.numero),
-                  typezone: zonageData.typezone,
-                  etiquette: zonageData.etiquette,
-                  libelle: zonageData.libelle,
-                  libelong: zonageData.libelong,
-                },
-              ]
-            : undefined,
           surface:
             layerId === "parcelle-search-fill" && props.contenance
               ? Number(props.contenance)
               : undefined,
         });
+      }
+
+      async function selectParcelleByRef(section: string, numero: string) {
+        const normSection = normalizeUfSection(section);
+        const normNumero = normalizeUfNumero(numero);
+
+        const cadastre = cadastreDataRef.current;
+        const fromCadastre = cadastre?.features.find((f) => {
+          const p = (f.properties ?? {}) as Record<string, unknown>;
+          return (
+            normalizeUfSection(p.section) === normSection &&
+            normalizeUfNumero(p.numero) === normNumero
+          );
+        });
+
+        if (fromCadastre) {
+          await selectParcelleFromFeature(fromCadastre);
+          return;
+        }
+
+        const params = new URLSearchParams({
+          code_insee: LATRESNE_INSEE,
+          section: normSection,
+          numero: normNumero,
+          commune: LATRESNE_COMMUNE,
+        });
+        const res = await fetch(`${API_BASE}/parcelle/et-voisins?${params}`);
+        if (!res.ok) throw new Error("Parcelle introuvable");
+
+        const data = await res.json();
+        const features: GeoJSON.Feature[] = Array.isArray(data.features) ? data.features : [];
+        const target =
+          features.find((f) => (f.properties as Record<string, unknown>)?.is_target === true) ??
+          features.find((f) => {
+            const p = (f.properties ?? {}) as Record<string, unknown>;
+            return (
+              normalizeUfSection(p.section) === normSection &&
+              normalizeUfNumero(p.numero) === normNumero
+            );
+          });
+
+        if (!target) throw new Error("Parcelle introuvable");
+        await selectParcelleFromFeature(target, "parcelle-search-fill");
+      }
+
+      selectParcelleByRefRef.current = selectParcelleByRef;
+
+      map.on("click", async (e) => {
+        const hit = queryCadastreHitAtPoint(map, e.point);
+        if (!hit) return;
+        const { feature, layerId } = hit;
+        await selectParcelleFromFeature(feature as GeoJSON.Feature, layerId);
+      });
+
+      map.on("click", "parcelle-search-fill", async (e) => {
+        const feature = e.features?.[0];
+        if (!feature) return;
+        await selectParcelleFromFeature(feature as GeoJSON.Feature, "parcelle-search-fill");
       });
 
       // Hover/click sur résultats recherche
@@ -1106,50 +1202,6 @@ export default function LatresnePage() {
 
       showParcelleResultRef.current = showParcelleResult;
 
-      async function getZonageAtPoint(insee: string, section: string, numero: string) {
-        try {
-          const res = await fetch(`${API_BASE}/zonage-plui/${insee}/${section}/${numero}`);
-          if (!res.ok) return null;
-          const data = await res.json();
-          if (!data.typezone || !data.etiquette) return null;
-          return {
-            typezone: data.typezone,
-            etiquette: data.etiquette,
-            libelle: data.libelle,
-            libelong: data.libelong
-          };
-        } catch {
-          return null;
-        }
-      }
-
-      async function getZonageForUF(insee: string, parcelles: Array<{ section: string; numero: string }>) {
-        if (import.meta.env.VITE_ENABLE_ZONAGE_PLUI_UF !== "true") {
-          return [];
-        }
-        try {
-          const res = await fetch(`${API_BASE}/zonage-plui/uf`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ insee, parcelles })
-          });
-          if (!res.ok) return [];
-          const data = await res.json();
-          return data.parcelles.map((p: any) => ({
-            section: p.section,
-            numero: p.numero,
-            typezone: p.typezone || undefined,
-            etiquette: p.etiquette || undefined,
-            libelle: p.libelle || undefined,
-            libelong: p.libelong || undefined
-          }));
-        } catch {
-          return [];
-        }
-      }
-      
-      getZonageForUFRef.current = getZonageForUF;
-
       async function showCerfaParcelles(
         parcelles: Array<{ section: string; numero: string }>,
         commune: string,
@@ -1216,6 +1268,16 @@ export default function LatresnePage() {
 
       bringCadastreHitLayersToFront(map);
 
+      cartoHoverDetachRef.current?.();
+      cartoHoverDetachRef.current = attachCartoHoverHandlers(map, {
+        defs: CARTO_LAYERS,
+        layerVisibleRef,
+        parcelleHitLayerId: "latresne_parcelles-fill",
+        canShow: () =>
+          !ufStateRef.current && !isHoveringHistoryPingRef.current,
+        setTooltip,
+      });
+
       map.on("zoom", () => setCurrentZoom(map.getZoom()));
       map.on("zoomend", () => {
         const zoom = map.getZoom();
@@ -1226,33 +1288,20 @@ export default function LatresnePage() {
     });
 
     return () => {
+      cartoHoverDetachRef.current?.();
+      cartoHoverDetachRef.current = null;
       setMapReady(false);
       map.remove();
       mapRef.current = null;
     };
   }, []);
 
-  // Toggle « Cadastre » : PMTiles (CartoLegendPanel) + visibilité couches GeoJSON interactives
+  // Toggle « Cadastre » : réappliquer si l'état change hors légende
   useEffect(() => {
     const map = mapRef.current;
-    if (!map?.isStyleLoaded() || !mapReady) return;
-    const on = layerVisible.parcelles !== false;
-    const vis: "visible" | "none" = on ? "visible" : "none";
-    for (const id of [
-      "latresne_parcelles-fill",
-      "latresne_parcelles-fill-hover",
-      "latresne_parcelles-outline",
-    ]) {
-      if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", vis);
-    }
+    if (!map || !mapReady) return;
+    applyCadastreGridVisibility(map, layerVisible.parcelles !== false);
   }, [layerVisible.parcelles, mapReady]);
-
-  // PMTiles ajoutées par toggle : remettre le hit-test parcelles au-dessus
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map?.isStyleLoaded() || !mapReady) return;
-    bringCadastreHitLayersToFront(map);
-  }, [mapReady, layerVisible]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1273,26 +1322,7 @@ export default function LatresnePage() {
     const source = map.getSource("pipelines-history") as maplibregl.GeoJSONSource | undefined;
     if (!source) return;
 
-    const features: GeoJSON.Feature[] = historyPipelines
-      .filter((p: any) => p.centroid && typeof p.centroid.lon === "number" && typeof p.centroid.lat === "number")
-      .map((p: any) => ({
-        type: "Feature",
-        geometry: {
-          type: "Point",
-          coordinates: [p.centroid.lon, p.centroid.lat],
-        },
-        properties: {
-          slug: p.slug,
-          numero_cu: p.cerfa_data?.numero_cu,
-          demandeur: p.cerfa_data?.demandeur,
-          section: p.cerfa_data?.parcelles?.[0]?.section,
-          numero: p.cerfa_data?.parcelles?.[0]?.numero,
-          commune: p.commune,
-          code_insee: p.code_insee,
-          pingColor: getPingColor(p.created_at),
-        },
-      }));
-
+    const features = buildHistoryMapFeatures(historyPipelines);
     source.setData({ type: "FeatureCollection", features });
   }, [historyPipelines]);
 
@@ -1452,14 +1482,15 @@ export default function LatresnePage() {
     const source = map?.getSource("history-pipeline-parcelles") as maplibregl.GeoJSONSource | undefined;
     if (!map || !source || !cadastreDataRef.current) return;
 
-    if (!selectedHistoryPipeline?.cerfa_data?.parcelles?.length) {
+    const parcelles = getCerfaParcelleRefs(selectedHistoryPipeline.cerfa_data);
+    if (!parcelles.length) {
       source.setData({ type: "FeatureCollection", features: [] });
       map.setLayoutProperty("history-pipeline-parcelles-fill", "visibility", "none");
       map.setLayoutProperty("history-pipeline-parcelles-outline", "visibility", "none");
       return;
     }
 
-    const parcelles = selectedHistoryPipeline.cerfa_data.parcelles;
+
     const features: GeoJSON.Feature[] = [];
 
     for (const p of parcelles) {
@@ -1482,229 +1513,108 @@ export default function LatresnePage() {
     }
   }, [selectedHistoryPipeline]);
 
-  const sidebarSections: CartoToolSection[] = [
-    {
-      id: "search-uf",
-      title: "Certificat d'Urbanisme (CUA) / Carte d'Identité Foncière (CIF)",
-      defaultOpen: true,
-      content: (
-        <SearchUniteFonciere
-          ufBuilderMode={ufBuilderMode}
-          selectedUfParcelles={selectedUfParcelles}
-          onUfBuilderToggle={setUfBuilderMode}
-          onUfParcelleRemove={(section, numero) => {
-            setSelectedUfParcelles((prev) =>
-              prev.filter(
-                (p) =>
-                  !(
-                    normalizeUfSection(p.section) === normalizeUfSection(section) &&
-                    normalizeUfNumero(p.numero) === normalizeUfNumero(numero)
-                  )
-              )
-            );
-          }}
-          onAddManualUfParcelleToMap={(section, numero, inseeInput) => {
-            const cadastre = cadastreDataRef.current;
-            if (!cadastre) return;
-            const normalizedSection = normalizeUfSection(section);
-            const normalizedNumero = normalizeUfNumero(numero);
-            const normalizedInsee = (inseeInput || "").trim();
-
-            if (selectedUfParcelles.length >= 20) {
-              alert("Maximum 20 parcelles pour une unité foncière");
-              return;
-            }
-
-            const alreadySelected = selectedUfParcelles.some(
-              (p) =>
-                normalizeUfSection(p.section) === normalizedSection &&
-                normalizeUfNumero(p.numero) === normalizedNumero
-            );
-            if (alreadySelected) return;
-
-            const found = cadastre.features.find((f: any) => {
-              const sameSectionNumero =
-                normalizeUfSection(f.properties?.section) === normalizedSection &&
-                normalizeUfNumero(f.properties?.numero) === normalizedNumero;
-              if (!sameSectionNumero) return false;
-              if (!normalizedInsee) return true;
-              return String(f.properties?.insee || "").trim() === normalizedInsee;
-            });
-
-            if (!found || !found.geometry) {
-              alert("Parcelle introuvable dans le cadastre local");
-              return;
-            }
-
-            const props: any = found.properties || {};
-
-            setSelectedUfParcelles((prev) => [
-              ...prev,
-              {
-                section: normalizedSection,
-                numero: normalizedNumero,
-                commune: props.commune || "Latresne",
-                insee: normalizedInsee || props.insee || "33234",
-                geometry: found.geometry as GeoJSON.Geometry,
-                addedVia: "manual",
-              },
-            ]);
-          }}
-          onConfirmUF={async (parcelles, unionGeometry, commune, insee) => {
-            const zonages =
-              (await getZonageForUFRef.current?.(insee, parcelles)) || [];
-
-            setSelectedParcelle({
-              section: parcelles.map((p) => p.section).join("+"),
-              numero: parcelles.map((p) => p.numero).join("+"),
-              commune,
-              insee,
-              isUF: true,
-              ufParcelles: parcelles,
-              ufUnionGeometry: unionGeometry,
-              zonages,
-            });
-
-            const parcellesWithSurface = parcelles.map((p) => {
-              const found = selectedUfParcelles.find(
-                (sp) => sp.section === p.section && sp.numero === p.numero
-              );
-              let surface_m2: number | undefined;
-              if (found?.geometry) {
-                try {
-                  surface_m2 = turf.area(found.geometry as any);
-                } catch {
-                  surface_m2 = undefined;
+  const suiviBlock = selectedHistoryPipeline
+    ? {
+        title: "Suivi du dossier",
+        defaultOpen: true,
+        content: (
+          <SuiviInstructionCard
+            pipeline={selectedHistoryPipeline}
+            onSuiviChange={async (suivi) => {
+              try {
+                const res = await apiFetch(`/pipelines/${selectedHistoryPipeline.slug}/suivi`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ suivi }),
+                });
+                const data = await res.json();
+                if (data?.success) {
+                  setSelectedHistoryPipeline((p) => (p ? { ...p, suivi } : null));
+                  setHistoryPipelines((prev) =>
+                    prev.map((p) => (p.slug === selectedHistoryPipeline.slug ? { ...p, suivi } : p))
+                  );
+                  historyPipelinesRef.current = historyPipelinesRef.current.map((p) =>
+                    p.slug === selectedHistoryPipeline.slug ? { ...p, suivi } : p
+                  );
                 }
+              } catch (e) {
+                console.error("Erreur mise à jour suivi:", e);
               }
-              return {
-                ...p,
-                surface_m2,
-              };
-            });
+            }}
+          />
+        ),
+      }
+    : null;
 
-            setUfState({
-              parcelles: parcellesWithSurface,
-              geometry: unionGeometry,
-              commune,
-              insee,
-            });
+  useEffect(() => {
+    handleSelectHistoryFromSlugRef.current = handleSelectHistoryFromSlug;
+    handleSelectIdentiteProjectRef.current = handleSelectIdentiteProject;
+  });
 
-            const source = mapRef.current?.getSource(
-              "uf-builder"
-            ) as maplibregl.GeoJSONSource;
-            if (source)
-              source.setData({
-                type: "FeatureCollection",
-                features: [],
-              });
-            setUfBuilderMode(false);
-            setSelectedUfParcelles([]);
-          }}
-          embedded={true}
-        />
-      ),
-    },
-    ...(ufState
-      ? [
-          {
-            id: "uf",
-            title: "Unité foncière active",
-            defaultOpen: true,
-            content: (
-              <UniteFonciereCard
-                ufParcelles={ufState.parcelles}
-                commune={ufState.commune}
-                insee={ufState.insee}
-                unionGeometry={ufState.geometry}
-                userId={userId}
-                userEmail={userEmail}
-                onIdentitePublished={() => {
-                  void refreshIdentiteFonciereHistory();
-                }}
-                onPipelineCreated={(newSlug) => {
-                  console.log("[CUA] Redirection vers page projet (UF)", { newSlug });
-                  refreshHistoryPipelines(newSlug);
-                  navigate(`/latresne/cua/projects/${newSlug}`);
-                }}
-                onParcellesDetected={async (parcelles, commune, insee) => {
-                  if (showCerfaParcellesRef.current) {
-                    await showCerfaParcellesRef.current(parcelles, commune, insee);
-                  }
-                }}
-                onClose={() => {
-                  setUfState(null);
-                  setSelectedParcelle(null);
-                  const source = mapRef.current?.getSource("uf-active") as maplibregl.GeoJSONSource;
-                  if (source) {
-                    source.setData({
-                      type: "FeatureCollection",
-                      features: [],
-                    });
-                  }
-                }}
-                dbSchema="latresne"
-                embedded={true}
-              />
-            ),
-          } as CartoToolSection,
-        ]
-      : []),
-    ...(selectedHistoryPipeline
-      ? [
-          {
-            id: "suivi",
-            title: "Suivi du dossier",
-            defaultOpen: true,
-            content: (
-              <SuiviInstructionCard
-                pipeline={selectedHistoryPipeline}
-                onSuiviChange={async (suivi) => {
-                  try {
-                    const res = await apiFetch(`/pipelines/${selectedHistoryPipeline.slug}/suivi`, {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ suivi }),
-                    });
-                    const data = await res.json();
-                    if (data?.success) {
-                      setSelectedHistoryPipeline((p) => (p ? { ...p, suivi } : null));
-                      setHistoryPipelines((prev) =>
-                        prev.map((p) => (p.slug === selectedHistoryPipeline.slug ? { ...p, suivi } : p))
-                      );
-                      historyPipelinesRef.current = historyPipelinesRef.current.map((p) =>
-                        p.slug === selectedHistoryPipeline.slug ? { ...p, suivi } : p
-                      );
-                    }
-                  } catch (e) {
-                    console.error("Erreur mise à jour suivi:", e);
-                  }
-                }}
-              />
-            ),
-          } as CartoToolSection,
-        ]
-      : []),
-    {
-      id: "cerfa",
-      title: "CUA à partir d'un formulaire CERFA",
-      defaultOpen: false,
-      content: (
-        <CerfaTool
-          onPipelineCreated={(newSlug) => {
-            console.log("[CUA] Redirection vers page projet", { newSlug });
-            refreshHistoryPipelines(newSlug);
-            navigate(`/latresne/cua/projects/${newSlug}`);
-          }}
-          onParcellesDetected={async (parcelles, commune, insee) => {
-            if (showCerfaParcellesRef.current) {
-              await showCerfaParcellesRef.current(parcelles, commune, insee);
-            }
-          }}
-        />
-      ),
-    },
-  ];
+  const activeParcelles = useMemo((): ParcelleResumeRef[] | null => {
+    if (ufBuilderMode && selectedUfParcelles.length > 0) {
+      return selectedUfParcelles.map((p) => ({
+        section: p.section,
+        numero: p.numero,
+        commune: p.commune,
+        insee: p.insee,
+      }));
+    }
+    if (selectedParcelle?.isUF && selectedParcelle.ufParcelles?.length) {
+      return selectedParcelle.ufParcelles.map((p) => ({
+        section: p.section,
+        numero: p.numero,
+        commune: p.commune ?? selectedParcelle.commune,
+        insee: p.insee ?? selectedParcelle.insee,
+      }));
+    }
+    if (selectedParcelle && !selectedParcelle.isUF) {
+      return [{
+        section: selectedParcelle.section,
+        numero: selectedParcelle.numero,
+        commune: selectedParcelle.commune,
+        insee: selectedParcelle.insee,
+        surface_m2: selectedParcelle.surface,
+      }];
+    }
+    return null;
+  }, [ufBuilderMode, selectedUfParcelles, selectedParcelle]);
+
+  const isDraftUfResume =
+    ufBuilderMode && selectedUfParcelles.length > 0 && !ufState;
+
+  const draftUfSurfaceM2 = useMemo(() => {
+    if (!isDraftUfResume) return null;
+    let total = 0;
+    for (const p of selectedUfParcelles) {
+      try {
+        total += turf.area({ type: "Feature", geometry: p.geometry, properties: {} });
+      } catch {
+        /* géométrie invalide */
+      }
+    }
+    return total > 0 ? total : null;
+  }, [isDraftUfResume, selectedUfParcelles]);
+
+  const activeUnionGeometry = useMemo((): GeoJSON.Geometry | null => {
+    if (selectedParcelle?.ufUnionGeometry) return selectedParcelle.ufUnionGeometry;
+    if (ufBuilderMode && selectedUfParcelles.length > 1) {
+      try {
+        const feats = selectedUfParcelles.map((p) => ({
+          type: "Feature" as const,
+          geometry: p.geometry,
+          properties: {},
+        }));
+        return turf.union({ type: "FeatureCollection", features: feats })?.geometry ?? selectedUfParcelles[0]?.geometry ?? null;
+      } catch {
+        return selectedUfParcelles[0]?.geometry ?? null;
+      }
+    }
+    if (ufBuilderMode && selectedUfParcelles.length === 1) {
+      return selectedUfParcelles[0].geometry;
+    }
+    return selectedParcelleGeometry;
+  }, [selectedParcelle, ufBuilderMode, selectedUfParcelles, selectedParcelleGeometry]);
 
   return (
     <div className="cua-map-workspace">
@@ -1718,28 +1628,53 @@ export default function LatresnePage() {
               <ParcelleSearchForm
                 embedded
                 onSelect={async (section, numero) => {
-                  const params = new URLSearchParams({
-                    code_insee: "33234",
-                    commune: "Latresne",
-                    section,
-                    numero,
-                  });
-                  const res = await fetch(
-                    `${import.meta.env.VITE_API_BASE}/parcelle/et-voisins?${params}`
-                  );
-                  if (!res.ok) throw new Error();
-                  const data = await res.json();
-                  if (!showParcelleResultRef.current) return;
-                  showParcelleResultRef.current(
-                    { type: data.type, features: data.features },
-                    data.address_point
-                  );
-                  setSelectedParcelle(null);
+                  if (!selectParcelleByRefRef.current) return;
+                  await selectParcelleByRefRef.current(section, numero);
                 }}
               />
             ),
           }}
-          toolSections={sidebarSections}
+          toolSections={[]}
+          extraBlocks={suiviBlock ? [suiviBlock] : []}
+          defaultHistoryOpen={false}
+          parcelleBlock={
+            activeParcelles?.length
+              ? {
+                  title: isDraftUfResume
+                    ? `Unité foncière en cours (${activeParcelles.length})`
+                    : activeParcelles.length > 1
+                      ? `Parcelles sélectionnées (${activeParcelles.length})`
+                      : "Parcelle sélectionnée",
+                  defaultOpen: true,
+                  content: (
+                    <div className="space-y-3">
+                      {isDraftUfResume ? (
+                        <DraftUfParcelleList
+                          parcelles={activeParcelles.map((p) => ({
+                            section: p.section,
+                            numero: p.numero,
+                          }))}
+                          ufSurface={draftUfSurfaceM2}
+                          onRemove={removeUfParcelle}
+                        />
+                      ) : null}
+                      <ParcelleQuickActions
+                        communeSlug="latresne"
+                        parcelles={activeParcelles}
+                        unionGeometry={activeUnionGeometry}
+                        showParcelleHeader={!isDraftUfResume}
+                        userId={userId}
+                        userEmail={userEmail}
+                        onPipelineCreated={(newSlug) => {
+                          refreshHistoryPipelines(newSlug);
+                          navigate(`/latresne/cua/projects/${newSlug}`);
+                        }}
+                      />
+                    </div>
+                  ),
+                }
+              : null
+          }
           history={{
             communeSlug: "latresne",
             rows: historyPipelines,
@@ -1762,12 +1697,18 @@ export default function LatresnePage() {
         
           <MapTooltipOverlay tooltip={tooltip} />
           <MapLoadingOverlay isLoadingCadastre={isLoadingCadastre} />
+          <MapLegendHarvestOverlay active={isLegendHarvesting} />
           <UfBuilderModeBanner
             ufBuilderMode={ufBuilderMode}
             currentZoom={currentZoom}
             minZoom={PARCELLE_CLICK_ZOOM}
             selectedCount={selectedUfParcelles.length}
             maxCount={20}
+          />
+          <HistoryPipelinePopup
+            selectedHistoryPipeline={selectedHistoryPipeline}
+            historyPopupPosition={historyPopupPosition}
+            onClose={clearHistorySelection}
           />
 
         </div>
@@ -1781,9 +1722,9 @@ export default function LatresnePage() {
                 embedded
                 map={mapRef.current}
                 layerVisible={layerVisible}
-                onLayerVisibleChange={(layerId, on) =>
-                  setLayerVisible((v) => ({ ...v, [layerId]: on }))
-                }
+                onLayerVisibleChange={handleLayerVisibleChange}
+                onAfterSync={handleCartoAfterSync}
+                onLegendHarvesting={setIsLegendHarvesting}
               />
             ) : null
           }

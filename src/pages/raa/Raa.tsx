@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   RefreshCw, ExternalLink, FileText, ChevronDown,
-  AlertTriangle, Loader2, MapPin, Search, Check,
+  AlertTriangle, Loader2, MapPin, Search, Check, EyeOff,
 } from "lucide-react";
 import { getRaaConfig, normaliseArreteNature, type ArreteNature, type RaaCommuneConfig } from "./raaConfig";
 
@@ -9,7 +9,9 @@ import { getRaaConfig, normaliseArreteNature, type ArreteNature, type RaaCommune
  *  Veille réglementaire RAA — multi-commune (slug portail)
  *  GET  {API_BASE}/{slug}/raa?annee=YYYY
  *  GET  {API_BASE}/{slug}/raa/{id}
+ *  POST {API_BASE}/{slug}/raa/sync
  *  POST {API_BASE}/{slug}/raa/{id}/marquer-vu
+ *  POST {API_BASE}/{slug}/raa/{id}/masquer
  *  Si l'API est injoignable -> bascule en MODE DÉMO (données d'exemple).
  * ------------------------------------------------------------------ */
 
@@ -182,13 +184,17 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
   const [annee] = useState(new Date().getFullYear());
   const [items, setItems] = useState<RaaItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [demo, setDemo] = useState(false);
   const [open, setOpen] = useState<Set<number>>(() => new Set());
   const [detailLoading, setDetailLoading] = useState<Set<number>>(() => new Set());
+  const [masquerLoading, setMasquerLoading] = useState<Set<number>>(() => new Set());
   const pollers = useRef<Record<number, ReturnType<typeof setInterval>>>({});
 
-  const load = async () => {
-    setLoading(true);
+  const load = async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     try {
       const r = await fetch(`${raaBase}?annee=${annee}`);
       if (!r.ok) throw new Error("api");
@@ -199,7 +205,7 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
       setItems(demoData);
       setDemo(true);
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   };
 
@@ -306,6 +312,79 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
     startPolling(id);
   };
 
+  const remove = (id: number) => {
+    if (pollers.current[id]) {
+      clearInterval(pollers.current[id]);
+      delete pollers.current[id];
+    }
+    setItems((prev) => prev.filter((it) => it.id !== id));
+    setOpen((s) => {
+      const n = new Set(s);
+      n.delete(id);
+      return n;
+    });
+  };
+
+  const masquer = async (id: number) => {
+    const item = items.find((i) => i.id === id);
+    if (!item) return;
+    const ok = window.confirm(
+      `Retirer « ${item.titre} » de la veille ?\n\n`
+      + "Ce recueil sera masqué pour votre commune. Il ne sera pas réanalysé lors des prochaines synchronisations.",
+    );
+    if (!ok) return;
+
+    if (demo) {
+      remove(id);
+      return;
+    }
+
+    setMasquerLoading((s) => new Set(s).add(id));
+    try {
+      const r = await fetch(`${raaBase}/${id}/masquer`, { method: "POST" });
+      if (!r.ok) {
+        const err = await r.json().catch(() => null);
+        throw new Error(err?.detail || `Erreur ${r.status}`);
+      }
+      remove(id);
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "Impossible de masquer ce recueil.");
+    } finally {
+      setMasquerLoading((s) => {
+        const n = new Set(s);
+        n.delete(id);
+        return n;
+      });
+    }
+  };
+
+  const lancerVeille = async () => {
+    if (syncing) return;
+    setSyncMsg(null);
+    if (demo) {
+      setSyncMsg("Mode démo — la synchronisation nécessite le backend.");
+      return;
+    }
+    setSyncing(true);
+    try {
+      const r = await fetch(`${raaBase}/sync?annee=${annee}`, { method: "POST" });
+      if (!r.ok) {
+        const err = await r.json().catch(() => null);
+        throw new Error(err?.detail || `Erreur ${r.status}`);
+      }
+      const data = await r.json();
+      setSyncMsg(data.message || "Synchronisation lancée.");
+      await load({ silent: true });
+      for (const id of data.analyses_lancees ?? []) {
+        startPolling(id);
+      }
+    } catch (e) {
+      setSyncMsg(e instanceof Error ? e.message : "Échec de la synchronisation.");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const isNouveau = (it: RaaItem) => it.statut === "analyse" && it.vu === false;
 
   const groups = useMemo(() => {
@@ -331,8 +410,56 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
       nonLus: a.filter((i) => i.vu === false).length,
       rouge: a.filter((i) => i.niveau_alerte === "ROUGE").length,
       orange: a.filter((i) => i.niveau_alerte === "ORANGE").length,
+      bloques: items.filter((i) => i.statut === "en_cours" || i.statut === "erreur").length,
     };
   }, [items]);
+
+  const reinitialiserBloques = async () => {
+    if (resetting) return;
+    setSyncMsg(null);
+    if (demo) {
+      setSyncMsg("Mode démo — action indisponible sans backend.");
+      return;
+    }
+    if (stats.bloques === 0) {
+      setSyncMsg("Aucun recueil bloqué à réinitialiser.");
+      return;
+    }
+    const ok = window.confirm(
+      `${stats.bloques} recueil(s) bloqué(s) en analyse ou en erreur vont être relancés.\n\n`
+      + "Les recueils déjà analysés avec succès ne seront pas modifiés.",
+    );
+    if (!ok) return;
+
+    setResetting(true);
+    try {
+      const r = await fetch(`${raaBase}/reinitialiser-bloques?relancer=true`, { method: "POST" });
+      if (!r.ok) {
+        const err = await r.json().catch(() => null);
+        throw new Error(err?.detail || `Erreur ${r.status}`);
+      }
+      const data = await r.json();
+      setSyncMsg(data.message || "Réinitialisation effectuée.");
+      await load({ silent: true });
+      let pollIds = data.analyses_lancees ?? [];
+      if (pollIds.length === 0 && (data.nb_reinitialises ?? 0) > 0) {
+        const r2 = await fetch(`${raaBase}/analyser-en-attente`, { method: "POST" });
+        if (r2.ok) {
+          const d2 = await r2.json();
+          setSyncMsg(d2.message || data.message);
+          pollIds = d2.analyses_lancees ?? [];
+          await load({ silent: true });
+        }
+      }
+      for (const id of pollIds) {
+        startPolling(id);
+      }
+    } catch (e) {
+      setSyncMsg(e instanceof Error ? e.message : "Échec de la réinitialisation.");
+    } finally {
+      setResetting(false);
+    }
+  };
 
   return (
     <div className="rv">
@@ -346,6 +473,31 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
             Recueils des actes administratifs de la préfecture, synchronisés et analysés chaque matin.
             Les recueils non encore consultés sont signalés comme nouveaux.
           </p>
+          {syncMsg && <p className="rv__syncmsg">{syncMsg}</p>}
+        </div>
+        <div className="rv__head-actions">
+          {stats.bloques > 0 && (
+            <button
+              type="button"
+              className="rv__refresh rv__refresh--warn"
+              onClick={reinitialiserBloques}
+              disabled={resetting || loading}
+              title="Débloquer les analyses coincées ou en erreur et les relancer"
+            >
+              {resetting ? <Loader2 size={15} className="rv__spin" /> : <AlertTriangle size={15} />}
+              {resetting ? "Relance…" : `Relancer ${stats.bloques} bloqué(s)`}
+            </button>
+          )}
+          <button
+            type="button"
+            className="rv__refresh"
+            onClick={lancerVeille}
+            disabled={syncing || loading}
+            title="Scraper la préfecture, détecter les nouveaux recueils et lancer leur analyse"
+          >
+            {syncing ? <Loader2 size={15} className="rv__spin" /> : <RefreshCw size={15} />}
+            {syncing ? "Veille en cours…" : "Lancer la veille"}
+          </button>
         </div>
       </header>
 
@@ -384,6 +536,8 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
                 onToggle={() => toggleDetail(it.id)}
                 onAnalyser={() => analyser(it.id)}
                 onMarquerVu={() => marquerVu(it.id)}
+                onMasquer={() => masquer(it.id)}
+                masquerLoading={masquerLoading.has(it.id)}
               />
             ))}
           </section>
@@ -402,9 +556,13 @@ type CardProps = {
   onToggle: () => void;
   onAnalyser: () => void;
   onMarquerVu: () => void;
+  onMasquer: () => void;
+  masquerLoading: boolean;
 };
 
-function Card({ it, cfg, niveau, expanded, detailLoading, onToggle, onAnalyser, onMarquerVu }: CardProps) {
+function Card({
+  it, cfg, niveau, expanded, detailLoading, onToggle, onAnalyser, onMarquerVu, onMasquer, masquerLoading,
+}: CardProps) {
   const niveauItem = it.niveau_alerte ? niveau[it.niveau_alerte] : null;
   const enCours = it.statut === "en_cours";
   const erreur = it.statut === "erreur";
@@ -558,6 +716,17 @@ function Card({ it, cfg, niveau, expanded, detailLoading, onToggle, onAnalyser, 
 
           <span className="rv__spacer" />
 
+          <button
+            type="button"
+            className="rv__btn rv__btn--ghost"
+            onClick={onMasquer}
+            disabled={enCours || masquerLoading}
+            title="Retirer ce recueil de la veille (hors périmètre communal)"
+          >
+            {masquerLoading ? <Loader2 size={14} className="rv__spin" /> : <EyeOff size={14} />}
+            Retirer
+          </button>
+
           <button className="rv__btn" onClick={onAnalyser} disabled={enCours}>
             {enCours ? <Loader2 size={14} className="rv__spin" /> : <RefreshCw size={14} />}
             {detecte ? "Analyser" : enCours ? "En cours" : "Relancer l'analyse"}
@@ -580,13 +749,17 @@ const CSS = `
 }
 .rv *{box-sizing:border-box;}
 .rv__head{display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; margin-bottom:1.25rem;}
+.rv__head-actions{display:flex; flex-direction:column; align-items:stretch; gap:.5rem; flex-shrink:0;}
 .rv__eyebrow{font-size:.72rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--faint);}
 .rv__title{font-size:1.7rem; font-weight:600; margin:.25rem 0 .4rem; letter-spacing:-.01em;}
 .rv__sub{font-size:.9rem; color:var(--muted); line-height:1.5; max-width:46rem; margin:0;}
+.rv__syncmsg{font-size:.82rem; color:var(--muted); margin:.5rem 0 0; line-height:1.4;}
 .rv__refresh{flex-shrink:0; display:inline-flex; align-items:center; gap:.4rem; padding:.5rem .8rem;
   border:1px solid var(--border); border-radius:.6rem; background:#fff; font:inherit; font-size:.82rem;
   font-weight:500; color:var(--text); cursor:pointer; transition:border-color .15s, background .15s;}
 .rv__refresh:hover:not(:disabled){border-color:var(--accent); background:var(--accent-soft);}
+.rv__refresh--warn{border-color:#f0d9a8; background:#fffaf0; color:#9a6700;}
+.rv__refresh--warn:hover:not(:disabled){border-color:#e0b050; background:#fff4db;}
 .rv__refresh:disabled{opacity:.6; cursor:default;}
 
 .rv__stat--new{color:#1a6fa8; font-weight:600;}
@@ -662,6 +835,8 @@ const CSS = `
   border:1px solid var(--border); background:#fff; font:inherit; font-size:.8rem; font-weight:600;
   color:var(--text); cursor:pointer; transition:border-color .15s, background .15s; white-space:nowrap;}
 .rv__btn:hover:not(:disabled){border-color:var(--accent); background:var(--accent-soft);}
+.rv__btn--ghost{color:var(--muted); font-weight:500;}
+.rv__btn--ghost:hover:not(:disabled){border-color:#d8c4c4; background:#fdf6f6; color:#a94442;}
 .rv__btn:disabled{opacity:.6; cursor:default;}
 
 .rv__arretes{list-style:none; margin:0; padding:.25rem 0 0; display:flex; flex-direction:column; gap:1rem;}
@@ -700,6 +875,7 @@ const CSS = `
 @media (max-width:560px){
   .rv{padding:1.25rem .9rem 3rem;}
   .rv__head{flex-direction:column;}
+  .rv__head-actions{width:100%;}
   .rv__title{font-size:1.4rem;}
 }
 @media (prefers-reduced-motion:reduce){
