@@ -68,6 +68,26 @@ export const SERVITUDE_PALETTE = [
   "#89C2D9", "#33658A", "#264653", "#2C699A", "#048BA8",
 ];
 
+/** Couleurs fixes par code SUP (suptype en majuscules en base). */
+export const SERVITUDE_SUPTYPE_COLORS: Record<string, string> = {
+  AC1: "#EA580C", // orange
+  AC2: "#FB923C", // orange clair
+  AC3: "#86EFAC", // vert clair
+  A7: "#166534", // vert foncé
+  PM1: "#2563EB", // bleu
+  PM8: "#DC2626", // rouge
+  I4: "#EC4899", // rose
+  T1: "#6B7280", // gris
+  EL9: "#EAB308", // jaune
+};
+
+export const SERVITUDE_SUPTYPE_LEGEND: { key: string; label: string; color: string }[] =
+  Object.entries(SERVITUDE_SUPTYPE_COLORS).map(([key, color]) => ({
+    key,
+    label: key,
+    color,
+  }));
+
 export const RISQUE_FALLBACK = "#E76F51";
 export const RISQUE_PALETTE = [
   "#E76F51", "#F4A261", "#E9C46A", "#D62828", "#BC4749",
@@ -343,8 +363,12 @@ function pctLayers(
   ];
 }
 
+function servitudeSuptypeFillColor(): maplibregl.ExpressionSpecification {
+  return colorByValue("suptype", SERVITUDE_SUPTYPE_COLORS, SERVITUDE_FALLBACK);
+}
+
 function supSurfLayers(prefix: string): CartoSubLayer[] {
-  const color = categoricalFillColor("suptype", SERVITUDE_PALETTE, SERVITUDE_FALLBACK);
+  const color = servitudeSuptypeFillColor();
   return [
     {
       id: `${prefix}-fill`,
@@ -488,8 +512,9 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
     sourceLayer: "servitudes",
     tooltipField: "suptype",
     groupField: "suptype",
-    filterPalette: SERVITUDE_PALETTE,
     filterFallback: SERVITUDE_FALLBACK,
+    groupColorMap: SERVITUDE_SUPTYPE_COLORS,
+    staticGroupLegend: SERVITUDE_SUPTYPE_LEGEND,
     layers: supSurfLayers("argeles-servitudes"),
   },
   // —— Risques ——
