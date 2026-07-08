@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   RefreshCw, ExternalLink, FileText, ChevronDown,
-  AlertTriangle, Loader2, MapPin, Search, Check, EyeOff,
+  AlertTriangle, Loader2, MapPin, Search, EyeOff, Trash2, Filter, X,
 } from "lucide-react";
 import { getRaaConfig, normaliseArreteNature, type ArreteNature, type RaaCommuneConfig } from "./raaConfig";
 
@@ -16,8 +16,11 @@ import { getRaaConfig, normaliseArreteNature, type ArreteNature, type RaaCommune
  * ------------------------------------------------------------------ */
 
 const API_BASE = (import.meta.env.VITE_API_BASE || "http://localhost:8000").replace(/\/$/, "");
-const POLL_MS = 3000;
-const POLL_MAX = 40;
+/** Un seul GET liste toutes les 5 s tant qu'au moins un recueil est en_cours (batch inclus). */
+const POLL_MS = 5000;
+const POLL_MAX = 90;
+
+type RaaFilter = "all" | "rouge" | "orange" | "nouveau";
 
 type RaaItem = {
   id: number;
@@ -191,7 +194,11 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
   const [open, setOpen] = useState<Set<number>>(() => new Set());
   const [detailLoading, setDetailLoading] = useState<Set<number>>(() => new Set());
   const [masquerLoading, setMasquerLoading] = useState<Set<number>>(() => new Set());
-  const pollers = useRef<Record<number, ReturnType<typeof setInterval>>>({});
+  const [filter, setFilter] = useState<RaaFilter>("all");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [masquerBulkLoading, setMasquerBulkLoading] = useState(false);
+  const listPoller = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollTicks = useRef(0);
 
   const load = async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);
@@ -209,22 +216,50 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
     }
   };
 
-  const startPolling = (id: number) => {
-    if (pollers.current[id]) return;
-    let n = 0;
-    pollers.current[id] = setInterval(async () => {
-      n += 1;
-      try {
-        const r = await fetch(`${raaBase}/${id}`);
-        const d = await r.json();
-        if (d.statut !== "en_cours" || n >= POLL_MAX) {
-          clearInterval(pollers.current[id]);
-          delete pollers.current[id];
-          patch(id, d.statut === "en_cours"
-            ? { statut: "erreur", erreur: "L'analyse prend plus de temps que prévu. Réessayez dans un instant." }
-            : d);
-        }
-      } catch { /* on retentera au prochain tick */ }
+  const stopListPolling = () => {
+    if (listPoller.current) {
+      clearInterval(listPoller.current);
+      listPoller.current = null;
+    }
+    pollTicks.current = 0;
+  };
+
+  const pollListOnce = async () => {
+    pollTicks.current += 1;
+    if (pollTicks.current > POLL_MAX) {
+      stopListPolling();
+      setItems((prev) =>
+        prev.map((it) =>
+          it.statut === "en_cours"
+            ? {
+                ...it,
+                statut: "erreur",
+                erreur: "L'analyse prend plus de temps que prévu. Réessayez dans un instant.",
+              }
+            : it,
+        ),
+      );
+      return;
+    }
+    try {
+      const r = await fetch(`${raaBase}?annee=${annee}`);
+      if (!r.ok) return;
+      const data = await r.json();
+      const next: RaaItem[] = data.raa || [];
+      setItems(next);
+      if (!next.some((it) => it.statut === "en_cours")) {
+        stopListPolling();
+      }
+    } catch {
+      /* retenter au prochain tick */
+    }
+  };
+
+  const startListPolling = () => {
+    if (listPoller.current) return;
+    pollTicks.current = 0;
+    listPoller.current = setInterval(() => {
+      void pollListOnce();
     }, POLL_MS);
   };
 
@@ -242,10 +277,14 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
   };
 
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [annee, raaBase]);
-  useEffect(() => () => Object.values(pollers.current).forEach(clearInterval), []);
+  useEffect(() => () => stopListPolling(), []);
   useEffect(() => {
     if (demo) return;
-    items.filter((it) => it.statut === "en_cours").forEach((it) => startPolling(it.id));
+    if (items.some((it) => it.statut === "en_cours")) {
+      startListPolling();
+    } else {
+      stopListPolling();
+    }
   }, [items, demo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const patch = (id: number, fields: Partial<RaaItem>) =>
@@ -309,14 +348,9 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
       patch(id, { statut: "erreur", erreur: "Impossible de joindre le serveur." });
       return;
     }
-    startPolling(id);
   };
 
   const remove = (id: number) => {
-    if (pollers.current[id]) {
-      clearInterval(pollers.current[id]);
-      delete pollers.current[id];
-    }
     setItems((prev) => prev.filter((it) => it.id !== id));
     setOpen((s) => {
       const n = new Set(s);
@@ -375,9 +409,6 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
       const data = await r.json();
       setSyncMsg(data.message || "Synchronisation lancée.");
       await load({ silent: true });
-      for (const id of data.analyses_lancees ?? []) {
-        startPolling(id);
-      }
     } catch (e) {
       setSyncMsg(e instanceof Error ? e.message : "Échec de la synchronisation.");
     } finally {
@@ -386,10 +417,31 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
   };
 
   const isNouveau = (it: RaaItem) => it.statut === "analyse" && it.vu === false;
+  const isConcerne = (it: RaaItem) => it.statut === "analyse" && it.niveau_alerte === "ROUGE";
+  const isASurveiller = (it: RaaItem) => it.statut === "analyse" && it.niveau_alerte === "ORANGE";
+  const isHorsPerimetre = (it: RaaItem) =>
+    it.statut === "analyse" && it.niveau_alerte !== "ROUGE" && it.niveau_alerte !== "ORANGE";
+
+  const toggleFilter = (next: RaaFilter) => {
+    setFilter((prev) => (prev === next ? "all" : next));
+  };
+
+  const filteredItems = useMemo(() => {
+    switch (filter) {
+      case "rouge":
+        return items.filter(isConcerne);
+      case "orange":
+        return items.filter(isASurveiller);
+      case "nouveau":
+        return items.filter(isNouveau);
+      default:
+        return items;
+    }
+  }, [items, filter]);
 
   const groups = useMemo(() => {
     const by: Record<string, RaaItem[]> = {};
-    for (const it of items) (by[it.date_publication || ""] ||= []).push(it);
+    for (const it of filteredItems) (by[it.date_publication || ""] ||= []).push(it);
     return Object.entries(by)
       .sort((a, b) => (a[0] < b[0] ? 1 : -1))
       .map(([d, list]) => [
@@ -400,7 +452,7 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
           return na - nb;
         }),
       ] as [string, RaaItem[]]);
-  }, [items]);
+  }, [filteredItems]);
 
   const stats = useMemo(() => {
     const a = items.filter((i) => i.statut === "analyse");
@@ -410,6 +462,7 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
       nonLus: a.filter((i) => i.vu === false).length,
       rouge: a.filter((i) => i.niveau_alerte === "ROUGE").length,
       orange: a.filter((i) => i.niveau_alerte === "ORANGE").length,
+      horsPerimetre: items.filter(isHorsPerimetre).length,
       bloques: items.filter((i) => i.statut === "en_cours" || i.statut === "erreur").length,
     };
   }, [items]);
@@ -441,18 +494,13 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
       const data = await r.json();
       setSyncMsg(data.message || "Réinitialisation effectuée.");
       await load({ silent: true });
-      let pollIds = data.analyses_lancees ?? [];
-      if (pollIds.length === 0 && (data.nb_reinitialises ?? 0) > 0) {
+      if ((data.analyses_lancees ?? []).length === 0 && (data.nb_reinitialises ?? 0) > 0) {
         const r2 = await fetch(`${raaBase}/analyser-en-attente`, { method: "POST" });
         if (r2.ok) {
           const d2 = await r2.json();
           setSyncMsg(d2.message || data.message);
-          pollIds = d2.analyses_lancees ?? [];
           await load({ silent: true });
         }
-      }
-      for (const id of pollIds) {
-        startPolling(id);
       }
     } catch (e) {
       setSyncMsg(e instanceof Error ? e.message : "Échec de la réinitialisation.");
@@ -461,6 +509,62 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
     }
   };
 
+  const masquerHorsPerimetre = async () => {
+    const toHide = items.filter(isHorsPerimetre);
+    if (toHide.length === 0) {
+      setSyncMsg(`Aucun recueil sans lien avec ${cfg.communeShort} à retirer.`);
+      return;
+    }
+    const ok = window.confirm(
+      `Retirer ${toHide.length} recueil(s) sans lien direct avec ${cfg.communeShort} ?\n\n`
+      + "Seuls les recueils « Rien de notable » seront masqués. "
+      + "Les recueils concernant la commune ou à surveiller seront conservés.\n\n"
+      + "Les recueils masqués restent en base (pas de réanalyse ultérieure).",
+    );
+    if (!ok) return;
+
+    if (demo) {
+      toHide.forEach((it) => remove(it.id));
+      setSyncMsg(`${toHide.length} recueil(s) retiré(s) (mode démo).`);
+      return;
+    }
+
+    setMasquerBulkLoading(true);
+    setSyncMsg(null);
+    let okCount = 0;
+    try {
+      for (const it of toHide) {
+        const r = await fetch(`${raaBase}/${it.id}/masquer`, { method: "POST" });
+        if (r.ok) {
+          remove(it.id);
+          okCount += 1;
+        }
+      }
+      setSyncMsg(
+        okCount === toHide.length
+          ? `${okCount} recueil(s) hors périmètre retiré(s) de la veille.`
+          : `${okCount}/${toHide.length} recueil(s) retiré(s).`,
+      );
+    } catch {
+      setSyncMsg("Échec partiel du nettoyage — réessayez.");
+    } finally {
+      setMasquerBulkLoading(false);
+    }
+  };
+
+  const filterLabel = useMemo(() => {
+    switch (filter) {
+      case "rouge":
+        return `Concerne ${cfg.communeShort}`;
+      case "orange":
+        return "À surveiller";
+      case "nouveau":
+        return "Non lus";
+      default:
+        return null;
+    }
+  }, [filter, cfg.communeShort]);
+
   return (
     <div className="rv">
       <style>{CSS}</style>
@@ -468,7 +572,7 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
       <header className="rv__head">
         <div>
           <div className="rv__eyebrow">{cfg.departementLabel} · {cfg.communeLabel}</div>
-          <h1 className="rv__title">Veille réglementaire</h1>
+          <h1 className="rv__title">Veille réglementaire sur les Recueils des Actes Administratifs des Pyrenées-Orientales</h1>
           <p className="rv__sub">
             Recueils des actes administratifs de la préfecture, synchronisés et analysés chaque matin.
             Les recueils non encore consultés sont signalés comme nouveaux.
@@ -501,17 +605,144 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
         </div>
       </header>
 
-      <div className="rv__stats">
-        <span><b>{stats.total}</b> recueils</span>
+      <div className="rv__overview">
+        <span><b>{stats.total}</b> recueils au total</span>
         <span className="rv__dot" />
         <span><b>{stats.analyses}</b> analysés</span>
-        {stats.nonLus > 0 && (<><span className="rv__dot" />
-          <span className="rv__stat--new"><b>{stats.nonLus}</b> nouveau(x)</span></>)}
-        {stats.rouge > 0 && (<><span className="rv__dot" />
-          <span className="rv__stat--r"><i style={{ background: niveau.ROUGE.dot }} />{stats.rouge} concerne(nt) {cfg.communeShort}</span></>)}
-        {stats.orange > 0 && (<><span className="rv__dot" />
-          <span className="rv__stat--o"><i style={{ background: niveau.ORANGE.dot }} />{stats.orange} à surveiller</span></>)}
         {demo && <span className="rv__demo">mode démo — backend non connecté</span>}
+      </div>
+
+      <section
+        className={`rv__filters${filtersOpen ? "" : " rv__filters--collapsed"}`}
+        aria-label="Filtres des recueils"
+      >
+        <div className="rv__filters-head">
+          <button
+            type="button"
+            className="rv__filters-toggle"
+            onClick={() => setFiltersOpen((o) => !o)}
+            aria-expanded={filtersOpen}
+          >
+            <Filter size={16} className="rv__filters-icon" aria-hidden />
+            <div className="rv__filters-toggle-text">
+              <span className="rv__filters-title">Filtrer les recueils</span>
+              {filtersOpen ? (
+                <span className="rv__filters-hint">
+                  Cliquez sur une catégorie pour n&apos;afficher que les recueils qui vous intéressent.
+                </span>
+              ) : filter !== "all" ? (
+                <span className="rv__filters-summary">
+                  Filtre actif : <strong>{filterLabel}</strong>
+                  {" "}({filteredItems.length} affiché{filteredItems.length > 1 ? "s" : ""})
+                </span>
+              ) : (
+                <span className="rv__filters-summary">Afficher par catégorie — cliquer pour déplier</span>
+              )}
+            </div>
+            <ChevronDown size={18} className={`rv__filters-chev${filtersOpen ? " rv__filters-chev--open" : ""}`} />
+          </button>
+          {filter !== "all" && (
+            <button
+              type="button"
+              className="rv__filters-reset"
+              onClick={() => setFilter("all")}
+            >
+              <X size={14} />
+              Tout afficher
+            </button>
+          )}
+        </div>
+
+        {filtersOpen && (
+          <div className="rv__filters-body">
+            <div className="rv__filterchips" role="group" aria-label="Catégories de recueils">
+          <button
+            type="button"
+            className={`rv__chipbtn rv__chipbtn--all${filter === "all" ? " rv__chipbtn--active" : ""}`}
+            onClick={() => setFilter("all")}
+            aria-pressed={filter === "all"}
+          >
+            <div className="rv__chiprow">
+              <span className="rv__chiplabel">Tous les recueils</span>
+              <span className="rv__chipcount">{stats.total}</span>
+            </div>
+          </button>
+
+          {stats.nonLus > 0 && (
+            <button
+              type="button"
+              className={`rv__chipbtn rv__chipbtn--new${filter === "nouveau" ? " rv__chipbtn--active" : ""}`}
+              onClick={() => toggleFilter("nouveau")}
+              aria-pressed={filter === "nouveau"}
+            >
+              <div className="rv__chiprow">
+                <span className="rv__chiplabel">Non lus</span>
+                <span className="rv__chipcount">{stats.nonLus}</span>
+              </div>
+              <span className="rv__chipdesc">Pas encore consultés</span>
+            </button>
+          )}
+
+          {stats.rouge > 0 && (
+            <button
+              type="button"
+              className={`rv__chipbtn rv__chipbtn--r${filter === "rouge" ? " rv__chipbtn--active" : ""}`}
+              onClick={() => toggleFilter("rouge")}
+              aria-pressed={filter === "rouge"}
+            >
+              <div className="rv__chiprow">
+                <span className="rv__chiplabel">
+                  <i className="rv__chipdot" style={{ background: niveau.ROUGE.dot }} />
+                  Concerne {cfg.communeShort}
+                </span>
+                <span className="rv__chipcount">{stats.rouge}</span>
+              </div>
+              <span className="rv__chipdesc">Impact direct sur la commune</span>
+            </button>
+          )}
+
+          {stats.orange > 0 && (
+            <button
+              type="button"
+              className={`rv__chipbtn rv__chipbtn--o${filter === "orange" ? " rv__chipbtn--active" : ""}`}
+              onClick={() => toggleFilter("orange")}
+              aria-pressed={filter === "orange"}
+            >
+              <div className="rv__chiprow">
+                <span className="rv__chiplabel">
+                  <i className="rv__chipdot" style={{ background: niveau.ORANGE.dot }} />
+                  À surveiller
+                </span>
+                <span className="rv__chipcount">{stats.orange}</span>
+              </div>
+              <span className="rv__chipdesc">Périmètre élargi ou indirect</span>
+            </button>
+          )}
+            </div>
+
+            {filter !== "all" && (
+              <p className="rv__filteractive">
+                Filtre actif : <strong>{filterLabel}</strong>
+                {" "}— {filteredItems.length} recueil{filteredItems.length > 1 ? "s" : ""} affiché{filteredItems.length > 1 ? "s" : ""}
+              </p>
+            )}
+          </div>
+        )}
+      </section>
+
+      <div className="rv__toolbar">
+        {stats.horsPerimetre > 0 && (
+          <button
+            type="button"
+            className="rv__bulkhide"
+            onClick={masquerHorsPerimetre}
+            disabled={masquerBulkLoading || loading}
+            title={`Masquer les recueils sans lien avec ${cfg.communeShort} ni à surveiller`}
+          >
+            {masquerBulkLoading ? <Loader2 size={14} className="rv__spin" /> : <Trash2 size={14} />}
+            Retirer les recueils sans lien avec {cfg.communeShort} ({stats.horsPerimetre})
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -519,7 +750,16 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
       ) : groups.length === 0 ? (
         <div className="rv__empty">
           <Search size={20} />
-          <p>Aucun recueil pour {annee}. Le pipeline alimentera cette page dès la prochaine publication.</p>
+          <p>
+            {filter !== "all"
+              ? `Aucun recueil ne correspond au filtre « ${filterLabel} ».`
+              : `Aucun recueil pour ${annee}. Le pipeline alimentera cette page dès la prochaine publication.`}
+          </p>
+          {filter !== "all" && (
+            <button type="button" className="rv__btn" onClick={() => setFilter("all")}>
+              Afficher tous les recueils
+            </button>
+          )}
         </div>
       ) : (
         groups.map(([d, list]) => (
@@ -613,10 +853,9 @@ function Card({
               type="button"
               className="rv__vu"
               onClick={onMarquerVu}
-              title="Marquer comme lu"
-              aria-label="Marquer ce recueil comme lu"
+              title="Marquer ce recueil comme lu"
             >
-              <Check size={14} />
+              Recueil vu
             </button>
           )}
         </div>
@@ -764,13 +1003,65 @@ const CSS = `
 
 .rv__stat--new{color:#1a6fa8; font-weight:600;}
 
-.rv__stats{display:flex; align-items:center; flex-wrap:wrap; gap:.55rem; font-size:.82rem;
-  color:var(--muted); padding:.7rem .9rem; background:var(--surface); border:1px solid var(--border);
-  border-radius:.7rem; margin-bottom:1.75rem;}
-.rv__stats b{color:var(--text); font-weight:600;}
+.rv__overview{display:flex; align-items:center; flex-wrap:wrap; gap:.55rem; font-size:.82rem;
+  color:var(--muted); padding:.55rem .15rem; margin-bottom:.65rem;}
+.rv__overview b{color:var(--text); font-weight:600;}
+
+.rv__filters{padding:.75rem 1.05rem; background:var(--surface); border:1px solid var(--border);
+  border-radius:.85rem; margin-bottom:1rem;}
+.rv__filters--collapsed{padding:.65rem 1.05rem;}
+.rv__filters-head{display:flex; align-items:center; justify-content:space-between; gap:.75rem;}
+.rv__filters-toggle{flex:1; display:flex; align-items:flex-start; gap:.65rem; min-width:0;
+  padding:0; border:none; background:transparent; font:inherit; text-align:left; cursor:pointer;
+  color:inherit;}
+.rv__filters-toggle:hover .rv__filters-title{color:#1a6fa8;}
+.rv__filters-toggle-text{flex:1; min-width:0;}
+.rv__filters-icon{flex-shrink:0; margin-top:.15rem; color:var(--faint);}
+.rv__filters-title{display:block; font-size:.92rem; font-weight:600; margin:0 0 .15rem; color:var(--text);
+  transition:color .15s;}
+.rv__filters-hint,.rv__filters-summary{display:block; font-size:.8rem; color:var(--muted); margin:0; line-height:1.45;}
+.rv__filters-summary strong{font-weight:700; color:#1a5f8a;}
+.rv__filters-chev{flex-shrink:0; margin-top:.1rem; color:var(--faint); transition:transform .2s;}
+.rv__filters-chev--open{transform:rotate(180deg);}
+.rv__filters-body{margin-top:.85rem; padding-top:.85rem; border-top:1px solid var(--border);}
+.rv__filters-reset{flex-shrink:0; display:inline-flex; align-items:center; gap:.35rem;
+  padding:.4rem .7rem; border:1px solid var(--border); border-radius:.55rem; background:#fff;
+  font:inherit; font-size:.76rem; font-weight:600; color:var(--muted); cursor:pointer;
+  transition:border-color .15s, color .15s, background .15s;}
+.rv__filters-reset:hover{border-color:#b8d4f0; color:#1a6fa8; background:#f4f9fd;}
+
+.rv__filterchips{display:flex; flex-wrap:wrap; gap:.55rem;}
+.rv__chipbtn{display:flex; flex-direction:column; align-items:stretch; gap:.2rem;
+  min-width:10.5rem; flex:1 1 10.5rem; max-width:15rem; padding:.7rem .85rem;
+  border:1.5px solid var(--border); border-radius:.7rem; background:#fff; font:inherit;
+  text-align:left; cursor:pointer; transition:border-color .15s, background .15s, box-shadow .15s;}
+.rv__chipbtn:hover{border-color:#c8cdd4; box-shadow:0 2px 8px rgba(0,0,0,.06);}
+.rv__chipbtn--active{box-shadow:0 0 0 2px rgba(26,111,168,.12);}
+.rv__chipbtn--all{max-width:none; flex:1 1 100%;}
+.rv__chipbtn--all.rv__chipbtn--active{border-color:#9bb8d4; background:#f4f9fd;}
+.rv__chipbtn--new.rv__chipbtn--active{border-color:#8ec0e8; background:#eef6fc;}
+.rv__chipbtn--r.rv__chipbtn--active{border-color:#e8a8a0; background:#fff5f4;}
+.rv__chipbtn--o.rv__chipbtn--active{border-color:#e8c878; background:#fffaf0;}
+.rv__chiprow{display:flex; align-items:center; justify-content:space-between; gap:.5rem;}
+.rv__chiplabel{display:inline-flex; align-items:center; gap:.4rem; font-size:.84rem; font-weight:700; color:var(--text); line-height:1.25;}
+.rv__chipdesc{font-size:.72rem; color:var(--faint); line-height:1.35;}
+.rv__chipdot{display:inline-block; width:8px; height:8px; border-radius:50%; flex-shrink:0;}
+.rv__chipcount{flex-shrink:0; min-width:1.55rem; padding:.12rem .45rem; border-radius:999px;
+  background:#f0f1f3; font-size:.72rem; font-weight:700; color:var(--text); text-align:center;}
+.rv__chipbtn--new .rv__chipcount{background:#dbeefa; color:#1a6fa8;}
+.rv__chipbtn--r .rv__chipcount{background:#fde8e6; color:#c0392b;}
+.rv__chipbtn--o .rv__chipcount{background:#fef3d6; color:#9a6700;}
+.rv__filteractive{margin:.8rem 0 0; padding:.55rem .7rem; border-radius:.55rem;
+  background:#eef6fc; border:1px solid #cfe3f4; font-size:.8rem; color:#1a5f8a;}
+.rv__filteractive strong{font-weight:700;}
+
+.rv__toolbar{display:flex; align-items:center; flex-wrap:wrap; gap:.6rem; margin-bottom:1.25rem;}
+.rv__bulkhide{display:inline-flex; align-items:center; gap:.4rem; padding:.45rem .75rem;
+  border:1px solid #e8d4d4; border-radius:.6rem; background:#fff8f8; font:inherit; font-size:.78rem;
+  font-weight:600; color:#a94442; cursor:pointer; transition:border-color .15s, background .15s;}
+.rv__bulkhide:hover:not(:disabled){border-color:#d4a5a5; background:#fff0f0;}
+.rv__bulkhide:disabled{opacity:.6; cursor:default;}
 .rv__dot{width:3px; height:3px; border-radius:50%; background:#c8cbd0;}
-.rv__stat--r,.rv__stat--o{display:inline-flex; align-items:center; gap:.35rem; font-weight:500; color:var(--text);}
-.rv__stat--r i,.rv__stat--o i{width:8px; height:8px; border-radius:50%;}
 .rv__demo{margin-left:auto; font-size:.72rem; color:#b07a00; background:#fff6e0;
   padding:.2rem .55rem; border-radius:.5rem; font-weight:500;}
 
@@ -783,9 +1074,11 @@ const CSS = `
   transition:box-shadow .15s, border-color .15s; box-shadow:0 1px 3px rgba(0,0,0,.04);}
 .rv__card:hover{box-shadow:0 2px 10px rgba(0,0,0,.07);}
 .rv__card--muted{background:var(--surface);}
-.rv__card--new{border-color:#b8d4f0; box-shadow:0 0 0 1px rgba(26,111,168,.08);}
+.rv__card--new{background:#eef6fc; border-color:#b8d4f0; box-shadow:0 0 0 1px rgba(26,111,168,.1);}
 .rv__card--r{border-color:#f3c6c0;}
 .rv__card--o{border-color:#f6e0b8;}
+.rv__card--new.rv__card--r{background:#fff8f7;}
+.rv__card--new.rv__card--o{background:#fffbf5;}
 .rv__bar{flex-shrink:0; width:4px;}
 .rv__cardmain{flex:1; min-width:0; padding:.95rem 1.05rem;}
 .rv__cardtop{display:flex; justify-content:space-between; gap:1rem;}
@@ -802,8 +1095,9 @@ const CSS = `
 .rv__size{color:var(--faint); margin-left:.1rem;}
 
 .rv__vu{flex-shrink:0; display:inline-flex; align-items:center; justify-content:center;
-  width:1.75rem; height:1.75rem; border:1px solid #b8d4f0; border-radius:.45rem;
-  background:#e8f4fd; color:#1a6fa8; cursor:pointer; transition:background .15s, border-color .15s;}
+  padding:.35rem .7rem; border:1px solid #b8d4f0; border-radius:.45rem;
+  background:#e8f4fd; color:#1a6fa8; font:inherit; font-size:.76rem; font-weight:700;
+  cursor:pointer; transition:background .15s, border-color .15s; white-space:nowrap;}
 .rv__vu:hover{background:#d4ebfa; border-color:#1a6fa8;}
 
 .rv__resume{font-size:.88rem; line-height:1.55; color:var(--muted); margin:.6rem 0 .2rem;}
@@ -877,6 +1171,10 @@ const CSS = `
   .rv__head{flex-direction:column;}
   .rv__head-actions{width:100%;}
   .rv__title{font-size:1.4rem;}
+  .rv__filters-head{flex-wrap:wrap;}
+  .rv__filters-reset{width:100%; justify-content:center;}
+  .rv__chipbtn{min-width:calc(50% - .3rem); flex:1 1 calc(50% - .3rem); max-width:none;}
+  .rv__chipbtn--all{flex-basis:100%;}
 }
 @media (prefers-reduced-motion:reduce){
   .rv__spin,.rv__skelcard{animation:none;}
