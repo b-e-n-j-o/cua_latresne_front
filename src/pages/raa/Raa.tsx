@@ -572,7 +572,7 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
       <header className="rv__head">
         <div>
           <div className="rv__eyebrow">{cfg.departementLabel} · {cfg.communeLabel}</div>
-          <h1 className="rv__title">Veille réglementaire sur les Recueils des Actes Administratifs des Pyrenées-Orientales</h1>
+          <h1 className="rv__title">Veille réglementaire sur les Recueils des Actes Administratifs {cfg.departementLabelTitle}</h1>
           <p className="rv__sub">
             Recueils des actes administratifs de la préfecture, synchronisés et analysés chaque matin.
             Les recueils non encore consultés sont signalés comme nouveaux.

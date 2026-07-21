@@ -6,6 +6,8 @@ export type RaaCommuneConfig = {
   slug: RaaCommuneSlug;
   communeLabel: string;
   departementLabel: string;
+  /** Libellé prêt à l'emploi dans le titre (ex. « des Pyrénées-Orientales »). */
+  departementLabelTitle: string;
   /** Libellé court pour les badges (ex. « Argelès citée ») */
   communeShort: string;
   /** Libellé niveau ROUGE (ex. « Concerne Argelès ») */
@@ -17,6 +19,7 @@ export const RAA_COMMUNES: Record<RaaCommuneSlug, RaaCommuneConfig> = {
     slug: "argeles",
     communeLabel: "Argelès-sur-Mer",
     departementLabel: "Pyrénées-Orientales",
+    departementLabelTitle: "des Pyrénées-Orientales",
     communeShort: "Argelès",
     niveauRougeLabel: "Concerne Argelès",
   },
@@ -24,6 +27,7 @@ export const RAA_COMMUNES: Record<RaaCommuneSlug, RaaCommuneConfig> = {
     slug: "latresne",
     communeLabel: "Latresne",
     departementLabel: "Gironde",
+    departementLabelTitle: "de la Gironde",
     communeShort: "Latresne",
     niveauRougeLabel: "Concerne Latresne",
   },
