@@ -52,7 +52,7 @@ export default function SignupForm() {
       <form onSubmit={submit} className="mt-4 grid gap-3">
         <input
           type="email"
-          placeholder="prenom.nom@mairie-latresne.fr"
+          placeholder="Votre adresse mail professionnelle"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           className="w-full rounded-xl border px-3 py-2 focus:border-[#2E6E62] focus:ring-1 focus:ring-[#2E6E62] outline-none"
