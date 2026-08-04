@@ -52,7 +52,7 @@ export default function SignupForm() {
       <form onSubmit={submit} className="mt-4 grid gap-3">
         <input
           type="email"
-          placeholder="prenom.nom@ville-argelessurmer.fr"
+          placeholder="prenom.nom@mairie-latresne.fr"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           className="w-full rounded-xl border px-3 py-2 focus:border-[#2E6E62] focus:ring-1 focus:ring-[#2E6E62] outline-none"
@@ -87,11 +87,16 @@ export default function SignupForm() {
 
 function traduireErreurSignup(raw?: string): string {
   if (!raw) return "Échec de la création du compte. Réessayez.";
-  // Message remonté par ton trigger handle_new_user
-  if (raw.toLowerCase().includes("domaine non autorisé")) {
-    return "Cette adresse n'appartient pas à une collectivité autorisée. Contactez Kerelia.";
+  const lower = raw.toLowerCase();
+  // Message remonté par le trigger handle_new_user (domaine absent de commune_domains)
+  if (
+    lower.includes("domaine non autorisé") ||
+    lower.includes("not allowed") ||
+    lower.includes("database error saving new user")
+  ) {
+    return "Cette adresse e-mail n'est pas autorisée à créer un compte.";
   }
-  if (raw.toLowerCase().includes("already registered") || raw.toLowerCase().includes("already been registered")) {
+  if (lower.includes("already registered") || lower.includes("already been registered")) {
     return "Un compte existe déjà avec cette adresse. Connectez-vous.";
   }
   return raw;
