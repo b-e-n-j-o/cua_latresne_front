@@ -853,9 +853,9 @@ function Card({
               type="button"
               className="rv__vu"
               onClick={onMarquerVu}
-              title="Marquer ce recueil comme lu"
+              title="Marquer comme lu"
             >
-              Recueil vu
+              Marquer comme lu
             </button>
           )}
         </div>
