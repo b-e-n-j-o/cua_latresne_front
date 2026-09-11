@@ -14,12 +14,18 @@ export type GenerateArgelesCuaOptions = {
   persist?: boolean;
 };
 
+const NUMERO_CU_MAX_LEN = 80;
+
+function clipNumeroCu(value: string): string {
+  return value.trim().slice(0, NUMERO_CU_MAX_LEN);
+}
+
 function buildAutoNumeroCu(refs: ArgelesCuaParcelleRef[]): string {
   const parcelPart = refs
     .map((p) => `${p.section.trim().toUpperCase()}${p.numero.trim()}`)
     .filter(Boolean)
     .join("+");
-  return parcelPart ? `CU-${parcelPart}` : `CU-${Date.now()}`;
+  return clipNumeroCu(parcelPart ? `CU-${parcelPart}` : `CU-${Date.now()}`);
 }
 
 export type GenerateArgelesCuaSuccess = {
@@ -49,7 +55,7 @@ export async function generateArgelesCua(
   options: GenerateArgelesCuaOptions,
 ): Promise<GenerateArgelesCuaSuccess> {
   const slug = (options.communeSlug ?? "argeles").trim().toLowerCase();
-  const numeroCu = options.numeroCu?.trim() || buildAutoNumeroCu(options.refs);
+  const numeroCu = clipNumeroCu(options.numeroCu?.trim() || buildAutoNumeroCu(options.refs));
   const demandeur = options.demandeurNom?.trim();
 
   const response = await apiFetch(`/communes/${slug}/cua/generate`, {

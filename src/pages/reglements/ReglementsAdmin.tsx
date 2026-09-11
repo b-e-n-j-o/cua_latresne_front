@@ -7,6 +7,7 @@ import { Link, Navigate } from "react-router-dom";
 import supabase from "../../supabaseClient";
 import { fetchCommuneAccess } from "../../auth/communeAccess";
 import { ReglementsEditor } from "./ReglementsParCommune";
+import AdminLayout from "../admin/AdminLayout";
 
 const API_BASE = (import.meta.env.VITE_API_BASE || "http://localhost:8000").replace(/\/$/, "");
 
@@ -74,7 +75,7 @@ export default function ReglementsAdminPage() {
       })
       .then((data) => {
         if (!mounted) return;
-        setCatalogues(data);
+        setCatalogues(Array.isArray(data) ? data : []);
         const first =
           data.find((c) => c.enabled)?.commune_slug || data[0]?.commune_slug || "";
         setSelectedSlug((prev) => prev || first);
@@ -99,9 +100,11 @@ export default function ReglementsAdminPage() {
 
   if (authLoading) {
     return (
-      <div className="reglements-admin-page">
-        <p className="reglements-admin-muted">Vérification des droits…</p>
-      </div>
+      <AdminLayout>
+        <div className="reglements-admin-page">
+          <p className="reglements-admin-muted">Vérification des droits…</p>
+        </div>
+      </AdminLayout>
     );
   }
 
@@ -110,6 +113,7 @@ export default function ReglementsAdminPage() {
   }
 
   return (
+    <AdminLayout>
     <div className="reglements-admin-page">
       <style>{PAGE_CSS}</style>
 
@@ -123,7 +127,6 @@ export default function ReglementsAdminPage() {
           </p>
         </div>
         <nav className="reglements-admin-nav">
-          <Link to="/admin">Admin général</Link>
           <Link to="/history">Historique</Link>
         </nav>
       </header>
@@ -166,13 +169,14 @@ export default function ReglementsAdminPage() {
         </>
       )}
     </div>
+    </AdminLayout>
   );
 }
 
 const PAGE_CSS = `
 .reglements-admin-page{
-  min-height:100vh; background:#f4f4f4; padding:24px 28px 40px;
-  font-family:"Kerelia Sans","Inter",system-ui,sans-serif; color:#111;
+  min-height:100%; background:#f4f6f8; padding:24px 28px 40px;
+  color:#0b131f;
 }
 .reglements-admin-header{
   display:flex; justify-content:space-between; align-items:flex-start; gap:20px;
@@ -190,7 +194,7 @@ const PAGE_CSS = `
 .reglements-admin-muted,.reglements-admin-error{padding:12px 0; font-size:14px;}
 .reglements-admin-error{color:#c0362c;}
 .reglements-admin-toolbar{
-  margin-bottom:12px; padding:12px 16px; background:#fff; border:1px solid #e8e8e8;
+  margin-bottom:12px; padding:12px 16px; background:#fff; border:1px solid #d5e1e3;
   border-radius:12px; display:flex; align-items:center; gap:12px;
 }
 .reglements-admin-picker{display:inline-flex; align-items:center; gap:10px;}

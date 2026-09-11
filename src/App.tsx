@@ -8,7 +8,7 @@ import LandingPage from "./pages/website/landingpage/LandingPage";
 import LandingPageDev from "./pages/website/landingpage_dev/LandingPage";
 import RedirectSlugPage from "./routes/RedirectSlugPage";
 import HistoryPanel from "./HistoryPanel";
-import AdminPage from "./routes/AdminPage";
+import { AdminMonitoringPage } from "./pages/admin";
 import ReglementsAdminPage from "./pages/reglements/ReglementsAdmin";
 import CuaViewer from "./routes/CuaViewer";
 import PluChat from "./pages/plu-chat/PluChat";
@@ -114,7 +114,8 @@ export default function App() {
     <AuthGate>
       <Routes>
         <Route path="/history" element={<HistoryPage />} />
-        <Route path="/admin" element={<AdminPage />} />
+        <Route path="/admin" element={<AdminMonitoringPage />} />
+        <Route path="/admin/db" element={<Navigate to="/admin" replace />} />
         <Route path="/admin/reglement" element={<ReglementsAdminPage />} />
         <Route path="/markdown" element={<MarkdownBatchPage />} />
         {/* Ancien portail démo — distinct du portail commune /:commune/outil */}
