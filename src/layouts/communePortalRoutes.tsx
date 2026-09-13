@@ -136,7 +136,7 @@ function CommuneToolUnavailable({ tool }: { tool: "cua" | "chat" | "reglements" 
         : tool === "reglements"
           ? "Règlements"
           : tool === "raa"
-            ? "Veille réglementaire"
+            ? "Veille des arrêtés RAA"
             : "Documents officiels";
   const fallback = portal && isCommunePortalSlug(communeSlug) ? defaultToolPath(communeSlug) : "/";
 

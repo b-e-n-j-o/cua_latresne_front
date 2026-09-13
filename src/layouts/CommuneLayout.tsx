@@ -18,7 +18,7 @@ const TOOL_META: Record<
   chat: { segment: "chat", title: "Assistant PLU", Icon: MessageSquare },
   reglements: { segment: "reglements", title: "Règlements", Icon: BookOpen },
   documents: { segment: "documents", title: "Documents officiels Géoportail", Icon: FileStack },
-  raa: { segment: "raa", title: "Veille réglementaire", Icon: Newspaper },
+  raa: { segment: "raa", title: "Veille des arrêtés RAA", Icon: Newspaper },
 };
 
 export default function CommuneLayout() {

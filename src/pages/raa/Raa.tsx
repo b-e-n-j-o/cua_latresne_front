@@ -1,14 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
-  RefreshCw, ExternalLink, FileText, ChevronDown,
-  AlertTriangle, Loader2, MapPin, Search, EyeOff, Trash2, Filter, X,
+  RefreshCw, AlertTriangle, ArrowRight, ChevronDown, Loader2, Search,
 } from "lucide-react";
-import { getRaaConfig, normaliseArreteNature, type ArreteNature, type RaaCommuneConfig } from "./raaConfig";
+import { getRaaConfig, type RaaCommuneConfig } from "./raaConfig";
 import VeilleCadastre from "./VeilleCadastre";
+import RaaDetailDrawer from "./RaaDetailDrawer";
+import {
+  buildNiveau,
+  fmtJourCourt,
+  fmtMois,
+  importanceStatus,
+  isNouveau,
+  monthKey,
+  type RaaItem,
+} from "./raaShared";
 
 /* ------------------------------------------------------------------ *
- *  Veille réglementaire RAA — multi-commune (slug portail)
+ *  Veille des arrêtés RAA — multi-commune (slug portail)
  *  GET  {API_BASE}/{slug}/raa?annee=YYYY
  *  GET  {API_BASE}/{slug}/raa/{id}
  *  POST {API_BASE}/{slug}/raa/sync
@@ -21,97 +30,6 @@ const API_BASE = (import.meta.env.VITE_API_BASE || "http://localhost:8000").repl
 /** Un seul GET liste toutes les 5 s tant qu'au moins un recueil est en_cours (batch inclus). */
 const POLL_MS = 5000;
 const POLL_MAX = 90;
-
-type RaaFilter = "all" | "rouge" | "orange" | "nouveau";
-
-type RaaItem = {
-  id: number;
-  titre: string;
-  date_publication?: string;
-  pdf_url: string;
-  page_url: string;
-  taille_mo?: number;
-  statut: string;
-  vu?: boolean;
-  niveau_alerte?: string | null;
-  nb_arretes_total?: number;
-  nb_arretes_pertinents?: number;
-  commune_mentionnee?: boolean;
-  resume_global?: string;
-  erreur?: string | null;
-  arretes?: RaaArrete[];
-};
-
-type RaaArrete = {
-  titre: string;
-  reference?: string;
-  pertinence?: string;
-  nature?: ArreteNature | string;
-  raison?: string;
-  resume?: string;
-  pages?: string;
-};
-
-function natureMeta(n?: string | null) {
-  const key = normaliseArreteNature(n);
-  switch (key) {
-    case "URBANISME":
-      return { key, label: "Urbanisme", className: "rv__nature--urba" };
-    case "ENVIRONNEMENT":
-      return { key, label: "Environnement", className: "rv__nature--env" };
-    case "EVENEMENT":
-      return { key, label: "Événement", className: "rv__nature--evt" };
-    default:
-      return { key: "AUTRE" as const, label: "Autre", className: "rv__nature--autre" };
-  }
-}
-
-const PERTINENCE_ORDER: Record<string, number> = {
-  DIRECTE: 0,
-  INDIRECTE: 1,
-  POSSIBLE: 2,
-  NON_PERTINENT: 3,
-};
-
-function pertinenceMeta(p: string | undefined) {
-  switch (p) {
-    case "DIRECTE":
-      return { dot: "#E74C3C", label: "Directe", hint: "Concerne explicitement la commune" };
-    case "INDIRECTE":
-      return { dot: "#F39C12", label: "Indirecte", hint: "Périmètre incluant la commune" };
-    case "POSSIBLE":
-      return { dot: "#9b59b6", label: "Possible", hint: "Périmètre large — à vérifier" };
-    default:
-      return { dot: "#b9bcc2", label: p || "Non pertinent", hint: "Hors périmètre ou administratif" };
-  }
-}
-
-function sortArretes(arretes: RaaArrete[]) {
-  return [...arretes].sort((a, b) => {
-    const oa = PERTINENCE_ORDER[a.pertinence ?? ""] ?? 99;
-    const ob = PERTINENCE_ORDER[b.pertinence ?? ""] ?? 99;
-    return oa - ob;
-  });
-}
-
-type NiveauMeta = { dot: string; label: string };
-
-function buildNiveau(cfg: RaaCommuneConfig): Record<string, NiveauMeta> {
-  return {
-    ROUGE: { dot: "#E74C3C", label: cfg.niveauRougeLabel },
-    ORANGE: { dot: "#F39C12", label: "À surveiller" },
-    VERT: { dot: "#cfd4cd", label: "Rien de notable" },
-  };
-}
-
-const fmtJour = (iso?: string) => {
-  if (!iso) return "Date inconnue";
-  const d = new Date(iso + "T00:00:00");
-  const s = new Intl.DateTimeFormat("fr-FR", {
-    weekday: "long", day: "numeric", month: "long", year: "numeric",
-  }).format(d);
-  return s.charAt(0).toUpperCase() + s.slice(1);
-};
 
 function buildDemo(cfg: RaaCommuneConfig): RaaItem[] {
   const c = cfg.communeLabel;
@@ -187,7 +105,7 @@ export default function VeilleRaaPage({ communeSlug }: VeilleRaaPageProps) {
   };
 
   return (
-    <div className="rv">
+    <div className={`rv${onglet === "cadastre" ? " rv--scroll" : ""}`}>
       <style>{CSS}</style>
       <nav className="rv__subnav" aria-label="Sous-onglets de la veille">
         <button
@@ -195,7 +113,7 @@ export default function VeilleRaaPage({ communeSlug }: VeilleRaaPageProps) {
           className={`rv__subnavbtn${onglet === "raa" ? " rv__subnavbtn--active" : ""}`}
           onClick={() => setOnglet("raa")}
         >
-          Recueils (RAA)
+          Arrêtés RAA
         </button>
         <button
           type="button"
@@ -220,14 +138,11 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [resetting, setResetting] = useState(false);
-  const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [demo, setDemo] = useState(false);
-  const [open, setOpen] = useState<Set<number>>(() => new Set());
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [detailLoading, setDetailLoading] = useState<Set<number>>(() => new Set());
   const [masquerLoading, setMasquerLoading] = useState<Set<number>>(() => new Set());
-  const [filter, setFilter] = useState<RaaFilter>("all");
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [masquerBulkLoading, setMasquerBulkLoading] = useState(false);
+  const [openMonths, setOpenMonths] = useState<Set<string>>(() => new Set());
   const listPoller = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollTicks = useRef(0);
 
@@ -339,24 +254,35 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
     }
   };
 
-  const toggleDetail = async (id: number) => {
-    const willOpen = !open.has(id);
-    setOpen((s) => {
-      const n = new Set(s);
-      if (willOpen) n.add(id);
-      else n.delete(id);
-      return n;
-    });
-    if (!willOpen || demo) return;
+  const selectItem = (id: number) => {
+    setSelectedId(id);
     const item = items.find((i) => i.id === id);
+    if (!item) return;
     if (
-      item?.statut === "analyse"
+      !demo
+      && item.statut === "analyse"
       && !(item.arretes?.length)
       && (item.nb_arretes_total ?? 0) > 0
     ) {
-      await fetchDetail(id);
+      void fetchDetail(id);
     }
   };
+
+  const closeDetail = () => setSelectedId(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeDetail();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  useEffect(() => {
+    if (selectedId != null && !items.some((it) => it.id === selectedId)) {
+      setSelectedId(null);
+    }
+  }, [items, selectedId]);
 
   const demoAnalyse = (id: number) => {
     patch(id, { statut: "en_cours", erreur: null });
@@ -377,17 +303,12 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
       await fetch(`${raaBase}/${id}/analyser`, { method: "POST" });
     } catch {
       patch(id, { statut: "erreur", erreur: "Impossible de joindre le serveur." });
-      return;
     }
   };
 
   const remove = (id: number) => {
     setItems((prev) => prev.filter((it) => it.id !== id));
-    setOpen((s) => {
-      const n = new Set(s);
-      n.delete(id);
-      return n;
-    });
+    setSelectedId((cur) => (cur === id ? null : cur));
   };
 
   const masquer = async (id: number) => {
@@ -425,9 +346,8 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
 
   const lancerVeille = async () => {
     if (syncing) return;
-    setSyncMsg(null);
     if (demo) {
-      setSyncMsg("Mode démo — la synchronisation nécessite le backend.");
+      window.alert("Mode démo — la synchronisation nécessite le backend.");
       return;
     }
     setSyncing(true);
@@ -437,80 +357,76 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
         const err = await r.json().catch(() => null);
         throw new Error(err?.detail || `Erreur ${r.status}`);
       }
-      const data = await r.json();
-      setSyncMsg(data.message || "Synchronisation lancée.");
       await load({ silent: true });
     } catch (e) {
-      setSyncMsg(e instanceof Error ? e.message : "Échec de la synchronisation.");
+      window.alert(e instanceof Error ? e.message : "Échec de la synchronisation.");
     } finally {
       setSyncing(false);
     }
   };
 
-  const isNouveau = (it: RaaItem) => it.statut === "analyse" && it.vu === false;
-  const isConcerne = (it: RaaItem) => it.statut === "analyse" && it.niveau_alerte === "ROUGE";
-  const isASurveiller = (it: RaaItem) => it.statut === "analyse" && it.niveau_alerte === "ORANGE";
-  const isHorsPerimetre = (it: RaaItem) =>
-    it.statut === "analyse" && it.niveau_alerte !== "ROUGE" && it.niveau_alerte !== "ORANGE";
+  const monthGroups = useMemo(() => {
+    const byMonth: Record<string, Record<string, RaaItem[]>> = {};
+    for (const it of items) {
+      const day = it.date_publication || "";
+      const month = monthKey(day);
+      ((byMonth[month] ||= {})[day] ||= []).push(it);
+    }
+    return Object.entries(byMonth)
+      .sort((a, b) => (a[0] < b[0] ? 1 : -1))
+      .map(([month, days]) => ({
+        key: month,
+        label: fmtMois(month),
+        count: Object.values(days).reduce((n, list) => n + list.length, 0),
+        days: Object.entries(days)
+          .sort((a, b) => (a[0] < b[0] ? 1 : -1))
+          .map(([d, list]) => [
+            d,
+            [...list].sort((a, b) => (isNouveau(a) ? 0 : 1) - (isNouveau(b) ? 0 : 1)),
+          ] as [string, RaaItem[]]),
+      }));
+  }, [items]);
 
-  const toggleFilter = (next: RaaFilter) => {
-    setFilter((prev) => (prev === next ? "all" : next));
+  useEffect(() => {
+    if (monthGroups.length === 0) return;
+    setOpenMonths((prev) => (prev.size > 0 ? prev : new Set([monthGroups[0].key])));
+  }, [monthGroups]);
+
+  useEffect(() => {
+    if (selectedId == null) return;
+    const key = monthKey(items.find((it) => it.id === selectedId)?.date_publication);
+    if (!key) return;
+    setOpenMonths((prev) => {
+      if (prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
+  }, [selectedId, items]);
+
+  const toggleMonth = (key: string) => {
+    setOpenMonths((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   };
 
-  const filteredItems = useMemo(() => {
-    switch (filter) {
-      case "rouge":
-        return items.filter(isConcerne);
-      case "orange":
-        return items.filter(isASurveiller);
-      case "nouveau":
-        return items.filter(isNouveau);
-      default:
-        return items;
-    }
-  }, [items, filter]);
-
-  const groups = useMemo(() => {
-    const by: Record<string, RaaItem[]> = {};
-    for (const it of filteredItems) (by[it.date_publication || ""] ||= []).push(it);
-    return Object.entries(by)
-      .sort((a, b) => (a[0] < b[0] ? 1 : -1))
-      .map(([d, list]) => [
-        d,
-        [...list].sort((a, b) => {
-          const na = isNouveau(a) ? 0 : 1;
-          const nb = isNouveau(b) ? 0 : 1;
-          return na - nb;
-        }),
-      ] as [string, RaaItem[]]);
-  }, [filteredItems]);
-
-  const stats = useMemo(() => {
-    const a = items.filter((i) => i.statut === "analyse");
-    return {
-      total: items.length,
-      analyses: a.length,
-      nonLus: a.filter((i) => i.vu === false).length,
-      rouge: a.filter((i) => i.niveau_alerte === "ROUGE").length,
-      orange: a.filter((i) => i.niveau_alerte === "ORANGE").length,
-      horsPerimetre: items.filter(isHorsPerimetre).length,
-      bloques: items.filter((i) => i.statut === "en_cours" || i.statut === "erreur").length,
-    };
-  }, [items]);
+  const nbBloques = useMemo(
+    () => items.filter((i) => i.statut === "en_cours" || i.statut === "erreur").length,
+    [items],
+  );
 
   const reinitialiserBloques = async () => {
     if (resetting) return;
-    setSyncMsg(null);
     if (demo) {
-      setSyncMsg("Mode démo — action indisponible sans backend.");
+      window.alert("Mode démo — action indisponible sans backend.");
       return;
     }
-    if (stats.bloques === 0) {
-      setSyncMsg("Aucun recueil bloqué à réinitialiser.");
-      return;
-    }
+    if (nbBloques === 0) return;
     const ok = window.confirm(
-      `${stats.bloques} recueil(s) bloqué(s) en analyse ou en erreur vont être relancés.\n\n`
+      `${nbBloques} recueil(s) bloqué(s) en analyse ou en erreur vont être relancés.\n\n`
       + "Les recueils déjà analysés avec succès ne seront pas modifiés.",
     );
     if (!ok) return;
@@ -523,93 +439,30 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
         throw new Error(err?.detail || `Erreur ${r.status}`);
       }
       const data = await r.json();
-      setSyncMsg(data.message || "Réinitialisation effectuée.");
       await load({ silent: true });
       if ((data.analyses_lancees ?? []).length === 0 && (data.nb_reinitialises ?? 0) > 0) {
         const r2 = await fetch(`${raaBase}/analyser-en-attente`, { method: "POST" });
-        if (r2.ok) {
-          const d2 = await r2.json();
-          setSyncMsg(d2.message || data.message);
-          await load({ silent: true });
-        }
+        if (r2.ok) await load({ silent: true });
       }
     } catch (e) {
-      setSyncMsg(e instanceof Error ? e.message : "Échec de la réinitialisation.");
+      window.alert(e instanceof Error ? e.message : "Échec de la réinitialisation.");
     } finally {
       setResetting(false);
     }
   };
 
-  const masquerHorsPerimetre = async () => {
-    const toHide = items.filter(isHorsPerimetre);
-    if (toHide.length === 0) {
-      setSyncMsg(`Aucun recueil sans lien avec ${cfg.communeShort} à retirer.`);
-      return;
-    }
-    const ok = window.confirm(
-      `Retirer ${toHide.length} recueil(s) sans lien direct avec ${cfg.communeShort} ?\n\n`
-      + "Seuls les recueils « Rien de notable » seront masqués. "
-      + "Les recueils concernant la commune ou à surveiller seront conservés.\n\n"
-      + "Les recueils masqués restent en base (pas de réanalyse ultérieure).",
-    );
-    if (!ok) return;
-
-    if (demo) {
-      toHide.forEach((it) => remove(it.id));
-      setSyncMsg(`${toHide.length} recueil(s) retiré(s) (mode démo).`);
-      return;
-    }
-
-    setMasquerBulkLoading(true);
-    setSyncMsg(null);
-    let okCount = 0;
-    try {
-      for (const it of toHide) {
-        const r = await fetch(`${raaBase}/${it.id}/masquer`, { method: "POST" });
-        if (r.ok) {
-          remove(it.id);
-          okCount += 1;
-        }
-      }
-      setSyncMsg(
-        okCount === toHide.length
-          ? `${okCount} recueil(s) hors périmètre retiré(s) de la veille.`
-          : `${okCount}/${toHide.length} recueil(s) retiré(s).`,
-      );
-    } catch {
-      setSyncMsg("Échec partiel du nettoyage — réessayez.");
-    } finally {
-      setMasquerBulkLoading(false);
-    }
-  };
-
-  const filterLabel = useMemo(() => {
-    switch (filter) {
-      case "rouge":
-        return `Concerne ${cfg.communeShort}`;
-      case "orange":
-        return "À surveiller";
-      case "nouveau":
-        return "Non lus";
-      default:
-        return null;
-    }
-  }, [filter, cfg.communeShort]);
+  const selected = selectedId == null ? null : items.find((it) => it.id === selectedId) ?? null;
 
   return (
-    <>
+    <div className="rv__page">
       <header className="rv__head">
         <div>
           <div className="rv__eyebrow">{cfg.departementLabel} · {cfg.communeLabel}</div>
-          <h1 className="rv__title">Veille réglementaire sur les Recueils des Actes Administratifs {cfg.departementLabelTitle}</h1>
-          <p className="rv__sub">
-            Recueils des actes administratifs de la préfecture, synchronisés et analysés chaque matin.
-            Les recueils non encore consultés sont signalés comme nouveaux.
-          </p>
-          {syncMsg && <p className="rv__syncmsg">{syncMsg}</p>}
+          <h1 className="rv__title">Veille des arrêtés RAA</h1>
+          {demo && <p className="rv__demo">mode démo — backend non connecté</p>}
         </div>
         <div className="rv__head-actions">
-          {stats.bloques > 0 && (
+          {nbBloques > 0 && (
             <button
               type="button"
               className="rv__refresh rv__refresh--warn"
@@ -618,7 +471,7 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
               title="Débloquer les analyses coincées ou en erreur et les relancer"
             >
               {resetting ? <Loader2 size={15} className="rv__spin" /> : <AlertTriangle size={15} />}
-              {resetting ? "Relance…" : `Relancer ${stats.bloques} bloqué(s)`}
+              {resetting ? "Relance…" : `Relancer ${nbBloques} bloqué(s)`}
             </button>
           )}
           <button
@@ -634,374 +487,117 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
         </div>
       </header>
 
-      <div className="rv__overview">
-        <span><b>{stats.total}</b> recueils au total</span>
-        <span className="rv__dot" />
-        <span><b>{stats.analyses}</b> analysés</span>
-        {demo && <span className="rv__demo">mode démo — backend non connecté</span>}
-      </div>
-
-      <section
-        className={`rv__filters${filtersOpen ? "" : " rv__filters--collapsed"}`}
-        aria-label="Filtres des recueils"
-      >
-        <div className="rv__filters-head">
-          <button
-            type="button"
-            className="rv__filters-toggle"
-            onClick={() => setFiltersOpen((o) => !o)}
-            aria-expanded={filtersOpen}
-          >
-            <Filter size={16} className="rv__filters-icon" aria-hidden />
-            <div className="rv__filters-toggle-text">
-              <span className="rv__filters-title">Filtrer les recueils</span>
-              {filtersOpen ? (
-                <span className="rv__filters-hint">
-                  Cliquez sur une catégorie pour n&apos;afficher que les recueils qui vous intéressent.
-                </span>
-              ) : filter !== "all" ? (
-                <span className="rv__filters-summary">
-                  Filtre actif : <strong>{filterLabel}</strong>
-                  {" "}({filteredItems.length} affiché{filteredItems.length > 1 ? "s" : ""})
-                </span>
-              ) : (
-                <span className="rv__filters-summary">Afficher par catégorie — cliquer pour déplier</span>
-              )}
-            </div>
-            <ChevronDown size={18} className={`rv__filters-chev${filtersOpen ? " rv__filters-chev--open" : ""}`} />
-          </button>
-          {filter !== "all" && (
-            <button
-              type="button"
-              className="rv__filters-reset"
-              onClick={() => setFilter("all")}
-            >
-              <X size={14} />
-              Tout afficher
-            </button>
-          )}
-        </div>
-
-        {filtersOpen && (
-          <div className="rv__filters-body">
-            <div className="rv__filterchips" role="group" aria-label="Catégories de recueils">
-          <button
-            type="button"
-            className={`rv__chipbtn rv__chipbtn--all${filter === "all" ? " rv__chipbtn--active" : ""}`}
-            onClick={() => setFilter("all")}
-            aria-pressed={filter === "all"}
-          >
-            <div className="rv__chiprow">
-              <span className="rv__chiplabel">Tous les recueils</span>
-              <span className="rv__chipcount">{stats.total}</span>
-            </div>
-          </button>
-
-          {stats.nonLus > 0 && (
-            <button
-              type="button"
-              className={`rv__chipbtn rv__chipbtn--new${filter === "nouveau" ? " rv__chipbtn--active" : ""}`}
-              onClick={() => toggleFilter("nouveau")}
-              aria-pressed={filter === "nouveau"}
-            >
-              <div className="rv__chiprow">
-                <span className="rv__chiplabel">Non lus</span>
-                <span className="rv__chipcount">{stats.nonLus}</span>
+      <div className={`rv__workspace${selected ? " rv__workspace--open" : ""}`}>
+        <section className="rv__listpane" aria-label="Liste des recueils">
+          <div className="rv__list">
+            {loading ? (
+              <div className="rv__skel">{[0, 1, 2, 3, 4].map((i) => <div key={i} className="rv__skelcard" />)}</div>
+            ) : monthGroups.length === 0 ? (
+              <div className="rv__empty">
+                <Search size={20} />
+                <p>Aucun recueil pour {annee}. Le pipeline alimentera cette page dès la prochaine publication.</p>
               </div>
-              <span className="rv__chipdesc">Pas encore consultés</span>
-            </button>
-          )}
-
-          {stats.rouge > 0 && (
-            <button
-              type="button"
-              className={`rv__chipbtn rv__chipbtn--r${filter === "rouge" ? " rv__chipbtn--active" : ""}`}
-              onClick={() => toggleFilter("rouge")}
-              aria-pressed={filter === "rouge"}
-            >
-              <div className="rv__chiprow">
-                <span className="rv__chiplabel">
-                  <i className="rv__chipdot" style={{ background: niveau.ROUGE.dot }} />
-                  Concerne {cfg.communeShort}
-                </span>
-                <span className="rv__chipcount">{stats.rouge}</span>
-              </div>
-              <span className="rv__chipdesc">Impact direct sur la commune</span>
-            </button>
-          )}
-
-          {stats.orange > 0 && (
-            <button
-              type="button"
-              className={`rv__chipbtn rv__chipbtn--o${filter === "orange" ? " rv__chipbtn--active" : ""}`}
-              onClick={() => toggleFilter("orange")}
-              aria-pressed={filter === "orange"}
-            >
-              <div className="rv__chiprow">
-                <span className="rv__chiplabel">
-                  <i className="rv__chipdot" style={{ background: niveau.ORANGE.dot }} />
-                  À surveiller
-                </span>
-                <span className="rv__chipcount">{stats.orange}</span>
-              </div>
-              <span className="rv__chipdesc">Périmètre élargi ou indirect</span>
-            </button>
-          )}
-            </div>
-
-            {filter !== "all" && (
-              <p className="rv__filteractive">
-                Filtre actif : <strong>{filterLabel}</strong>
-                {" "}— {filteredItems.length} recueil{filteredItems.length > 1 ? "s" : ""} affiché{filteredItems.length > 1 ? "s" : ""}
-              </p>
+            ) : (
+              monthGroups.map((month) => {
+                const open = openMonths.has(month.key);
+                return (
+                  <section key={month.key || "nd"} className="rv__month">
+                    <button
+                      type="button"
+                      className={`rv__monthbtn${open ? " rv__monthbtn--open" : ""}`}
+                      onClick={() => toggleMonth(month.key)}
+                      aria-expanded={open}
+                    >
+                      <ChevronDown size={18} className={`rv__monthchev${open ? " rv__monthchev--open" : ""}`} />
+                      <span className="rv__monthlabel">{month.label}</span>
+                      <span className="rv__monthcount">{month.count}</span>
+                    </button>
+                    {open && month.days.map(([d, list]) => (
+                      <div key={d || "nd"} className="rv__day">
+                        <h3 className="rv__daylabel">{fmtJourCourt(d)}</h3>
+                        {list.map((it) => (
+                          <RaaListRow
+                            key={it.id}
+                            it={it}
+                            niveau={niveau}
+                            selected={selectedId === it.id}
+                            onSelect={() => selectItem(it.id)}
+                          />
+                        ))}
+                      </div>
+                    ))}
+                  </section>
+                );
+              })
             )}
           </div>
-        )}
-      </section>
+        </section>
 
-      <div className="rv__toolbar">
-        {stats.horsPerimetre > 0 && (
+        {selected && (
           <button
             type="button"
-            className="rv__bulkhide"
-            onClick={masquerHorsPerimetre}
-            disabled={masquerBulkLoading || loading}
-            title={`Masquer les recueils sans lien avec ${cfg.communeShort} ni à surveiller`}
-          >
-            {masquerBulkLoading ? <Loader2 size={14} className="rv__spin" /> : <Trash2 size={14} />}
-            Retirer les recueils sans lien avec {cfg.communeShort} ({stats.horsPerimetre})
-          </button>
+            className="rv__backdrop"
+            aria-label="Fermer le détail"
+            onClick={closeDetail}
+          />
         )}
-      </div>
 
-      {loading ? (
-        <div className="rv__skel">{[0, 1, 2].map((i) => <div key={i} className="rv__skelcard" />)}</div>
-      ) : groups.length === 0 ? (
-        <div className="rv__empty">
-          <Search size={20} />
-          <p>
-            {filter !== "all"
-              ? `Aucun recueil ne correspond au filtre « ${filterLabel} ».`
-              : `Aucun recueil pour ${annee}. Le pipeline alimentera cette page dès la prochaine publication.`}
-          </p>
-          {filter !== "all" && (
-            <button type="button" className="rv__btn" onClick={() => setFilter("all")}>
-              Afficher tous les recueils
-            </button>
-          )}
+        <div className={`rv__detailpane${selected ? "" : " rv__detailpane--empty"}`}>
+          <RaaDetailDrawer
+            item={selected}
+            cfg={cfg}
+            detailLoading={selectedId != null && detailLoading.has(selectedId)}
+            masquerLoading={selectedId != null && masquerLoading.has(selectedId)}
+            onClose={closeDetail}
+            onAnalyser={() => selectedId != null && analyser(selectedId)}
+            onMarquerVu={() => selectedId != null && void marquerVu(selectedId)}
+            onMasquer={() => selectedId != null && void masquer(selectedId)}
+          />
         </div>
-      ) : (
-        groups.map(([d, list]) => (
-          <section key={d || "nd"} className="rv__day">
-            <h2 className="rv__daylabel">{fmtJour(d)}</h2>
-            {list.map((it) => (
-              <Card
-                key={it.id}
-                it={it}
-                cfg={cfg}
-                niveau={niveau}
-                expanded={open.has(it.id)}
-                detailLoading={detailLoading.has(it.id)}
-                onToggle={() => toggleDetail(it.id)}
-                onAnalyser={() => analyser(it.id)}
-                onMarquerVu={() => marquerVu(it.id)}
-                onMasquer={() => masquer(it.id)}
-                masquerLoading={masquerLoading.has(it.id)}
-              />
-            ))}
-          </section>
-        ))
-      )}
-    </>
+      </div>
+    </div>
   );
 }
 
-type CardProps = {
+function RaaListRow({
+  it, niveau, selected, onSelect,
+}: {
   it: RaaItem;
-  cfg: RaaCommuneConfig;
-  niveau: Record<string, NiveauMeta>;
-  expanded: boolean;
-  detailLoading: boolean;
-  onToggle: () => void;
-  onAnalyser: () => void;
-  onMarquerVu: () => void;
-  onMasquer: () => void;
-  masquerLoading: boolean;
-};
-
-function Card({
-  it, cfg, niveau, expanded, detailLoading, onToggle, onAnalyser, onMarquerVu, onMasquer, masquerLoading,
-}: CardProps) {
-  const niveauItem = it.niveau_alerte ? niveau[it.niveau_alerte] : null;
-  const enCours = it.statut === "en_cours";
-  const erreur = it.statut === "erreur";
-  const analyse = it.statut === "analyse";
-  const detecte = it.statut === "detecte";
-  const nouveau = analyse && it.vu === false;
-  const arretes = sortArretes(it.arretes ?? []);
-  const nbTotal = it.nb_arretes_total ?? arretes.length;
-  const showDetailToggle = analyse && nbTotal > 0;
-
-  const cls = ["rv__card"];
-  if (nouveau) cls.push("rv__card--new");
-  if (it.niveau_alerte === "ROUGE") cls.push("rv__card--r");
-  if (it.niveau_alerte === "ORANGE") cls.push("rv__card--o");
-  if (detecte || enCours) cls.push("rv__card--muted");
+  niveau: Record<string, { dot: string; label: string }>;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const importance = importanceStatus(it, niveau);
+  const nouveau = isNouveau(it);
+  const cls = ["rv__row", `rv__row--${importance.tone}`];
+  if (nouveau) cls.push("rv__row--new");
+  if (selected) cls.push("rv__row--selected");
 
   return (
-    <article className={cls.join(" ")}>
-      <span className="rv__bar" style={{ background: niveauItem?.dot || "transparent" }} />
-
-      <div className="rv__cardmain">
-        <div className="rv__cardtop">
-          <div>
-            <h3 className="rv__cardtitle">{it.titre}</h3>
-            <div className="rv__meta">
-              {nouveau && (
-                <span className="rv__chip rv__chip--new">Nouveau</span>
-              )}
-              {analyse && niveauItem && (
-                <span className="rv__niveau" style={{ color: niveauItem.dot }}>
-                  <i style={{ background: niveauItem.dot }} /> {niveauItem.label}
-                </span>
-              )}
-              {it.commune_mentionnee && (
-                <span className="rv__chip rv__chip--commune"><MapPin size={11} /> {cfg.communeShort} citée</span>
-              )}
-              {analyse && (it.nb_arretes_pertinents ?? 0) > 0 && (
-                <span className="rv__chip">{it.nb_arretes_pertinents} arrêté(s) à voir</span>
-              )}
-              {analyse && (
-                <span className="rv__chip rv__chip--soft">{it.nb_arretes_total} arrêtés</span>
-              )}
-              {it.taille_mo != null && <span className="rv__size">{it.taille_mo.toFixed(1)} Mo</span>}
-            </div>
-          </div>
-          {nouveau && (
-            <button
-              type="button"
-              className="rv__vu"
-              onClick={onMarquerVu}
-              title="Marquer comme lu"
-            >
-              Marquer comme lu
-            </button>
-          )}
-        </div>
-
-        {analyse && it.resume_global && <p className="rv__resume">{it.resume_global}</p>}
-
-        {showDetailToggle && (
-          <div className="rv__detail">
-            <button type="button" className="rv__detail-toggle" onClick={onToggle} aria-expanded={expanded}>
-              <ChevronDown size={15} className={expanded ? "rv__chevopen" : ""} />
-              <span>
-                {expanded ? "Masquer le détail" : "En détail"}
-                {" · "}
-                {nbTotal} arrêté{nbTotal > 1 ? "s" : ""} analysé{nbTotal > 1 ? "s" : ""}
-                {(it.nb_arretes_pertinents ?? 0) > 0 && (
-                  <em className="rv__detail-hint">
-                    {" "}({it.nb_arretes_pertinents} à examiner pour {cfg.communeShort})
-                  </em>
-                )}
-              </span>
-            </button>
-
-            {expanded && (
-              <div className="rv__detail-body">
-                {detailLoading ? (
-                  <p className="rv__statusline rv__statusline--wait">
-                    <Loader2 size={14} className="rv__spin" /> Chargement du détail…
-                  </p>
-                ) : arretes.length === 0 ? (
-                  <p className="rv__statusline">Aucun arrêté détaillé disponible pour ce recueil.</p>
-                ) : (
-                  <ul className="rv__arretes">
-                    {arretes.map((a, i) => {
-                      const pm = pertinenceMeta(a.pertinence);
-                      const nm = natureMeta(a.nature);
-                      const pertinent = a.pertinence && a.pertinence !== "NON_PERTINENT";
-                      return (
-                        <li
-                          key={i}
-                          className={`rv__arrete${pertinent ? " rv__arrete--pertinent" : ""}`}
-                        >
-                          <span className="rv__arretedot" style={{ background: pm.dot }} />
-                          <div>
-                            <div className="rv__arretehead">
-                              <span className="rv__arretetitre">{a.titre}</span>
-                              {a.pages && <span className="rv__arretepages">p. {a.pages}</span>}
-                            </div>
-                            <div className="rv__arretetags">
-                              <span
-                                className="rv__arretetag"
-                                style={{ color: pm.dot }}
-                                title={pm.hint}
-                              >
-                                <span className="rv__tagprefix">Concernant {cfg.communeShort} :</span>
-                                {" "}{pm.label}
-                              </span>
-                              <span className={`rv__nature ${nm.className}`}>
-                                <span className="rv__tagprefix">Catégorie :</span>
-                                {" "}{nm.label}
-                              </span>
-                            </div>
-                            {a.reference && (
-                              <div className="rv__arreteref">Réf. {a.reference}</div>
-                            )}
-                            {a.raison && <div className="rv__arreteraison">{a.raison}</div>}
-                            {a.resume && <div className="rv__arreteresume">{a.resume}</div>}
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {enCours && (
-          <p className="rv__statusline rv__statusline--wait">
-            <Loader2 size={14} className="rv__spin" /> Analyse en cours… (jusqu&apos;à ~1 min pour les gros recueils)
-          </p>
-        )}
-        {detecte && <p className="rv__statusline">Pas encore analysé.</p>}
-        {erreur && (
-          <p className="rv__statusline rv__statusline--err">
-            <AlertTriangle size={14} /> {it.erreur || "L'analyse a échoué."} Vous pouvez relancer.
-          </p>
-        )}
-
-        <div className="rv__actions">
-          <a className="rv__link rv__link--pdf" href={it.pdf_url} target="_blank" rel="noreferrer">
-            <FileText size={13} /> PDF du recueil
-          </a>
-          <a className="rv__link" href={it.page_url} target="_blank" rel="noreferrer">
-            <ExternalLink size={13} /> Page préfecture
-          </a>
-
-          <span className="rv__spacer" />
-
-          <button
-            type="button"
-            className="rv__btn rv__btn--ghost"
-            onClick={onMasquer}
-            disabled={enCours || masquerLoading}
-            title="Retirer ce recueil de la veille (hors périmètre communal)"
-          >
-            {masquerLoading ? <Loader2 size={14} className="rv__spin" /> : <EyeOff size={14} />}
-            Retirer
-          </button>
-
-          <button className="rv__btn" onClick={onAnalyser} disabled={enCours}>
-            {enCours ? <Loader2 size={14} className="rv__spin" /> : <RefreshCw size={14} />}
-            {detecte ? "Analyser" : enCours ? "En cours" : "Relancer l'analyse"}
-          </button>
-        </div>
-      </div>
-    </article>
+    <button
+      type="button"
+      className={cls.join(" ")}
+      onClick={onSelect}
+      aria-current={selected ? "true" : undefined}
+    >
+      <span className="rv__rowbar" style={{ background: importance.dot }} />
+      <span className="rv__rowmain">
+        <span className="rv__rowtext">
+          <span className="rv__rowtitle">{it.titre}</span>
+          <span className="rv__rowmeta">
+            <span className="rv__rowniveau" style={{ color: importance.dot }}>
+              <i style={{ background: importance.dot }} />
+              {importance.label}
+            </span>
+            {nouveau && <span className="rv__rownew">Nouveau</span>}
+          </span>
+        </span>
+        <span className="rv__rowhint">
+          Voir les détails
+          <ArrowRight size={14} strokeWidth={2.25} />
+        </span>
+      </span>
+    </button>
   );
 }
 
@@ -1012,22 +608,25 @@ const CSS = `
   --text:#111; --muted:#4b4b4b; --faint:#8a8d92; --border:#e8e8e8; --surface:#fafafa;
   --font:"Kerelia Sans","Inter",-apple-system,system-ui,sans-serif;
   font-family:var(--font); color:var(--text); background:#fff;
-  flex:1; min-height:0; height:100%; overflow-y:auto; -webkit-overflow-scrolling:touch;
-  max-width:860px; width:100%; margin:0 auto; padding:2rem 1.25rem 4rem;
+  flex:1; min-height:0; height:100%; width:100%; max-width:none;
+  display:flex; flex-direction:column; overflow:hidden;
+  padding:1.15rem 1.25rem 0;
 }
+.rv--scroll{overflow-y:auto; -webkit-overflow-scrolling:touch; padding-bottom:4rem;}
 .rv *{box-sizing:border-box;}
-.rv__subnav{display:flex; gap:.35rem; margin:0 0 1.35rem; padding:.28rem; background:var(--surface);
-  border:1px solid var(--border); border-radius:.8rem; width:fit-content; max-width:100%;}
+.rv__page{flex:1; min-height:0; display:flex; flex-direction:column;}
+.rv__subnav{display:flex; gap:.35rem; margin:0 0 1rem; padding:.28rem; background:var(--surface);
+  border:1px solid var(--border); border-radius:.8rem; width:fit-content; max-width:100%; flex-shrink:0;}
 .rv__subnavbtn{border:none; background:transparent; font:inherit; font-size:.84rem; font-weight:600;
   color:var(--muted); padding:.45rem .9rem; border-radius:.6rem; cursor:pointer;}
 .rv__subnavbtn:hover{color:var(--text); background:#fff;}
 .rv__subnavbtn--active{background:#fff; color:var(--text); box-shadow:0 1px 3px rgba(0,0,0,.06);}
-.rv__head{display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; margin-bottom:1.25rem;}
+.rv__head{display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; margin-bottom:.7rem;
+  flex-shrink:0;}
 .rv__head-actions{display:flex; flex-direction:column; align-items:stretch; gap:.5rem; flex-shrink:0;}
 .rv__eyebrow{font-size:.72rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--faint);}
-.rv__title{font-size:1.7rem; font-weight:600; margin:.25rem 0 .4rem; letter-spacing:-.01em;}
-.rv__sub{font-size:.9rem; color:var(--muted); line-height:1.5; max-width:46rem; margin:0;}
-.rv__syncmsg{font-size:.82rem; color:var(--muted); margin:.5rem 0 0; line-height:1.4;}
+.rv__title{font-size:1.45rem; font-weight:600; margin:.2rem 0 0; letter-spacing:-.01em;}
+.rv__sub{font-size:.86rem; color:var(--muted); line-height:1.45; max-width:44rem; margin:0;}
 .rv__refresh{flex-shrink:0; display:inline-flex; align-items:center; gap:.4rem; padding:.5rem .8rem;
   border:1px solid var(--border); border-radius:.6rem; background:#fff; font:inherit; font-size:.82rem;
   font-weight:500; color:var(--text); cursor:pointer; transition:border-color .15s, background .15s;}
@@ -1036,120 +635,68 @@ const CSS = `
 .rv__refresh--warn:hover:not(:disabled){border-color:#e0b050; background:#fff4db;}
 .rv__refresh:disabled{opacity:.6; cursor:default;}
 
-.rv__stat--new{color:#1a6fa8; font-weight:600;}
-
 .rv__overview{display:flex; align-items:center; flex-wrap:wrap; gap:.55rem; font-size:.82rem;
-  color:var(--muted); padding:.55rem .15rem; margin-bottom:.65rem;}
+  color:var(--muted); padding:0 0 .75rem; flex-shrink:0;}
 .rv__overview b{color:var(--text); font-weight:600;}
-
-.rv__filters{padding:.75rem 1.05rem; background:var(--surface); border:1px solid var(--border);
-  border-radius:.85rem; margin-bottom:1rem;}
-.rv__filters--collapsed{padding:.65rem 1.05rem;}
-.rv__filters-head{display:flex; align-items:center; justify-content:space-between; gap:.75rem;}
-.rv__filters-toggle{flex:1; display:flex; align-items:flex-start; gap:.65rem; min-width:0;
-  padding:0; border:none; background:transparent; font:inherit; text-align:left; cursor:pointer;
-  color:inherit;}
-.rv__filters-toggle:hover .rv__filters-title{color:#1a6fa8;}
-.rv__filters-toggle-text{flex:1; min-width:0;}
-.rv__filters-icon{flex-shrink:0; margin-top:.15rem; color:var(--faint);}
-.rv__filters-title{display:block; font-size:.92rem; font-weight:600; margin:0 0 .15rem; color:var(--text);
-  transition:color .15s;}
-.rv__filters-hint,.rv__filters-summary{display:block; font-size:.8rem; color:var(--muted); margin:0; line-height:1.45;}
-.rv__filters-summary strong{font-weight:700; color:#1a5f8a;}
-.rv__filters-chev{flex-shrink:0; margin-top:.1rem; color:var(--faint); transition:transform .2s;}
-.rv__filters-chev--open{transform:rotate(180deg);}
-.rv__filters-body{margin-top:.85rem; padding-top:.85rem; border-top:1px solid var(--border);}
-.rv__filters-reset{flex-shrink:0; display:inline-flex; align-items:center; gap:.35rem;
-  padding:.4rem .7rem; border:1px solid var(--border); border-radius:.55rem; background:#fff;
-  font:inherit; font-size:.76rem; font-weight:600; color:var(--muted); cursor:pointer;
-  transition:border-color .15s, color .15s, background .15s;}
-.rv__filters-reset:hover{border-color:#b8d4f0; color:#1a6fa8; background:#f4f9fd;}
-
-.rv__filterchips{display:flex; flex-wrap:wrap; gap:.55rem;}
-.rv__chipbtn{display:flex; flex-direction:column; align-items:stretch; gap:.2rem;
-  min-width:10.5rem; flex:1 1 10.5rem; max-width:15rem; padding:.7rem .85rem;
-  border:1.5px solid var(--border); border-radius:.7rem; background:#fff; font:inherit;
-  text-align:left; cursor:pointer; transition:border-color .15s, background .15s, box-shadow .15s;}
-.rv__chipbtn:hover{border-color:#c8cdd4; box-shadow:0 2px 8px rgba(0,0,0,.06);}
-.rv__chipbtn--active{box-shadow:0 0 0 2px rgba(26,111,168,.12);}
-.rv__chipbtn--all{max-width:none; flex:1 1 100%;}
-.rv__chipbtn--all.rv__chipbtn--active{border-color:#9bb8d4; background:#f4f9fd;}
-.rv__chipbtn--new.rv__chipbtn--active{border-color:#8ec0e8; background:#eef6fc;}
-.rv__chipbtn--r.rv__chipbtn--active{border-color:#e8a8a0; background:#fff5f4;}
-.rv__chipbtn--o.rv__chipbtn--active{border-color:#e8c878; background:#fffaf0;}
-.rv__chiprow{display:flex; align-items:center; justify-content:space-between; gap:.5rem;}
-.rv__chiplabel{display:inline-flex; align-items:center; gap:.4rem; font-size:.84rem; font-weight:700; color:var(--text); line-height:1.25;}
-.rv__chipdesc{font-size:.72rem; color:var(--faint); line-height:1.35;}
-.rv__chipdot{display:inline-block; width:8px; height:8px; border-radius:50%; flex-shrink:0;}
-.rv__chipcount{flex-shrink:0; min-width:1.55rem; padding:.12rem .45rem; border-radius:999px;
-  background:#f0f1f3; font-size:.72rem; font-weight:700; color:var(--text); text-align:center;}
-.rv__chipbtn--new .rv__chipcount{background:#dbeefa; color:#1a6fa8;}
-.rv__chipbtn--r .rv__chipcount{background:#fde8e6; color:#c0392b;}
-.rv__chipbtn--o .rv__chipcount{background:#fef3d6; color:#9a6700;}
-.rv__filteractive{margin:.8rem 0 0; padding:.55rem .7rem; border-radius:.55rem;
-  background:#eef6fc; border:1px solid #cfe3f4; font-size:.8rem; color:#1a5f8a;}
-.rv__filteractive strong{font-weight:700;}
-
-.rv__toolbar{display:flex; align-items:center; flex-wrap:wrap; gap:.6rem; margin-bottom:1.25rem;}
-.rv__bulkhide{display:inline-flex; align-items:center; gap:.4rem; padding:.45rem .75rem;
-  border:1px solid #e8d4d4; border-radius:.6rem; background:#fff8f8; font:inherit; font-size:.78rem;
-  font-weight:600; color:#a94442; cursor:pointer; transition:border-color .15s, background .15s;}
-.rv__bulkhide:hover:not(:disabled){border-color:#d4a5a5; background:#fff0f0;}
-.rv__bulkhide:disabled{opacity:.6; cursor:default;}
 .rv__dot{width:3px; height:3px; border-radius:50%; background:#c8cbd0;}
-.rv__demo{margin-left:auto; font-size:.72rem; color:#b07a00; background:#fff6e0;
+.rv__demo{display:inline-block; margin-top:.4rem; font-size:.72rem; color:#b07a00; background:#fff6e0;
   padding:.2rem .55rem; border-radius:.5rem; font-weight:500;}
 
-.rv__day{margin-bottom:1.6rem;}
-.rv__daylabel{font-size:.8rem; font-weight:600; color:var(--faint); text-transform:uppercase;
-  letter-spacing:.03em; margin:0 0 .6rem; padding-bottom:.35rem; border-bottom:1px solid var(--border);}
+.rv__workspace{flex:1; min-height:0; display:grid; grid-template-columns:minmax(20rem,26rem) minmax(0,1fr);
+  border:1px solid var(--border); border-radius:.85rem .85rem 0 0; overflow:hidden; background:#fff;}
+.rv__listpane{min-width:0; min-height:0; display:flex; flex-direction:column; border-right:1px solid var(--border);
+  background:#f7f8f9;}
 
-.rv__card{position:relative; display:flex; gap:0; background:#fff; border:1px solid var(--border);
-  border-radius:.85rem; margin-bottom:1.15rem; overflow:hidden;
-  transition:box-shadow .15s, border-color .15s; box-shadow:0 1px 3px rgba(0,0,0,.04);}
-.rv__card:hover{box-shadow:0 2px 10px rgba(0,0,0,.07);}
-.rv__card--muted{background:var(--surface);}
-.rv__card--new{background:#eef6fc; border-color:#b8d4f0; box-shadow:0 0 0 1px rgba(26,111,168,.1);}
-.rv__card--r{border-color:#f3c6c0;}
-.rv__card--o{border-color:#f6e0b8;}
-.rv__card--new.rv__card--r{background:#fff8f7;}
-.rv__card--new.rv__card--o{background:#fffbf5;}
-.rv__bar{flex-shrink:0; width:4px;}
-.rv__cardmain{flex:1; min-width:0; padding:.95rem 1.05rem;}
-.rv__cardtop{display:flex; justify-content:space-between; gap:1rem;}
-.rv__cardtitle{font-size:1rem; font-weight:600; margin:0 0 .4rem; line-height:1.3;}
+.rv__list{flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:.65rem .65rem 1.25rem;}
+.rv__month{margin-bottom:.35rem;}
+.rv__monthbtn{display:flex; align-items:center; gap:.45rem; width:100%; padding:.55rem .5rem;
+  border:none; background:transparent; font:inherit; text-align:left; cursor:pointer;
+  border-radius:.55rem; color:#111;}
+.rv__monthbtn:hover{background:rgba(0,0,0,.04);}
+.rv__monthlabel{flex:1; font-size:.95rem; font-weight:700; letter-spacing:-.01em;}
+.rv__monthcount{flex-shrink:0; min-width:1.5rem; padding:.1rem .45rem; border-radius:999px;
+  background:#fff; border:1px solid #e2e4e1; font-size:.72rem; font-weight:700; color:#111; text-align:center;}
+.rv__monthchev{flex-shrink:0; color:#111; transition:transform .2s;}
+.rv__monthchev--open{transform:rotate(180deg);}
+.rv__day{margin:0 0 .85rem .15rem; padding-left:.35rem;}
+.rv__daylabel{font-size:.84rem; font-weight:700; color:#111; margin:0 0 .45rem; padding:0 .15rem;}
 
-.rv__meta{display:flex; align-items:center; flex-wrap:wrap; gap:.45rem; font-size:.76rem;}
-.rv__niveau{display:inline-flex; align-items:center; gap:.35rem; font-weight:600;}
-.rv__niveau i{width:8px; height:8px; border-radius:50%;}
-.rv__chip{display:inline-flex; align-items:center; gap:.25rem; padding:.12rem .5rem; border-radius:.45rem;
-  background:#f0f1f3; color:var(--muted); font-weight:500;}
-.rv__chip--soft{background:transparent; color:var(--faint); padding-left:0; padding-right:0;}
-.rv__chip--commune{background:var(--accent-soft); color:#1f7a08; font-weight:600;}
-.rv__chip--new{background:#e8f4fd; color:#1a6fa8; font-weight:700; letter-spacing:.02em;}
-.rv__size{color:var(--faint); margin-left:.1rem;}
+.rv__row{position:relative; display:flex; width:100%; gap:0; padding:0; border:1px solid transparent;
+  border-radius:.7rem; margin-bottom:.4rem; background:#fff; text-align:left; font:inherit; cursor:pointer;
+  overflow:hidden; opacity:.7; transition:opacity .18s ease, border-color .15s, box-shadow .15s;}
+.rv__row:hover{opacity:1; border-color:#d5d8de; box-shadow:0 2px 10px rgba(0,0,0,.07);}
+.rv__row--selected{opacity:1; border-color:#9bb8d4; box-shadow:0 0 0 2px rgba(26,111,168,.12);}
+.rv__row--r{background:#fff5f4;}
+.rv__row--o{background:#fffaf0;}
+.rv__row--v{background:#f6f7f6;}
+.rv__row--wait{background:#f4f9fd;}
+.rv__row--err{background:#fff6f5;}
+.rv__row--muted{background:#f3f4f6;}
+.rv__row--new.rv__row--v,.rv__row--new.rv__row--muted{background:#eef6fc;}
+.rv__row--new.rv__row--r{background:#fff1ef;}
+.rv__row--new.rv__row--o{background:#fff6e6;}
+.rv__rowbar{flex-shrink:0; width:4px;}
+.rv__rowmain{flex:1; min-width:0; display:flex; align-items:center; justify-content:space-between;
+  gap:.65rem; padding:.65rem .75rem .6rem;}
+.rv__rowtext{flex:1; min-width:0;}
+.rv__rowtitle{display:block; font-size:.88rem; font-weight:600; line-height:1.3; margin:0 0 .3rem;}
+.rv__rowmeta{display:flex; align-items:center; flex-wrap:wrap; gap:.4rem;}
+.rv__rowhint{flex-shrink:0; display:inline-flex; align-items:center; gap:.25rem;
+  font-size:.74rem; font-weight:700; color:#1a6fa8; white-space:nowrap;
+  opacity:0; transform:translateX(.15rem); pointer-events:none;
+  transition:opacity .18s ease, transform .18s ease;}
+.rv__row:hover .rv__rowhint,.rv__row:focus-visible .rv__rowhint{opacity:1; transform:none;}
+.rv__rowniveau{display:inline-flex; align-items:center; gap:.3rem; font-size:.74rem; font-weight:700;}
+.rv__rowniveau i{width:7px; height:7px; border-radius:50%;}
+.rv__rownew{font-size:.68rem; font-weight:700; letter-spacing:.02em; color:#1a6fa8;
+  background:#e8f4fd; padding:.08rem .4rem; border-radius:.35rem;}
 
-.rv__vu{flex-shrink:0; display:inline-flex; align-items:center; justify-content:center;
-  padding:.35rem .7rem; border:1px solid #b8d4f0; border-radius:.45rem;
-  background:#e8f4fd; color:#1a6fa8; font:inherit; font-size:.76rem; font-weight:700;
-  cursor:pointer; transition:background .15s, border-color .15s; white-space:nowrap;}
-.rv__vu:hover{background:#d4ebfa; border-color:#1a6fa8;}
-
-.rv__resume{font-size:.88rem; line-height:1.55; color:var(--muted); margin:.6rem 0 .2rem;}
-
-.rv__detail{margin:.75rem 0 .15rem;}
-.rv__detail-toggle{display:flex; align-items:center; gap:.4rem; width:100%; padding:.55rem .7rem;
-  border:1px solid var(--border); border-radius:.6rem; background:var(--surface);
-  font:inherit; font-size:.82rem; font-weight:600; color:var(--text); cursor:pointer; text-align:left;
-  transition:border-color .15s, background .15s;}
-.rv__detail-toggle:hover{border-color:var(--accent); background:var(--accent-soft);}
-.rv__detail-hint{font-style:normal; font-weight:500; color:var(--muted);}
-.rv__detail-body{margin-top:.75rem; padding-top:.75rem; border-top:1px dashed var(--border);}
+.rv__detailpane{min-width:0; min-height:0; background:#fff;}
+.rv__backdrop{display:none;}
 
 .rv__statusline{display:flex; align-items:center; gap:.4rem; font-size:.82rem; color:var(--faint); margin:.6rem 0 .2rem;}
 .rv__statusline--wait{color:var(--muted);}
 .rv__statusline--err{color:#c0392b;}
-
 .rv__actions{display:flex; align-items:center; flex-wrap:wrap; gap:.6rem; margin-top:.8rem;}
 .rv__link{display:inline-flex; align-items:center; gap:.3rem; font-size:.8rem; color:var(--muted);
   text-decoration:none; font-weight:500; transition:color .15s, background .15s, border-color .15s;}
@@ -1157,9 +704,12 @@ const CSS = `
 .rv__link--pdf{padding:.48rem .85rem; border-radius:.6rem; font-weight:600; font-size:.82rem;
   color:#1a4d0f; background:rgba(133,227,114,.38); border:1px solid rgba(40,159,1,.25);}
 .rv__link--pdf:hover{color:#123608; background:rgba(133,227,114,.55); border-color:rgba(40,159,1,.4);}
-.rv__chevopen{transform:rotate(180deg);}
 .rv__spacer{flex:1;}
-
+.rv__vu{flex-shrink:0; display:inline-flex; align-items:center; justify-content:center;
+  padding:.35rem .7rem; border:1px solid #b8d4f0; border-radius:.45rem;
+  background:#e8f4fd; color:#1a6fa8; font:inherit; font-size:.76rem; font-weight:700;
+  cursor:pointer; white-space:nowrap;}
+.rv__vu:hover{background:#d4ebfa; border-color:#1a6fa8;}
 .rv__btn{display:inline-flex; align-items:center; gap:.35rem; padding:.45rem .75rem; border-radius:.6rem;
   border:1px solid var(--border); background:#fff; font:inherit; font-size:.8rem; font-weight:600;
   color:var(--text); cursor:pointer; transition:border-color .15s, background .15s; white-space:nowrap;}
@@ -1168,48 +718,29 @@ const CSS = `
 .rv__btn--ghost:hover:not(:disabled){border-color:#d8c4c4; background:#fdf6f6; color:#a94442;}
 .rv__btn:disabled{opacity:.6; cursor:default;}
 
-.rv__arretes{list-style:none; margin:0; padding:.25rem 0 0; display:flex; flex-direction:column; gap:1rem;}
-.rv__arrete{display:flex; gap:.75rem; padding:.9rem 1rem; border:1px solid #dfe3e8;
-  border-radius:.7rem; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.04);}
-.rv__arrete--pertinent{background:#f8faf9; border-color:#cfd8d2; box-shadow:0 1px 5px rgba(0,0,0,.06);}
-.rv__arretedot{flex-shrink:0; width:9px; height:9px; border-radius:50%; margin-top:.45rem;}
-.rv__arretehead{display:flex; align-items:baseline; flex-wrap:wrap; gap:.5rem; margin-bottom:.35rem;}
-.rv__arretetitre{font-size:.88rem; font-weight:600; line-height:1.35;}
-.rv__arretetags{display:flex; align-items:center; flex-wrap:wrap; gap:.45rem .65rem; margin-bottom:.25rem;}
-.rv__arretetag{font-size:.74rem; font-weight:600; letter-spacing:.01em;}
-.rv__tagprefix{font-weight:500; color:var(--muted);}
-.rv__nature{display:inline-flex; align-items:center; gap:.2rem; padding:.15rem .5rem; border-radius:.4rem;
-  font-size:.72rem; font-weight:600; letter-spacing:.01em;}
-.rv__nature .rv__tagprefix{font-weight:500; text-transform:none;}
-.rv__nature--urba{background:#e8f4fd; color:#1a6fa8;}
-.rv__nature--env{background:#e6f6ec; color:#1a7a3a;}
-.rv__nature--evt{background:#f3ebfa; color:#7d3c98;}
-.rv__nature--autre{background:#f0f1f3; color:#6b7280;}
-.rv__arretepages{font-size:.72rem; color:var(--faint);}
-.rv__arreteref{font-size:.72rem; color:var(--faint); margin-top:.15rem;}
-.rv__arreteraison{font-size:.8rem; color:var(--muted); margin-top:.2rem; font-style:italic;}
-.rv__arreteresume{font-size:.82rem; color:var(--muted); line-height:1.5; margin-top:.2rem;}
-
-.rv__skel{display:flex; flex-direction:column; gap:.7rem;}
-.rv__skelcard{height:96px; border-radius:.85rem; background:linear-gradient(90deg,#f4f4f5,#fafafa,#f4f4f5);
+.rv__skel{display:flex; flex-direction:column; gap:.45rem;}
+.rv__skelcard{height:62px; border-radius:.7rem; background:linear-gradient(90deg,#f4f4f5,#fafafa,#f4f4f5);
   background-size:200% 100%; animation:rvsh 1.3s infinite;}
 @keyframes rvsh{0%{background-position:200% 0}100%{background-position:-200% 0}}
 .rv__empty{display:flex; flex-direction:column; align-items:center; gap:.6rem; text-align:center;
-  color:var(--faint); padding:3rem 1rem; border:1px dashed var(--border); border-radius:.85rem;}
-.rv__empty p{margin:0; font-size:.9rem; max-width:30rem;}
-
+  color:var(--faint); padding:2.5rem 1rem; border:1px dashed var(--border); border-radius:.85rem; background:#fff;}
+.rv__empty p{margin:0; font-size:.86rem; max-width:22rem;}
 .rv__spin{animation:rvspin .9s linear infinite;}
 @keyframes rvspin{to{transform:rotate(360deg)}}
+.rv__chevopen{transform:rotate(180deg);}
 
-@media (max-width:560px){
-  .rv{padding:1.25rem .9rem 3rem;}
+@media (max-width:860px){
+  .rv{padding:1rem .85rem 0;}
   .rv__head{flex-direction:column;}
   .rv__head-actions{width:100%;}
-  .rv__title{font-size:1.4rem;}
-  .rv__filters-head{flex-wrap:wrap;}
-  .rv__filters-reset{width:100%; justify-content:center;}
-  .rv__chipbtn{min-width:calc(50% - .3rem); flex:1 1 calc(50% - .3rem); max-width:none;}
-  .rv__chipbtn--all{flex-basis:100%;}
+  .rv__title{font-size:1.25rem;}
+  .rv__workspace{grid-template-columns:1fr; border-radius:.75rem .75rem 0 0;}
+  .rv__listpane{border-right:none;}
+  .rv__backdrop{display:block; position:fixed; inset:0; z-index:70; border:0; padding:0;
+    background:rgba(17,17,17,.35); cursor:pointer;}
+  .rv__detailpane{position:fixed; top:0; right:0; bottom:0; width:min(100%,34rem); z-index:80;
+    box-shadow:-8px 0 28px rgba(0,0,0,.12);}
+  .rv__detailpane--empty{display:none;}
 }
 @media (prefers-reduced-motion:reduce){
   .rv__spin,.rv__skelcard{animation:none;}
