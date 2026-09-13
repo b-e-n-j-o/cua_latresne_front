@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   RefreshCw, ExternalLink, FileText, ChevronDown,
   AlertTriangle, Loader2, MapPin, Search, EyeOff, Trash2, Filter, X,
 } from "lucide-react";
 import { getRaaConfig, normaliseArreteNature, type ArreteNature, type RaaCommuneConfig } from "./raaConfig";
+import VeilleCadastre from "./VeilleCadastre";
 
 /* ------------------------------------------------------------------ *
  *  Veille réglementaire RAA — multi-commune (slug portail)
@@ -168,6 +170,9 @@ type VeilleRaaPageProps = {
 
 export default function VeilleRaaPage({ communeSlug }: VeilleRaaPageProps) {
   const cfg = getRaaConfig(communeSlug);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const onglet = searchParams.get("onglet") === "cadastre" ? "cadastre" : "raa";
+
   if (!cfg) {
     return (
       <div className="commune-portal-fallback">
@@ -176,7 +181,33 @@ export default function VeilleRaaPage({ communeSlug }: VeilleRaaPageProps) {
     );
   }
 
-  return <VeilleRaaContent cfg={cfg} />;
+  const setOnglet = (next: "raa" | "cadastre") => {
+    if (next === "cadastre") setSearchParams({ onglet: "cadastre" });
+    else setSearchParams({});
+  };
+
+  return (
+    <div className="rv">
+      <style>{CSS}</style>
+      <nav className="rv__subnav" aria-label="Sous-onglets de la veille">
+        <button
+          type="button"
+          className={`rv__subnavbtn${onglet === "raa" ? " rv__subnavbtn--active" : ""}`}
+          onClick={() => setOnglet("raa")}
+        >
+          Recueils (RAA)
+        </button>
+        <button
+          type="button"
+          className={`rv__subnavbtn${onglet === "cadastre" ? " rv__subnavbtn--active" : ""}`}
+          onClick={() => setOnglet("cadastre")}
+        >
+          Veille cadastre
+        </button>
+      </nav>
+      {onglet === "cadastre" ? <VeilleCadastre cfg={cfg} /> : <VeilleRaaContent cfg={cfg} />}
+    </div>
+  );
 }
 
 function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
@@ -566,9 +597,7 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
   }, [filter, cfg.communeShort]);
 
   return (
-    <div className="rv">
-      <style>{CSS}</style>
-
+    <>
       <header className="rv__head">
         <div>
           <div className="rv__eyebrow">{cfg.departementLabel} · {cfg.communeLabel}</div>
@@ -783,7 +812,7 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
           </section>
         ))
       )}
-    </div>
+    </>
   );
 }
 
@@ -987,6 +1016,12 @@ const CSS = `
   max-width:860px; width:100%; margin:0 auto; padding:2rem 1.25rem 4rem;
 }
 .rv *{box-sizing:border-box;}
+.rv__subnav{display:flex; gap:.35rem; margin:0 0 1.35rem; padding:.28rem; background:var(--surface);
+  border:1px solid var(--border); border-radius:.8rem; width:fit-content; max-width:100%;}
+.rv__subnavbtn{border:none; background:transparent; font:inherit; font-size:.84rem; font-weight:600;
+  color:var(--muted); padding:.45rem .9rem; border-radius:.6rem; cursor:pointer;}
+.rv__subnavbtn:hover{color:var(--text); background:#fff;}
+.rv__subnavbtn--active{background:#fff; color:var(--text); box-shadow:0 1px 3px rgba(0,0,0,.06);}
 .rv__head{display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; margin-bottom:1.25rem;}
 .rv__head-actions{display:flex; flex-direction:column; align-items:stretch; gap:.5rem; flex-shrink:0;}
 .rv__eyebrow{font-size:.72rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--faint);}
