@@ -1,5 +1,8 @@
 import { MapPin, FileText, Calendar, User, ExternalLink } from "lucide-react";
 import { getCerfaParcelleRefs } from "../history/cerfaParcelleRefs";
+import { getExpirationProgress } from "../history/historyPipelineLinks";
+
+export { getExpirationProgress };
 
 export type CerfaData = {
   demandeur?: string;
@@ -33,6 +36,12 @@ export type HistoryPipeline = {
   user_id?: string;
   /** Étape de suivi : 1=Dossier reçu, 2=Dossier traité, 3=Validé/corrigé, 4=CUA délivré */
   suivi?: number;
+  carte_2d_url?: string;
+  carte_3d_url?: string;
+  metadata?: {
+    carte_2d_url?: string;
+    carte_3d_url?: string;
+  };
 };
 
 type Props = {
@@ -68,24 +77,6 @@ function formatAdresse(adr: CerfaData["adresse_terrain"] | undefined): string {
     adr.ville,
   ].filter(Boolean);
   return parts.join(", ") || "—";
-}
-
-/** Retourne { progress: 0-100, isExpired } pour une validité de 18 mois */
-function getExpirationProgress(createdAt: string | undefined): { progress: number; isExpired: boolean } | null {
-  if (!createdAt) return null;
-  try {
-    const created = new Date(createdAt);
-    const expiry = new Date(created);
-    expiry.setMonth(expiry.getMonth() + 18);
-    const now = new Date();
-    if (now <= created) return { progress: 0, isExpired: false };
-    if (now >= expiry) return { progress: 100, isExpired: true };
-    const total = expiry.getTime() - created.getTime();
-    const elapsed = now.getTime() - created.getTime();
-    return { progress: (elapsed / total) * 100, isExpired: false };
-  } catch {
-    return null;
-  }
 }
 
 export default function HistoryPipelineCard({

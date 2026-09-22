@@ -99,10 +99,11 @@
 
 .carto-left-sidebar__block {
   border: 1px solid #d5e1e3;
-  border-radius: 0.5rem;
+  border-radius: 0.65rem;
   overflow: hidden;
   background: #fff;
   flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(11, 19, 31, 0.04);
 }
 
 .carto-left-sidebar__block-trigger {
@@ -111,28 +112,51 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  padding: 0.65rem 0.75rem;
+  padding: 0.7rem 0.8rem;
   border: none;
-  background: #fff;
-  font-size: 0.75rem;
-  font-weight: 600;
+  background: rgba(11, 19, 31, 0.06);
+  font-size: 0.8125rem;
+  font-weight: 700;
   color: #0b131f;
   text-align: left;
   cursor: pointer;
   transition: background 0.15s;
 }
 
-.carto-left-sidebar__block-trigger:hover {
-  background: #f4f6f8;
+.carto-left-sidebar__block-trigger-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
 }
 
-.carto-left-sidebar__block-trigger svg {
+.carto-left-sidebar__block-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 0.35rem;
+  flex-shrink: 0;
+  background: rgba(11, 19, 31, 0.1);
+  color: rgba(11, 19, 31, 0.55);
+}
+
+.carto-left-sidebar__block-title {
+  line-height: 1.25;
+}
+
+.carto-left-sidebar__block-trigger:hover {
+  background: rgba(11, 19, 31, 0.09);
+}
+
+.carto-left-sidebar__block-trigger svg:last-child {
   flex-shrink: 0;
   color: rgba(11, 19, 31, 0.4);
 }
 
 .carto-left-sidebar__block-body {
-  border-top: 1px solid #d5e1e3;
+  border-top: none;
   background: #fff;
 }
 
@@ -181,25 +205,37 @@
   background: #fff;
 }
 
+.carto-left-sidebar__history-split {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.15rem 0 0.4rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(11, 19, 31, 0.42);
+}
+
+.carto-left-sidebar__history-split::before,
+.carto-left-sidebar__history-split::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #c5d0d4;
+}
+
 .carto-left-sidebar__history-pinned {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  margin: 0 0.75rem 0.75rem;
+  margin: 0;
   border: 1px solid #d5e1e3;
-  border-radius: 0.5rem;
+  border-radius: 0.65rem;
   background: #fff;
   overflow: hidden;
-}
-
-.carto-left-sidebar__history-pinned--open {
-  flex: 1 1 auto;
-  min-height: 12rem;
-  max-height: 48%;
-}
-
-.carto-left-sidebar__history-pinned--collapsed {
-  flex: 0 0 auto;
+  box-shadow: 0 1px 2px rgba(11, 19, 31, 0.04);
 }
 
 .carto-left-sidebar__history-pinned-trigger {
@@ -208,11 +244,12 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  padding: 0.65rem 0.75rem;
+  padding: 0.7rem 0.8rem;
   border: none;
-  background: #fff;
-  font-size: 0.75rem;
-  font-weight: 600;
+  background: rgba(11, 19, 31, 0.06);
+  border-bottom: 1px solid rgba(11, 19, 31, 0.08);
+  font-size: 0.8125rem;
+  font-weight: 700;
   color: #0b131f;
   text-align: left;
   cursor: pointer;
@@ -220,7 +257,7 @@
 }
 
 .carto-left-sidebar__history-pinned-trigger:hover {
-  background: #f4f6f8;
+  background: rgba(11, 19, 31, 0.09);
 }
 
 .carto-left-sidebar__history-pinned-trigger svg:last-child {
@@ -238,21 +275,25 @@
   color: rgba(11, 19, 31, 0.45);
 }
 
-.carto-left-sidebar__history-pinned--open .carto-left-sidebar__history-pinned-trigger {
-  border-bottom: 1px solid #d5e1e3;
+.carto-left-sidebar__history-count {
+  margin-left: 0.25rem;
+  font-weight: 500;
+  color: rgba(11, 19, 31, 0.45);
+}
+
+.carto-left-sidebar__history-pinned--collapsed .carto-left-sidebar__history-pinned-trigger {
+  border-bottom: none;
 }
 
 .carto-left-sidebar__history-pinned-body {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
   padding: 0.75rem;
-  display: flex;
-  flex-direction: column;
+  max-height: min(45vh, 22rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .carto-left-sidebar__history-pinned-body .carto-history-panel--left {
-  height: 100%;
+  height: auto;
   min-height: 0;
 }
 

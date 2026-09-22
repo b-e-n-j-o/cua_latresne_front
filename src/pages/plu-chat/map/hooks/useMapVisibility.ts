@@ -84,23 +84,11 @@ export function useMapVisibility(mapData: MapData | null) {
   useEffect(() => {
     if (!mapData) return;
     setVisibleZones(new Set(mapData.zones.features.map((f) => f.properties.code_zone)));
+    setVisibleServitudes(new Set());
+    setVisiblePrescriptions(new Set());
+    setVisibleInformations(new Set());
+    setVisibleExtra(new Set());
   }, [mapData]);
-
-  useEffect(() => {
-    setVisibleServitudes(new Set(servitudeGroups.map((g) => g.key)));
-  }, [servitudeGroups]);
-
-  useEffect(() => {
-    setVisiblePrescriptions(new Set(prescriptionGroups.map((g) => g.key)));
-  }, [prescriptionGroups]);
-
-  useEffect(() => {
-    setVisibleInformations(new Set(informationGroups.map((g) => g.key)));
-  }, [informationGroups]);
-
-  useEffect(() => {
-    setVisibleExtra(new Set(extraLayers.map((l) => l.id)));
-  }, [extraLayers]);
 
   const toggleZone = useCallback((code: string) => toggleInSet(setVisibleZones, code), []);
   const toggleServitude = useCallback((key: string) => toggleInSet(setVisibleServitudes, key), []);

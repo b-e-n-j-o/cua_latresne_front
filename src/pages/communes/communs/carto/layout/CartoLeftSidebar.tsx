@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { ChevronDown, ChevronRight, ChevronLeft, Clock } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronLeft, Clock, MapPin, Search } from "lucide-react";
 import CartoHistoryPanel, { type CartoHistoryPanelProps } from "./CartoHistoryPanel";
 import "./CartoLeftSidebar.css";
 
@@ -30,7 +30,7 @@ type CartoLeftSidebarProps = {
   newCuTitle?: string;
   defaultNewCuOpen?: boolean;
   defaultParcelleOpen?: boolean;
-  /** Historique ouvert par défaut (section repliable en bas de sidebar). */
+  /** Historique ouvert par défaut (liste des dossiers en bas de sidebar). */
   defaultHistoryOpen?: boolean;
   /** Blocs additionnels entre parcelle et historique (ex. suivi dossier). */
   extraBlocks?: CartoSidebarBlock[];
@@ -42,22 +42,29 @@ function LeftSidebarBlock({
   title,
   defaultOpen = false,
   children,
+  tone = "default",
+  icon,
 }: {
   title: string;
   defaultOpen?: boolean;
   children: ReactNode;
+  tone?: "search" | "parcelle" | "default";
+  icon?: ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <section className="carto-left-sidebar__block">
+    <section className={`carto-left-sidebar__block carto-left-sidebar__block--${tone}`}>
       <button
         type="button"
         className="carto-left-sidebar__block-trigger"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
       >
-        <span>{title}</span>
+        <span className="carto-left-sidebar__block-trigger-label">
+          {icon ? <span className="carto-left-sidebar__block-icon">{icon}</span> : null}
+          <span className="carto-left-sidebar__block-title">{title}</span>
+        </span>
         {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
       </button>
       {open ? <div className="carto-left-sidebar__block-body">{children}</div> : null}
@@ -108,9 +115,9 @@ export default function CartoLeftSidebar({
   newCuTitle = "Nouveau Certificat d'Urbanisme",
   defaultNewCuOpen = false,
   defaultParcelleOpen = true,
-  defaultHistoryOpen = false,
+  defaultHistoryOpen = true,
   extraBlocks = [],
-  historyTitle = "Historique Dossiers",
+  historyTitle = "Historique des dossiers",
 }: CartoLeftSidebarProps) {
   const [historyOpen, setHistoryOpen] = useState(defaultHistoryOpen);
 
@@ -156,6 +163,8 @@ export default function CartoLeftSidebar({
               <LeftSidebarBlock
                 title={searchBlock.title}
                 defaultOpen={searchBlock.defaultOpen ?? true}
+                tone="search"
+                icon={<Search size={15} aria-hidden />}
               >
                 <div className="carto-left-sidebar__search">{searchBlock.content}</div>
               </LeftSidebarBlock>
@@ -186,6 +195,8 @@ export default function CartoLeftSidebar({
               <LeftSidebarBlock
                 title={parcelleBlock.title}
                 defaultOpen={parcelleBlock.defaultOpen ?? defaultParcelleOpen}
+                tone="parcelle"
+                icon={<MapPin size={15} aria-hidden />}
               >
                 <div className="carto-left-sidebar__parcelle">{parcelleBlock.content}</div>
               </LeftSidebarBlock>
@@ -200,30 +211,39 @@ export default function CartoLeftSidebar({
                 {block.content}
               </LeftSidebarBlock>
             ))}
-          </div>
 
-          <section
-            className={`carto-left-sidebar__history-pinned${historyOpen ? " carto-left-sidebar__history-pinned--open" : " carto-left-sidebar__history-pinned--collapsed"}`}
-            aria-label={historyTitle}
-          >
-            <button
-              type="button"
-              className="carto-left-sidebar__history-pinned-trigger"
-              onClick={() => setHistoryOpen((v) => !v)}
-              aria-expanded={historyOpen}
+            <div className="carto-left-sidebar__history-split" aria-hidden="true">
+              <span>Dossiers générés</span>
+            </div>
+
+            <section
+              className={`carto-left-sidebar__history-pinned${historyOpen ? " carto-left-sidebar__history-pinned--open" : " carto-left-sidebar__history-pinned--collapsed"}`}
+              aria-label={historyTitle}
             >
-              <span className="carto-left-sidebar__history-pinned-trigger-label">
-                <Clock size={14} aria-hidden />
-                <span>{historyTitle}</span>
-              </span>
-              {historyOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-            </button>
-            {historyOpen ? (
-              <div className="carto-left-sidebar__history-pinned-body">
-                <CartoHistoryPanel {...history} variant="left" />
-              </div>
-            ) : null}
-          </section>
+              <button
+                type="button"
+                className="carto-left-sidebar__history-pinned-trigger"
+                onClick={() => setHistoryOpen((v) => !v)}
+                aria-expanded={historyOpen}
+              >
+                <span className="carto-left-sidebar__history-pinned-trigger-label">
+                  <Clock size={14} aria-hidden />
+                  <span>
+                    {historyTitle}
+                    {history.rows.length > 0 ? (
+                      <span className="carto-left-sidebar__history-count"> {history.rows.length}</span>
+                    ) : null}
+                  </span>
+                </span>
+                {historyOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+              </button>
+              {historyOpen ? (
+                <div className="carto-left-sidebar__history-pinned-body">
+                  <CartoHistoryPanel {...history} variant="left" />
+                </div>
+              ) : null}
+            </section>
+          </div>
         </div>
         ) : null}
       </aside>

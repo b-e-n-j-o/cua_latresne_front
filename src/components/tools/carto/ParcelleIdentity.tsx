@@ -8,6 +8,7 @@ import {
   AlertCircle,
   FileDown,
 } from "lucide-react";
+import { CARTO_SHOW_CIF_UI } from "../../../pages/communes/communs/carto/cartoAgentUiFlags";
 
 type ParcelleInfo = {
   section: string;
@@ -428,7 +429,7 @@ export default function ParcelleIdentity({
   runFetchRef.current = runFetch;
 
   useEffect(() => {
-    if (!autoFetch || !stableGeometry) return;
+    if (!CARTO_SHOW_CIF_UI || !autoFetch || !stableGeometry) return;
     void runFetchRef.current();
     return () => abortRef.current?.abort();
   }, [autoFetch, geomFingerprint, stableGeometry, parcelle.commune, parcelle.insee, dbSchemaPayload]);
@@ -571,7 +572,7 @@ export default function ParcelleIdentity({
     dbSchemaPayload,
   ]);
 
-  const showManualButton = !autoFetch || !stableGeometry;
+  const showManualButton = CARTO_SHOW_CIF_UI && (!autoFetch || !stableGeometry);
 
   const statusIcon = (s: LayerRowState["status"]) => {
     switch (s) {
@@ -599,6 +600,8 @@ export default function ParcelleIdentity({
     if (row.status === "error") return row.error || "Erreur";
     return "—";
   };
+
+  if (!CARTO_SHOW_CIF_UI) return null;
 
   return (
     <div className="mt-3">

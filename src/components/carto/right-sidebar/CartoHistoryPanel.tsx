@@ -1,1 +1,1 @@
-export { default, type CartoHistoryPanelProps } from "../../../pages/communes/communs/carto/layout/CartoHistoryPanel";
+export { default, type CartoHistoryPanelProps, type IdentiteFonciereHistoryRow } from "../../../pages/communes/communs/carto/layout/CartoHistoryPanel";

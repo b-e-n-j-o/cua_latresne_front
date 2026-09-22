@@ -53,9 +53,6 @@ export default function ParcelleSearchForm({ onSelect, embedded = false }: Props
 
   return (
     <div className="parcelle-search-form">
-      <p className="parcelle-search-form__hint">
-        Saisissez la section et le numéro si vous ne localisez pas la parcelle sur la carte.
-      </p>
       <ParcelleSearchFields
         section={section}
         numero={numero}

@@ -2,12 +2,23 @@ import { type ReactNode, useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { pluAuthHeaders } from "./pluAuth";
 
-type GeminiTokenUsage = {
+type TokenUsage = {
   prompt_token_count?: number;
   candidates_token_count?: number;
   thoughts_token_count?: number;
   cached_content_token_count?: number;
   total_token_count?: number;
+  tokens_source?: string;
+};
+
+type CostBreakdown = {
+  input_usd?: number;
+  output_usd?: number;
+  total_usd?: number;
+  price_input_per_m?: number;
+  price_output_per_m?: number;
+  tokens_source?: string;
+  model?: string;
 };
 
 type RawContextPayload = {
@@ -15,6 +26,8 @@ type RawContextPayload = {
   captured_at?: string;
   commune?: string;
   model?: string;
+  provider?: string;
+  stack?: string;
   system_instruction?: string;
   session_zones_preloaded?: unknown[];
   prior_messages?: { role: string; content: string }[];
@@ -29,11 +42,18 @@ type RawContextPayload = {
   }[];
   tool_count?: number;
   model_answer?: string;
-  gemini_rounds?: (GeminiTokenUsage & {
+  gemini_rounds?: (TokenUsage & {
     round?: number;
     with_tool_calls?: boolean;
   })[];
-  gemini_usage_total?: GeminiTokenUsage;
+  gemini_usage_total?: TokenUsage;
+  llm_rounds?: (TokenUsage & {
+    round?: number;
+    with_tool_calls?: boolean;
+    model?: string;
+  })[];
+  llm_usage_total?: TokenUsage;
+  cost?: CostBreakdown | null;
 };
 
 type Props = {
@@ -68,16 +88,27 @@ function fmt(n: number | undefined): string {
   return (n ?? 0).toLocaleString("fr-FR");
 }
 
+function fmtUsd(n: number | undefined): string {
+  if (n == null) return "—";
+  if (n > 0 && n < 0.01) return `$${n.toFixed(4)}`;
+  return `$${n.toFixed(3)}`;
+}
+
 function TokenUsageBlock({ ctx }: { ctx: RawContextPayload }) {
-  const total = ctx.gemini_usage_total;
+  const total = ctx.llm_usage_total ?? ctx.gemini_usage_total;
+  const rounds = (ctx.llm_rounds?.length ? ctx.llm_rounds : ctx.gemini_rounds) ?? [];
+  const cost = ctx.cost;
+  const provider = ctx.provider || ctx.stack || (cost ? "mistral" : "gemini");
+  const source = cost?.tokens_source || total?.tokens_source;
   const hasBilling =
-    (total?.total_token_count ?? 0) > 0 || (total?.prompt_token_count ?? 0) > 0;
-  const rounds = ctx.gemini_rounds ?? [];
+    (total?.total_token_count ?? 0) > 0 ||
+    (total?.prompt_token_count ?? 0) > 0 ||
+    (cost?.total_usd ?? 0) > 0;
 
   if (!hasBilling) {
     return (
       <p className="plu-raw-ctx__tokens plu-raw-ctx__tokens--muted">
-        Tokens Gemini non enregistrés (message antérieur à la mise à jour).
+        Tokens / coût non enregistrés (message antérieur à la mise à jour).
       </p>
     );
   }
@@ -85,8 +116,20 @@ function TokenUsageBlock({ ctx }: { ctx: RawContextPayload }) {
   return (
     <div className="plu-raw-ctx__tokens">
       <p className="plu-raw-ctx__tokens-total">
-        <strong>Total facturé (tour)</strong> : {fmt(total?.total_token_count)} tokens
+        <strong>Coût du tour</strong>
+        {cost?.total_usd != null ? ` : ${fmtUsd(cost.total_usd)}` : ""}
+        {" · "}
+        {fmt(total?.total_token_count)} tokens
+        {source ? ` (${source === "estimate" ? "estimé" : source === "api" ? "API" : source})` : ""}
       </p>
+      {cost && (
+        <p className="plu-raw-ctx__tokens-hint">
+          Entrée {fmtUsd(cost.input_usd)} · sortie {fmtUsd(cost.output_usd)}
+          {cost.price_input_per_m != null && cost.price_output_per_m != null
+            ? ` · tarif ${fmtUsd(cost.price_input_per_m)} / ${fmtUsd(cost.price_output_per_m)} par M tokens`
+            : ""}
+        </p>
+      )}
       <table className="plu-raw-ctx__tokens-table">
         <thead>
           <tr>
@@ -123,8 +166,9 @@ function TokenUsageBlock({ ctx }: { ctx: RawContextPayload }) {
         </tbody>
       </table>
       <p className="plu-raw-ctx__tokens-hint">
-        Chiffres issus de l&apos;API Gemini (<code>usage_metadata</code>) — base pour
-        l&apos;évaluation de la facturation.
+        {provider === "mistral"
+          ? "Mistral / GLM : usage API s'il est renvoyé, sinon estimateur tiktoken (cl100k) × 1,40 $ in / 4,40 $ out par million."
+          : "Chiffres issus de l'API Gemini (usage_metadata) — base pour l'évaluation de la facturation."}
       </p>
     </div>
   );
@@ -203,14 +247,6 @@ export default function PluRawContextPanel({ apiRoot, sessionId, messageId, onCl
               <Section title="Prompt système (assemblé)">
                 <PreBlock text={ctx.system_instruction || "(vide)"} />
               </Section>
-
-              {ctx.session_zones_preloaded && (ctx.session_zones_preloaded as unknown[]).length > 0 && (
-                <Section title="Zones PLU préchargées (session)" defaultOpen={false}>
-                  <PreBlock
-                    text={JSON.stringify(ctx.session_zones_preloaded, null, 2)}
-                  />
-                </Section>
-              )}
 
               {ctx.prior_messages && ctx.prior_messages.length > 0 && (
                 <Section

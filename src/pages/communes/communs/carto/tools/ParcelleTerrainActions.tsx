@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Cloud, Mountain } from "lucide-react";
 import { LidarVisualizationEmbed } from "../../../../../components/tools/lidar/LidarVisualizationEmbed";
 import { MntVisualizationEmbed } from "../../../../../components/tools/mnt/MntVisualizationEmbed";
+import { CARTO_SHOW_TERRAIN_VIZ_UI } from "../cartoAgentUiFlags";
 
 export type TerrainParcelleRef = {
   section: string;
@@ -34,6 +35,7 @@ export default function ParcelleTerrainActions({
 
   const mntPrimary = lidarParcelles[0] ?? null;
 
+  if (!CARTO_SHOW_TERRAIN_VIZ_UI) return null;
   if (!parcelles.length) return null;
 
   return (

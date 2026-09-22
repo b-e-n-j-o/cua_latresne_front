@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState, type ComponentType, type ComponentProps } from "react";
-import { Clock, MapPin, Search, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronRight, Clock, MapPin, Search, Trash2 } from "lucide-react";
 import { type HistoryPipeline } from "../tools/HistoryPipelineCard";
 import ProjectHistoryCard from "./ProjectHistoryCard";
 import { formatCerfaParcelleRefs } from "../history/cerfaParcelleRefs";
+import { CARTO_SHOW_CIF_UI } from "../cartoAgentUiFlags";
 import "./CartoHistoryPanel.css";
 
 /** Ligne renvoyée par GET /api/identite-fonciere/history/by_user */
@@ -21,7 +22,9 @@ export type IdentiteFonciereHistoryRow = {
 export type CartoHistoryPanelProps = {
   rows: HistoryPipeline[];
   selectedSlug: string | null;
+  hoveredSlug?: string | null;
   onSelect: (slug: string) => void;
+  onHoverProject?: (slug: string | null) => void;
   onOpenProject: (slug: string) => void;
   onUpdateProject: (
     slug: string,
@@ -39,10 +42,13 @@ export type CartoHistoryPanelProps = {
     },
   ) => Promise<void>;
   onDeleteProject: (slug: string) => Promise<void>;
+  onSuiviChange?: (slug: string, suivi: number) => Promise<void>;
   onCreateNew?: () => void;
   identiteRows?: IdentiteFonciereHistoryRow[];
   selectedIdentiteProjectId?: string | null;
+  hoveredIdentiteProjectId?: string | null;
   onSelectIdentite?: (projectId: string) => void;
+  onHoverIdentite?: (projectId: string | null) => void;
   historySidebarTab?: "cua" | "cif";
   onHistorySidebarTabChange?: (tab: "cua" | "cif") => void;
   onDeleteIdentiteProject?: (projectId: string) => Promise<void>;
@@ -66,14 +72,19 @@ function formatMonthGroupLabel(dateStr?: string | null): string {
 export default function CartoHistoryPanel({
   rows,
   selectedSlug,
+  hoveredSlug = null,
   onSelect,
+  onHoverProject,
   onOpenProject,
   onUpdateProject,
   onDeleteProject,
+  onSuiviChange,
   onCreateNew,
   identiteRows = [],
   selectedIdentiteProjectId = null,
+  hoveredIdentiteProjectId = null,
   onSelectIdentite,
+  onHoverIdentite,
   historySidebarTab: controlledTab,
   onHistorySidebarTabChange,
   onDeleteIdentiteProject,
@@ -85,38 +96,22 @@ export default function CartoHistoryPanel({
   const [internalTab, setInternalTab] = useState<"cua" | "cif">("cua");
   const tabControlled =
     controlledTab !== undefined && typeof onHistorySidebarTabChange === "function";
-  const productTab = tabControlled ? controlledTab! : internalTab;
+  const productTab: "cua" | "cif" = CARTO_SHOW_CIF_UI
+    ? tabControlled
+      ? controlledTab!
+      : internalTab
+    : "cua";
   const setProductTab = (t: "cua" | "cif") => {
+    if (!CARTO_SHOW_CIF_UI) return;
     if (tabControlled) onHistorySidebarTabChange!(t);
     else setInternalTab(t);
   };
 
   const [searchTerm, setSearchTerm] = useState("");
+  const [openMonthGroups, setOpenMonthGroups] = useState<Record<string, boolean>>({});
   const [updatingSlug, setUpdatingSlug] = useState<string | null>(null);
   const [deletingSlug, setDeletingSlug] = useState<string | null>(null);
   const [deletingIdentiteId, setDeletingIdentiteId] = useState<string | null>(null);
-  const [openMonthGroups, setOpenMonthGroups] = useState<Record<string, boolean>>({});
-
-  /** Par défaut : mois repliés */
-  const isMonthGroupOpen = (key: string): boolean => {
-    if (key in openMonthGroups) return Boolean(openMonthGroups[key]);
-    return false;
-  };
-
-  const toggleMonthGroup = (key: string) => {
-    setOpenMonthGroups((prev) => ({
-      ...prev,
-      [key]: !isMonthGroupOpen(key),
-    }));
-  };
-
-  useEffect(() => {
-    if (!selectedSlug) return;
-    const row = rows.find((r) => r.slug === selectedSlug);
-    if (!row) return;
-    const monthKey = `cua:${formatMonthGroupLabel(row.created_at)}`;
-    setOpenMonthGroups((prev) => ({ ...prev, [monthKey]: true }));
-  }, [selectedSlug, rows]);
 
   useEffect(() => {
     if (!selectedSlug) return;
@@ -126,15 +121,7 @@ export default function CartoHistoryPanel({
         ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
     }, 50);
     return () => window.clearTimeout(timer);
-  }, [selectedSlug, rows, openMonthGroups]);
-
-  useEffect(() => {
-    if (!selectedIdentiteProjectId) return;
-    const row = identiteRows.find((r) => r.project_id === selectedIdentiteProjectId);
-    if (!row) return;
-    const monthKey = `cif:${formatMonthGroupLabel(row.created_at)}`;
-    setOpenMonthGroups((prev) => ({ ...prev, [monthKey]: true }));
-  }, [selectedIdentiteProjectId, identiteRows]);
+  }, [selectedSlug, rows]);
 
   useEffect(() => {
     if (!selectedIdentiteProjectId) return;
@@ -144,7 +131,28 @@ export default function CartoHistoryPanel({
         ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
     }, 50);
     return () => window.clearTimeout(timer);
-  }, [selectedIdentiteProjectId, identiteRows, openMonthGroups]);
+  }, [selectedIdentiteProjectId, identiteRows]);
+
+  const isMonthGroupOpen = (monthKey: string): boolean => {
+    if (searchTerm.trim()) return true;
+    return Boolean(openMonthGroups[monthKey]);
+  };
+
+  const toggleMonthGroup = (monthKey: string) => {
+    if (searchTerm.trim()) return;
+    setOpenMonthGroups((prev) => ({
+      ...prev,
+      [monthKey]: !prev[monthKey],
+    }));
+  };
+
+  useEffect(() => {
+    if (!selectedSlug) return;
+    const row = rows.find((r) => r.slug === selectedSlug);
+    if (!row) return;
+    const key = formatMonthGroupLabel(row.created_at);
+    setOpenMonthGroups((prev) => ({ ...prev, [key]: true }));
+  }, [selectedSlug, rows]);
 
   const { matched, others } = useMemo(() => {
     if (!searchTerm.trim()) {
@@ -233,26 +241,28 @@ export default function CartoHistoryPanel({
           <p className="carto-history-panel__commune carto-history-panel__commune--left">{communeSlug}</p>
         ) : null}
 
-        <div className="carto-history-panel__tabs" role="tablist">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={productTab === "cua"}
-            className={`carto-history-panel__tab${productTab === "cua" ? " carto-history-panel__tab--active" : ""}`}
-            onClick={() => setProductTab("cua")}
-          >
-            Certificat URBA
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={productTab === "cif"}
-            className={`carto-history-panel__tab${productTab === "cif" ? " carto-history-panel__tab--active" : ""}`}
-            onClick={() => setProductTab("cif")}
-          >
-            Identité foncière
-          </button>
-        </div>
+        {CARTO_SHOW_CIF_UI ? (
+          <div className="carto-history-panel__tabs" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={productTab === "cua"}
+              className={`carto-history-panel__tab${productTab === "cua" ? " carto-history-panel__tab--active" : ""}`}
+              onClick={() => setProductTab("cua")}
+            >
+              Certificat URBA
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={productTab === "cif"}
+              className={`carto-history-panel__tab${productTab === "cif" ? " carto-history-panel__tab--active" : ""}`}
+              onClick={() => setProductTab("cif")}
+            >
+              Identité foncière
+            </button>
+          </div>
+        ) : null}
 
         <p className="carto-history-panel__meta">
           {productTab === "cua"
@@ -296,65 +306,71 @@ export default function CartoHistoryPanel({
               <p className="carto-history-panel__empty">Aucun résultat pour « {searchTerm} »</p>
             ) : (
               <div className="carto-history-panel__list">
-                {groupedCua.map((group) => (
-                  <div key={group.month}>
+                {groupedCua.map((group) => {
+                  const monthOpen = isMonthGroupOpen(group.month);
+                  return (
+                  <div key={group.month} className="carto-history-panel__group">
                     <button
                       type="button"
                       className="carto-history-panel__month-btn"
-                      onClick={() => toggleMonthGroup(`cua:${group.month}`)}
-                      aria-expanded={isMonthGroupOpen(`cua:${group.month}`)}
+                      onClick={() => toggleMonthGroup(group.month)}
+                      aria-expanded={monthOpen}
                     >
-                      <span>
-                        {group.month}
-                        <span style={{ opacity: 0.6, marginLeft: 6 }}>({group.items.length})</span>
-                      </span>
-                      {isMonthGroupOpen(`cua:${group.month}`) ? (
-                        <ChevronUp className="w-3.5 h-3.5" />
+                      {monthOpen ? (
+                        <ChevronDown size={12} aria-hidden />
                       ) : (
-                        <ChevronDown className="w-3.5 h-3.5" />
+                        <ChevronRight size={12} aria-hidden />
                       )}
+                      {group.month}
+                      <span className="carto-history-panel__month-count">({group.items.length})</span>
                     </button>
-                    {isMonthGroupOpen(`cua:${group.month}`) &&
-                      group.items.map((row) => {
-                        const isSelected = selectedSlug === row.slug;
-                        const pill = getPill(row);
-                        return (
-                          <div
-                            key={row.slug}
-                            data-history-slug={row.slug}
-                            className={`cua-history-card${isSelected ? " cua-history-card--selected" : ""}`}
-                          >
-                            <ProjectCard
-                              row={row}
-                              isSelected={isSelected}
-                              pill={pill}
-                              formattedDate={formatDate(row.created_at)}
-                              onSelect={() => onSelect(row.slug)}
-                              onOpenProject={() => onOpenProject(row.slug)}
-                              onUpdate={async (slug, payload) => {
-                                setUpdatingSlug(slug);
-                                try {
-                                  await onUpdateProject(slug, payload);
-                                } finally {
-                                  setUpdatingSlug(null);
-                                }
-                              }}
-                              onDelete={async (slug) => {
-                                setDeletingSlug(slug);
-                                try {
-                                  await onDeleteProject(slug);
-                                } finally {
-                                  setDeletingSlug(null);
-                                }
-                              }}
-                              isUpdating={updatingSlug === row.slug}
-                              isDeleting={deletingSlug === row.slug}
-                            />
-                          </div>
-                        );
-                      })}
+                    {monthOpen
+                      ? group.items.map((row) => {
+                      const isSelected = selectedSlug === row.slug;
+                      const isHovered = hoveredSlug === row.slug;
+                      const pill = getPill(row);
+                      return (
+                        <div
+                          key={row.slug}
+                          data-history-slug={row.slug}
+                          className={`cua-history-card${isSelected ? " cua-history-card--selected" : ""}${isHovered ? " cua-history-card--hovered" : ""}`}
+                          onMouseEnter={() => onHoverProject?.(row.slug)}
+                          onMouseLeave={() => onHoverProject?.(null)}
+                        >
+                          <ProjectCard
+                            row={row}
+                            isSelected={isSelected}
+                            pill={pill}
+                            formattedDate={formatDate(row.created_at)}
+                            onSelect={() => onSelect(row.slug)}
+                            onOpenProject={() => onOpenProject(row.slug)}
+                            onUpdate={async (slug, payload) => {
+                              setUpdatingSlug(slug);
+                              try {
+                                await onUpdateProject(slug, payload);
+                              } finally {
+                                setUpdatingSlug(null);
+                              }
+                            }}
+                            onDelete={async (slug) => {
+                              setDeletingSlug(slug);
+                              try {
+                                await onDeleteProject(slug);
+                              } finally {
+                                setDeletingSlug(null);
+                              }
+                            }}
+                            isUpdating={updatingSlug === row.slug}
+                            isDeleting={deletingSlug === row.slug}
+                            onSuiviChange={onSuiviChange}
+                          />
+                        </div>
+                      );
+                    })
+                      : null}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </>
@@ -368,107 +384,112 @@ export default function CartoHistoryPanel({
             ) : groupedIdentite.length === 0 && searchTerm.trim() ? (
               <p className="carto-history-panel__empty">Aucun résultat pour « {searchTerm} »</p>
             ) : (
-              groupedIdentite.map((group) => (
-                <div key={group.month}>
+              groupedIdentite.map((group) => {
+                const monthOpen = isMonthGroupOpen(group.month);
+                return (
+                <div key={group.month} className="carto-history-panel__group">
                   <button
                     type="button"
                     className="carto-history-panel__month-btn"
-                    onClick={() => toggleMonthGroup(`cif:${group.month}`)}
-                    aria-expanded={isMonthGroupOpen(`cif:${group.month}`)}
+                    onClick={() => toggleMonthGroup(group.month)}
+                    aria-expanded={monthOpen}
                   >
-                    <span>
-                      {group.month}
-                      <span style={{ opacity: 0.6, marginLeft: 6 }}>({group.items.length})</span>
-                    </span>
-                    {isMonthGroupOpen(`cif:${group.month}`) ? (
-                      <ChevronUp className="w-3.5 h-3.5" />
+                    {monthOpen ? (
+                      <ChevronDown size={12} aria-hidden />
                     ) : (
-                      <ChevronDown className="w-3.5 h-3.5" />
+                      <ChevronRight size={12} aria-hidden />
                     )}
+                    {group.month}
+                    <span className="carto-history-panel__month-count">({group.items.length})</span>
                   </button>
-                  {isMonthGroupOpen(`cif:${group.month}`) &&
-                    group.items.map((r) => {
-                      const isSel = selectedIdentiteProjectId === r.project_id;
-                      return (
-                        <div
-                          key={r.project_id}
-                          data-identite-id={r.project_id}
-                          className={`identite-row${isSel ? " identite-row--selected" : ""}`}
-                        >
-                          <div className="flex items-stretch gap-0">
+                  {monthOpen
+                    ? group.items.map((r) => {
+                    const isSel = selectedIdentiteProjectId === r.project_id;
+                    const isHovered = hoveredIdentiteProjectId === r.project_id;
+                    return (
+                      <div
+                        key={r.project_id}
+                        data-identite-id={r.project_id}
+                        className={`identite-row${isSel ? " identite-row--selected" : ""}${isHovered ? " identite-row--hovered" : ""}`}
+                        onMouseEnter={() => onHoverIdentite?.(r.project_id)}
+                        onMouseLeave={() => onHoverIdentite?.(null)}
+                      >
+                        <div className="flex items-stretch gap-0">
+                          <button
+                            type="button"
+                            onClick={() => onSelectIdentite?.(r.project_id)}
+                            className="flex-1 text-left p-3 min-w-0"
+                          >
+                            <div className="flex items-start gap-2">
+                              <MapPin className="w-4 h-4 mt-0.5 shrink-0 text-violet-400" />
+                              <div className="flex-1 min-w-0">
+                                <div className="identite-row__title truncate">
+                                  {r.parcelle_label || "Unité foncière"}
+                                </div>
+                                <div className="identite-row__date">{formatDate(r.created_at)}</div>
+                              </div>
+                            </div>
+                          </button>
+                          {onDeleteIdentiteProject ? (
                             <button
                               type="button"
-                              onClick={() => onSelectIdentite?.(r.project_id)}
-                              className="flex-1 text-left p-3 min-w-0"
+                              title="Supprimer de l'historique"
+                              disabled={deletingIdentiteId === r.project_id}
+                              onClick={async (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                const ok = window.confirm(
+                                  "Supprimer cette identité foncière ? Les fichiers seront retirés du stockage.",
+                                );
+                                if (!ok) return;
+                                setDeletingIdentiteId(r.project_id);
+                                try {
+                                  await onDeleteIdentiteProject(r.project_id);
+                                } catch (err: unknown) {
+                                  const msg =
+                                    err instanceof Error ? err.message : "Échec de la suppression";
+                                  window.alert(msg);
+                                } finally {
+                                  setDeletingIdentiteId(null);
+                                }
+                              }}
+                              className="shrink-0 px-2 flex items-center justify-center text-slate-500 hover:text-red-400 disabled:opacity-40"
                             >
-                              <div className="flex items-start gap-2">
-                                <MapPin className="w-4 h-4 mt-0.5 shrink-0 text-violet-400" />
-                                <div className="flex-1 min-w-0">
-                                  <div className="identite-row__title truncate">
-                                    {r.parcelle_label || "Unité foncière"}
-                                  </div>
-                                  <div className="identite-row__date">{formatDate(r.created_at)}</div>
-                                </div>
-                              </div>
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
-                            {onDeleteIdentiteProject ? (
-                              <button
-                                type="button"
-                                title="Supprimer de l'historique"
-                                disabled={deletingIdentiteId === r.project_id}
-                                onClick={async (e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  const ok = window.confirm(
-                                    "Supprimer cette identité foncière ? Les fichiers seront retirés du stockage.",
-                                  );
-                                  if (!ok) return;
-                                  setDeletingIdentiteId(r.project_id);
-                                  try {
-                                    await onDeleteIdentiteProject(r.project_id);
-                                  } catch (err: unknown) {
-                                    const msg =
-                                      err instanceof Error ? err.message : "Échec de la suppression";
-                                    window.alert(msg);
-                                  } finally {
-                                    setDeletingIdentiteId(null);
-                                  }
-                                }}
-                                className="shrink-0 px-2 flex items-center justify-center text-slate-500 hover:text-red-400 disabled:opacity-40"
+                          ) : null}
+                        </div>
+                        {isSel && (r.carte_url || r.pdf_url) && (
+                          <div className="px-3 pb-3 flex gap-2">
+                            {r.pdf_url ? (
+                              <a
+                                href={r.pdf_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex-1 text-center text-xs font-medium py-2 rounded-lg bg-violet-600 text-white hover:bg-violet-500"
                               >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                                PDF
+                              </a>
+                            ) : null}
+                            {r.carte_url ? (
+                              <a
+                                href={r.carte_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex-1 text-center text-xs font-medium py-2 rounded-lg border border-violet-500/50 text-violet-200 hover:bg-violet-500/10"
+                              >
+                                Carte
+                              </a>
                             ) : null}
                           </div>
-                          {isSel && (r.carte_url || r.pdf_url) && (
-                            <div className="px-3 pb-3 flex gap-2">
-                              {r.pdf_url ? (
-                                <a
-                                  href={r.pdf_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex-1 text-center text-xs font-medium py-2 rounded-lg bg-violet-600 text-white hover:bg-violet-500"
-                                >
-                                  PDF
-                                </a>
-                              ) : null}
-                              {r.carte_url ? (
-                                <a
-                                  href={r.carte_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex-1 text-center text-xs font-medium py-2 rounded-lg border border-violet-500/50 text-violet-200 hover:bg-violet-500/10"
-                                >
-                                  Carte
-                                </a>
-                              ) : null}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                        )}
+                      </div>
+                    );
+                  })
+                    : null}
                 </div>
-              ))
+                );
+              })
             )}
           </div>
         )}

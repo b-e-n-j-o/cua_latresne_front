@@ -11,9 +11,11 @@ const STEPS = [
 type Props = {
   pipeline: HistoryPipeline;
   onSuiviChange: (suivi: number) => void;
+  /** Dans l'encart historique déplié (sans carte blanche séparée). */
+  embedded?: boolean;
 };
 
-export default function SuiviInstructionCard({ pipeline, onSuiviChange }: Props) {
+export default function SuiviInstructionCard({ pipeline, onSuiviChange, embedded = false }: Props) {
   const currentStep = Math.min(4, Math.max(1, pipeline.suivi ?? 2));
 
   const handleToggle = (stepId: number) => {
@@ -25,8 +27,22 @@ export default function SuiviInstructionCard({ pipeline, onSuiviChange }: Props)
   };
 
   return (
-    <div className="bg-white rounded-lg border border-teal-200 p-3 shadow-sm">
-      <h3 className="text-sm font-semibold text-teal-800 mb-3">Suivi du dossier</h3>
+    <div
+      className={
+        embedded
+          ? "cua-history-row__suivi"
+          : "bg-white rounded-lg border border-teal-200 p-3 shadow-sm"
+      }
+    >
+      <h3
+        className={
+          embedded
+            ? "cua-history-row__detail-label cua-history-row__suivi-title"
+            : "text-sm font-semibold text-teal-800 mb-3"
+        }
+      >
+        Suivi du dossier
+      </h3>
       <div className="flex flex-col">
         {STEPS.map((step, index) => {
           const isDone = step.id <= currentStep;

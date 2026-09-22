@@ -7,13 +7,11 @@ import { useNavigate } from "react-router-dom";
 import CartoLeftSidebar from "../../communs/carto/layout/CartoLeftSidebar";
 import ParcelleSearchForm from "../../communs/carto/tools/ParcelleSearchForm";
 import { type HistoryPipeline } from "../../communs/carto/tools/HistoryPipelineCard";
-import SuiviInstructionCard from "../../communs/carto/tools/SuiviInstructionCard";
 import type { ParcelleInfo } from "../../../../types/parcelle";
 import type { ParcelleResumeRef } from "../../../../types/sigResume";
 import supabase from "../../../../supabaseClient";
 import { apiFetch } from "../../../../api/apiFetch";
 import {
-  HistoryPipelinePopup,
   MapLoadingOverlay,
   MapLegendHarvestOverlay,
   MapTooltipOverlay,
@@ -24,12 +22,20 @@ import RightSidebarPatch from "../../communs/carto/layout/RightSidebarPatch";
 import ParcelleQuickActions from "../../communs/carto/tools/ParcelleQuickActions";
 import DraftUfParcelleList from "../../communs/carto/tools/DraftUfParcelleList";
 import {
+  applyCuaHistoryHoverHighlight,
+  applyIdentiteHistoryHoverHighlight,
+  attachCuaHistoryPointerHandlers,
+  bringCuaHistoryLayersToFront,
   buildHistoryMapFeatures,
-  getPingColor,
+  CUA_HISTORY_LAYER_IDS,
+  ensureHistoryPingLayersOnTop,
   normalizeHistoryPipelines,
   parseIdentiteCentroid,
+  pickCuaHistoryPingFeature,
 } from "../../communs/carto/history/historyMapUtils";
+import { addCuaHistoryHitLayer } from "../../communs/carto/history/cuaHistoryPingLayers";
 import { getCerfaParcelleRefs } from "../../communs/carto/history/cerfaParcelleRefs";
+import { CARTO_SHOW_CIF_UI } from "../../communs/carto/cartoAgentUiFlags";
 import { CARTO_LAYERS } from "./cartoLayers";
 import { syncCartoOnMap } from "./cartoFilters";
 import CartoLegendPanel from "./CartoLegendPanel";
@@ -100,6 +106,7 @@ const MAP_UI_TOP_LAYER_IDS = [
   "history-pipeline-parcelles-outline",
   "pipelines-history-halo",
   "pipelines-history-point",
+  "pipelines-history-hit",
   "identite-fonciere-history-halo",
   "identite-fonciere-history-point",
 ] as const;
@@ -113,8 +120,14 @@ function moveLayerToTop(map: maplibregl.Map, layerId: string) {
 }
 
 function bringCadastreHitLayersToFront(map: maplibregl.Map) {
-  for (const id of CADASTRE_HIT_LAYER_IDS) moveLayerToTop(map, id);
-  for (const id of MAP_UI_TOP_LAYER_IDS) moveLayerToTop(map, id);
+  const overlayWithoutPings = MAP_UI_TOP_LAYER_IDS.filter(
+    (id) => !CUA_HISTORY_LAYER_IDS.includes(id as (typeof CUA_HISTORY_LAYER_IDS)[number]),
+  );
+  ensureHistoryPingLayersOnTop(map, {
+    cadastreHitLayerIds: CADASTRE_HIT_LAYER_IDS,
+    cadastreGridLayerIds: CADASTRE_GRID_LAYER_IDS,
+    overlayLayerIds: overlayWithoutPings,
+  });
 }
 
 /** Grille cadastre GeoJSON (hit-test). Visuel = PMTiles `parcelles-*` via légende. */
@@ -140,6 +153,7 @@ function applyCadastreGridVisibility(map: maplibregl.Map, visible: boolean): voi
     } catch {
       /* style en cours de chargement */
     }
+    bringCadastreHitLayersToFront(map);
   }
 }
 
@@ -212,7 +226,9 @@ export default function LatresnePage() {
   const [historyPipelines, setHistoryPipelines] = useState<HistoryPipeline[]>([]);
   const [identiteFonciereHistory, setIdentiteFonciereHistory] = useState<IdentiteFonciereHistoryRow[]>([]);
   const [selectedHistoryPipeline, setSelectedHistoryPipeline] = useState<HistoryPipeline | null>(null);
+  const [hoveredHistorySlug, setHoveredHistorySlug] = useState<string | null>(null);
   const [selectedIdentiteProjectId, setSelectedIdentiteProjectId] = useState<string | null>(null);
+  const [hoveredIdentiteProjectId, setHoveredIdentiteProjectId] = useState<string | null>(null);
   const [historyPopupPosition, setHistoryPopupPosition] = useState<{ x: number; y: number; placement: "above" | "below" } | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [layerVisible, setLayerVisible] = useState<Record<string, boolean>>(() =>
@@ -231,7 +247,10 @@ export default function LatresnePage() {
   const handleLayerVisibleChange = useCallback((layerId: string, on: boolean) => {
     if (layerId === "parcelles") {
       const map = mapRef.current;
-      if (map) applyCadastreGridVisibility(map, on);
+      if (map) {
+        applyCadastreGridVisibility(map, on);
+        bringCadastreHitLayersToFront(map);
+      }
       if (!on) setTooltip(null);
     }
     setLayerVisible((v) => ({ ...v, [layerId]: on }));
@@ -277,8 +296,13 @@ export default function LatresnePage() {
   const showCerfaParcellesRef = useRef<((parcelles: Array<{ section: string; numero: string }>, commune: string, insee: string) => Promise<void>) | null>(null);
   const isHoveringHistoryPingRef = useRef(false);
   const cartoHoverDetachRef = useRef<(() => void) | null>(null);
+  const cuaHistoryPointerDetachRef = useRef<(() => void) | null>(null);
+  const showHistoryPingsRef = useRef(true);
+  const historySidebarTabRef = useRef<"cua" | "cif">("cua");
   const handleSelectHistoryFromSlugRef = useRef<(slug: string) => void>(() => {});
   const handleSelectIdentiteProjectRef = useRef<(projectId: string) => void>(() => {});
+  const setHoveredHistorySlugRef = useRef<(slug: string | null) => void>(() => {});
+  const setHoveredIdentiteProjectIdRef = useRef<(projectId: string | null) => void>(() => {});
 
   function toggleUfParcelle(next: {
     section: string;
@@ -373,6 +397,11 @@ export default function LatresnePage() {
   };
 
   const handleSelectHistoryFromSlug = (slug: string) => {
+    if (selectedHistoryPipeline?.slug === slug) {
+      clearHistorySelection();
+      return;
+    }
+
     const pipeline = historyPipelinesRef.current.find((p) => p.slug === slug);
     if (!pipeline) return;
 
@@ -380,24 +409,12 @@ export default function LatresnePage() {
     setHistorySidebarTab("cua");
     setSelectedIdentiteProjectId(null);
     setSelectedHistoryPipeline(pipeline);
+    setHistoryPopupPosition(null);
 
     const map = mapRef.current;
     if (map && pipeline.centroid) {
       const [lon, lat] = [pipeline.centroid.lon, pipeline.centroid.lat];
-
-      // Centrer la carte sur le projet sélectionné (même logique que le click sur le ping)
       map.flyTo({ center: [lon, lat], zoom: Math.max(map.getZoom(), 16), duration: 600 });
-
-      // Positionner la popup "map"
-      const point = map.project([lon, lat]);
-      const container = map.getContainer();
-      const cw = container.clientWidth;
-      const ch = container.clientHeight;
-      const placement = getPopupPlacement(point.x, point.y, cw, ch);
-      const x = clampPopupX(point.x, cw);
-      setHistoryPopupPosition({ x, y: point.y, placement });
-    } else {
-      setHistoryPopupPosition(null);
     }
   };
 
@@ -424,6 +441,22 @@ export default function LatresnePage() {
     setHistoryPipelines((prev) => prev.map((p) => (p.slug === slug ? updater(p) : p)));
     setSelectedHistoryPipeline((prev) => (prev && prev.slug === slug ? updater(prev) : prev));
     historyPipelinesRef.current = historyPipelinesRef.current.map((p) => (p.slug === slug ? updater(p) : p));
+  };
+
+  const handleHistorySuiviChange = async (slug: string, suivi: number) => {
+    try {
+      const res = await apiFetch(`/pipelines/${slug}/suivi`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ suivi }),
+      });
+      const data = await res.json();
+      if (data?.success) {
+        updateHistoryPipelineInState(slug, (p) => ({ ...p, suivi }));
+      }
+    } catch (e) {
+      console.error("Erreur mise à jour suivi:", e);
+    }
   };
 
   const handleUpdateHistoryProject = async (
@@ -834,43 +867,54 @@ export default function LatresnePage() {
         },
       });
 
-      // Hover sur pings historiques
-      map.on("mousemove", "pipelines-history-halo", (e) => {
-        if (!e.features?.length) return;
+      addCuaHistoryHitLayer(map);
+      bringCuaHistoryLayersToFront(map);
+
+      const applyHistoryPingHover = (payload: {
+        slug: string;
+        x: number;
+        y: number;
+        demandeur?: string;
+        numeroCu?: string;
+        section?: string;
+        numero?: string;
+      }) => {
         isHoveringHistoryPingRef.current = true;
         map.getCanvas().style.cursor = "pointer";
-        const props = e.features[0].properties as any;
-        const demandeur = String(props.demandeur || "").trim();
-        const numeroCu = String(props.numero_cu || "").trim();
-        const section = String(props.section || "").trim();
-        const numero = String(props.numero || "").trim();
-        const line1 = demandeur || "Projet precedent";
+        setHoveredHistorySlugRef.current(payload.slug);
+        const line1 = payload.demandeur || "Projet precedent";
         const line2 =
-          section && numero
-            ? `Section ${section} - Parcelle ${numero}`
-            : numeroCu
-              ? `CU ${numeroCu}`
+          payload.section && payload.numero
+            ? `Section ${payload.section} - Parcelle ${payload.numero}`
+            : payload.numeroCu
+              ? `CU ${payload.numeroCu}`
               : "Parcelle non renseignee";
         setTooltip({
-          x: e.point.x,
-          y: e.point.y,
+          x: payload.x,
+          y: payload.y,
           content: `${line1}\n${line2}`,
         });
-      });
+      };
 
-      map.on("mouseleave", "pipelines-history-halo", () => {
+      const clearHistoryPingHover = () => {
+        if (!isHoveringHistoryPingRef.current) return;
         isHoveringHistoryPingRef.current = false;
         map.getCanvas().style.cursor = "";
+        setHoveredHistorySlugRef.current(null);
         setTooltip(null);
-      });
+      };
 
-      map.on("click", "pipelines-history-halo", (e) => {
+      const onHistoryPingClick = (e: maplibregl.MapLayerMouseEvent) => {
         const feature = e.features?.[0];
         if (!feature) return;
         const slug = (feature.properties as { slug?: string })?.slug;
         if (!slug) return;
         handleSelectHistoryFromSlugRef.current(slug);
-      });
+      };
+
+      map.on("click", "pipelines-history-halo", onHistoryPingClick);
+      map.on("click", "pipelines-history-point", onHistoryPingClick);
+      map.on("click", "pipelines-history-hit", onHistoryPingClick);
 
       map.addSource("identite-fonciere-history", {
         type: "geojson",
@@ -906,6 +950,8 @@ export default function LatresnePage() {
         isHoveringHistoryPingRef.current = true;
         map.getCanvas().style.cursor = "pointer";
         const props = e.features[0].properties as Record<string, unknown>;
+        const projectId = String(props.project_id || "").trim();
+        if (projectId) setHoveredIdentiteProjectIdRef.current(projectId);
         const label = String(props.parcelle_label || "").trim() || "Identité foncière";
         setTooltip({
           x: e.point.x,
@@ -917,6 +963,7 @@ export default function LatresnePage() {
       map.on("mouseleave", "identite-fonciere-history-halo", () => {
         isHoveringHistoryPingRef.current = false;
         map.getCanvas().style.cursor = "";
+        setHoveredIdentiteProjectIdRef.current(null);
         setTooltip(null);
       });
 
@@ -937,6 +984,11 @@ export default function LatresnePage() {
 
       // Hover sur cadastre avec feature-state
       map.on("mousemove", "latresne_parcelles-fill", (e) => {
+        const pingFeature = pickCuaHistoryPingFeature(map, e.point);
+        if (pingFeature) {
+          onHistoryPingHover({ ...e, features: [pingFeature] });
+          return;
+        }
         if (isHoveringHistoryPingRef.current) return;
         if (ufStateRef.current) return;
         if (!e.features?.length) return;
@@ -1098,6 +1150,14 @@ export default function LatresnePage() {
       selectParcelleByRefRef.current = selectParcelleByRef;
 
       map.on("click", async (e) => {
+        const pingFeature = pickCuaHistoryPingFeature(map, e.point);
+        if (pingFeature) {
+          const slug = String((pingFeature.properties as { slug?: string })?.slug || "").trim();
+          if (slug) {
+            handleSelectHistoryFromSlugRef.current(slug);
+            return;
+          }
+        }
         const hit = queryCadastreHitAtPoint(map, e.point);
         if (!hit) return;
         const { feature, layerId } = hit;
@@ -1278,6 +1338,15 @@ export default function LatresnePage() {
         setTooltip,
       });
 
+      cuaHistoryPointerDetachRef.current?.();
+      cuaHistoryPointerDetachRef.current = attachCuaHistoryPointerHandlers(map, {
+        isEnabled: () =>
+          showHistoryPingsRef.current &&
+          (historySidebarTabRef.current === "cua" || !CARTO_SHOW_CIF_UI),
+        onHover: applyHistoryPingHover,
+        onLeave: clearHistoryPingHover,
+      });
+
       map.on("zoom", () => setCurrentZoom(map.getZoom()));
       map.on("zoomend", () => {
         const zoom = map.getZoom();
@@ -1288,6 +1357,8 @@ export default function LatresnePage() {
     });
 
     return () => {
+      cuaHistoryPointerDetachRef.current?.();
+      cuaHistoryPointerDetachRef.current = null;
       cartoHoverDetachRef.current?.();
       cartoHoverDetachRef.current = null;
       setMapReady(false);
@@ -1309,7 +1380,7 @@ export default function LatresnePage() {
 
     const loadHistoryPings = async () => {
       await refreshHistoryPipelines();
-      await refreshIdentiteFonciereHistory();
+      if (CARTO_SHOW_CIF_UI) await refreshIdentiteFonciereHistory();
       setHistoryPingsLoaded(true);
     };
 
@@ -1400,15 +1471,27 @@ export default function LatresnePage() {
   useEffect(() => {
     if (!mapRef.current) return;
     const map = mapRef.current;
-    const cuaVis = showHistoryPings && historySidebarTab === "cua" ? "visible" : "none";
-    const cifVis = showHistoryPings && historySidebarTab === "cif" ? "visible" : "none";
-    for (const id of ["pipelines-history-halo", "pipelines-history-point"] as const) {
+    const cuaVis = showHistoryPings && (historySidebarTab === "cua" || !CARTO_SHOW_CIF_UI) ? "visible" : "none";
+    const cifVis = CARTO_SHOW_CIF_UI && showHistoryPings && historySidebarTab === "cif" ? "visible" : "none";
+    for (const id of ["pipelines-history-halo", "pipelines-history-point", "pipelines-history-hit"] as const) {
       if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", cuaVis);
     }
     for (const id of ["identite-fonciere-history-halo", "identite-fonciere-history-point"] as const) {
       if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", cifVis);
     }
   }, [showHistoryPings, historySidebarTab]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    applyCuaHistoryHoverHighlight(map, hoveredHistorySlug);
+  }, [hoveredHistorySlug, mapReady, historyPipelines]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    applyIdentiteHistoryHoverHighlight(map, hoveredIdentiteProjectId);
+  }, [hoveredIdentiteProjectId, mapReady, identiteFonciereHistory]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1482,7 +1565,7 @@ export default function LatresnePage() {
     const source = map?.getSource("history-pipeline-parcelles") as maplibregl.GeoJSONSource | undefined;
     if (!map || !source || !cadastreDataRef.current) return;
 
-    const parcelles = getCerfaParcelleRefs(selectedHistoryPipeline.cerfa_data);
+    const parcelles = getCerfaParcelleRefs(selectedHistoryPipeline?.cerfa_data);
     if (!parcelles.length) {
       source.setData({ type: "FeatureCollection", features: [] });
       map.setLayoutProperty("history-pipeline-parcelles-fill", "visibility", "none");
@@ -1513,43 +1596,17 @@ export default function LatresnePage() {
     }
   }, [selectedHistoryPipeline]);
 
-  const suiviBlock = selectedHistoryPipeline
-    ? {
-        title: "Suivi du dossier",
-        defaultOpen: true,
-        content: (
-          <SuiviInstructionCard
-            pipeline={selectedHistoryPipeline}
-            onSuiviChange={async (suivi) => {
-              try {
-                const res = await apiFetch(`/pipelines/${selectedHistoryPipeline.slug}/suivi`, {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ suivi }),
-                });
-                const data = await res.json();
-                if (data?.success) {
-                  setSelectedHistoryPipeline((p) => (p ? { ...p, suivi } : null));
-                  setHistoryPipelines((prev) =>
-                    prev.map((p) => (p.slug === selectedHistoryPipeline.slug ? { ...p, suivi } : p))
-                  );
-                  historyPipelinesRef.current = historyPipelinesRef.current.map((p) =>
-                    p.slug === selectedHistoryPipeline.slug ? { ...p, suivi } : p
-                  );
-                }
-              } catch (e) {
-                console.error("Erreur mise à jour suivi:", e);
-              }
-            }}
-          />
-        ),
-      }
-    : null;
-
   useEffect(() => {
     handleSelectHistoryFromSlugRef.current = handleSelectHistoryFromSlug;
     handleSelectIdentiteProjectRef.current = handleSelectIdentiteProject;
+    setHoveredHistorySlugRef.current = setHoveredHistorySlug;
+    setHoveredIdentiteProjectIdRef.current = setHoveredIdentiteProjectId;
   });
+
+  useEffect(() => {
+    showHistoryPingsRef.current = showHistoryPings;
+    historySidebarTabRef.current = historySidebarTab;
+  }, [showHistoryPings, historySidebarTab]);
 
   const activeParcelles = useMemo((): ParcelleResumeRef[] | null => {
     if (ufBuilderMode && selectedUfParcelles.length > 0) {
@@ -1635,29 +1692,15 @@ export default function LatresnePage() {
             ),
           }}
           toolSections={[]}
-          extraBlocks={suiviBlock ? [suiviBlock] : []}
-          defaultHistoryOpen={false}
+          extraBlocks={[]}
+          defaultHistoryOpen={true}
           parcelleBlock={
             activeParcelles?.length
               ? {
-                  title: isDraftUfResume
-                    ? `Unité foncière en cours (${activeParcelles.length})`
-                    : activeParcelles.length > 1
-                      ? `Parcelles sélectionnées (${activeParcelles.length})`
-                      : "Parcelle sélectionnée",
+                  title: "Caractéristiques parcelle",
                   defaultOpen: true,
                   content: (
                     <div className="space-y-3">
-                      {isDraftUfResume ? (
-                        <DraftUfParcelleList
-                          parcelles={activeParcelles.map((p) => ({
-                            section: p.section,
-                            numero: p.numero,
-                          }))}
-                          ufSurface={draftUfSurfaceM2}
-                          onRemove={removeUfParcelle}
-                        />
-                      ) : null}
                       <ParcelleQuickActions
                         communeSlug="latresne"
                         parcelles={activeParcelles}
@@ -1670,6 +1713,16 @@ export default function LatresnePage() {
                           navigate(`/latresne/cua/projects/${newSlug}`);
                         }}
                       />
+                      {isDraftUfResume ? (
+                        <DraftUfParcelleList
+                          parcelles={activeParcelles.map((p) => ({
+                            section: p.section,
+                            numero: p.numero,
+                          }))}
+                          ufSurface={draftUfSurfaceM2}
+                          onRemove={removeUfParcelle}
+                        />
+                      ) : null}
                     </div>
                   ),
                 }
@@ -1679,13 +1732,18 @@ export default function LatresnePage() {
             communeSlug: "latresne",
             rows: historyPipelines,
             selectedSlug: selectedHistoryPipeline?.slug ?? null,
+            hoveredSlug: hoveredHistorySlug,
             onSelect: handleSelectHistoryFromSlug,
+            onHoverProject: setHoveredHistorySlug,
             onOpenProject: (slug) => navigate(`/latresne/cua/projects/${slug}`),
             onUpdateProject: handleUpdateHistoryProject,
             onDeleteProject: handleDeleteHistoryProject,
+            onSuiviChange: handleHistorySuiviChange,
             identiteRows: identiteFonciereHistory,
             selectedIdentiteProjectId: selectedIdentiteProjectId,
+            hoveredIdentiteProjectId,
             onSelectIdentite: handleSelectIdentiteProject,
+            onHoverIdentite: setHoveredIdentiteProjectId,
             historySidebarTab,
             onHistorySidebarTabChange: setHistorySidebarTab,
             onDeleteIdentiteProject: handleDeleteIdentiteProject,
@@ -1705,12 +1763,6 @@ export default function LatresnePage() {
             selectedCount={selectedUfParcelles.length}
             maxCount={20}
           />
-          <HistoryPipelinePopup
-            selectedHistoryPipeline={selectedHistoryPipeline}
-            historyPopupPosition={historyPopupPosition}
-            onClose={clearHistorySelection}
-          />
-
         </div>
 
         <RightSidebarPatch

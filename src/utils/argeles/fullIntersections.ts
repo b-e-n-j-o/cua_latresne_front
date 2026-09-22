@@ -7,7 +7,9 @@ import type {
 } from "../../types/fullIntersections";
 import type { StudyZoneCartoContext } from "../../components/carto/studyZone/types";
 import type { ParcelleResumeRef } from "../../types/sigResume";
-import { MIN_OBJET_PCT_SIG } from "./sigResume";
+
+/** Seuil d'affichage des objets d'intersection (évite les micro-recouvrements). */
+const MIN_OBJET_PCT_SIG = 1.0;
 
 const STUDY_ZONE_INTERNAL_PROPS = new Set([
   "intersects_parcel",

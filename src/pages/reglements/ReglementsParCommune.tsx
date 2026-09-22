@@ -15,7 +15,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-type Kind = "text" | "longtext" | "bool" | "date" | "int" | "json";
+type Kind = "text" | "longtext" | "bool" | "date" | "int" | "float" | "json";
 
 interface Col {
   name: string;
@@ -24,6 +24,48 @@ interface Col {
   editable: boolean;
   creatable: boolean;
   pk: boolean;
+  options?: string[] | null;
+}
+
+const CES_FIELDS = new Set([
+  "ces_max_pct",
+  "emprise_max_m2",
+  "ces_type_regle",
+  "ces_applicabilite",
+  "ces_citation",
+]);
+
+const CES_VISIBLE_SHORT = new Set(["ces_max_pct", "emprise_max_m2"]);
+const CES_VISIBLE_LONG = new Set(["ces_citation"]);
+
+const CES_COMPACT_META: Record<string, { label: string; unit: string }> = {
+  ces_max_pct: { label: "CES max", unit: "%" },
+  emprise_max_m2: { label: "Emprise max", unit: "m²" },
+};
+
+const CES_OPTION_LABELS: Record<string, string> = {
+  ratio: "Ratio (%)",
+  absolu: "Emprise absolue (m²)",
+  non_reglemente: "Non réglementé",
+  renvoi_graphique: "Renvoi au document graphique",
+  voir_reglementation: "Voir la réglementation",
+  toute_la_zone: "Toute la zone",
+  partielle: "Partielle (selon secteur)",
+  non_precise: "Non précisé",
+};
+
+function isCesCol(c: Col) {
+  return CES_FIELDS.has(c.name);
+}
+
+function rowToForm(row: Row, src: Source): Row {
+  const out: Row = { ...row };
+  for (const c of src.columns) {
+    if ((c.kind === "int" || c.kind === "float") && out[c.name] != null && out[c.name] !== "") {
+      out[c.name] = String(out[c.name]);
+    }
+  }
+  return out;
 }
 
 interface Source {
@@ -203,8 +245,9 @@ export function ReglementsEditor({
       setLoadingRow(true);
       try {
         const row = await api(`/${src.source}/${encodeURIComponent(keyVal)}`);
-        setForm(row);
-        setOriginal(row);
+        const normalized = rowToForm(row, src);
+        setForm(normalized);
+        setOriginal(normalized);
       } catch (e: any) {
         flash("error", e.message);
       } finally {
@@ -239,36 +282,49 @@ export function ReglementsEditor({
   // -- sauvegarde (persiste en base) --
   const save = async () => {
     if (!activeSource || !form) return;
+    let payload: Row = {};
+    if (mode === "create") {
+      for (const c of activeSource.columns) {
+        if (c.creatable && form[c.name] !== "" && form[c.name] !== undefined) {
+          payload[c.name] = form[c.name];
+        }
+      }
+    } else {
+      for (const c of activeSource.columns) {
+        if (c.editable && original && form[c.name] !== original[c.name]) {
+          payload[c.name] = form[c.name];
+        }
+      }
+      const cesChanged = Object.keys(payload).some((k) => CES_FIELDS.has(k));
+      if (cesChanged) {
+        const zone =
+          form[activeSource.list_primary] ||
+          selectedKey ||
+          "cette zone";
+        const ok = window.confirm(
+          `Confirmer la modification du CES de la zone ${zone} ?`
+        );
+        if (!ok) return;
+      }
+    }
     setSaving(true);
     try {
       let saved: Row;
       if (mode === "create") {
-        const payload: Row = {};
-        for (const c of activeSource.columns) {
-          if (c.creatable && form[c.name] !== "" && form[c.name] !== undefined) {
-            payload[c.name] = form[c.name];
-          }
-        }
         saved = await api(`/${activeSource.source}`, {
           method: "POST",
           body: JSON.stringify(payload),
         });
         flash("ok", "Entrée créée");
       } else {
-        const payload: Row = {};
-        for (const c of activeSource.columns) {
-          if (c.editable && original && form[c.name] !== original[c.name]) {
-            payload[c.name] = form[c.name];
-          }
-        }
         saved = await api(`/${activeSource.source}/${encodeURIComponent(selectedKey!)}`, {
           method: "PATCH",
           body: JSON.stringify(payload),
         });
         flash("ok", "Modifications enregistrées");
       }
-      setForm(saved);
-      setOriginal(saved);
+      setForm(rowToForm(saved, activeSource));
+      setOriginal(rowToForm(saved, activeSource));
       setMode("edit");
       setSelectedKey(String(saved[activeSource.pk]));
       await loadList(activeSource.source, search);
@@ -296,26 +352,23 @@ export function ReglementsEditor({
     }
   };
 
-  // -- champs visibles selon le mode --
+  // -- uniquement les champs que l'agent peut modifier --
   const visibleCols = useMemo(() => {
     if (!activeSource) return [];
     return mode === "create"
       ? activeSource.columns.filter((c) => c.creatable)
-      : activeSource.columns;
+      : activeSource.columns.filter((c) => c.editable);
   }, [activeSource, mode]);
 
-  const shortCols = visibleCols.filter((c) => c.kind !== "longtext" && c.kind !== "json");
-  const longCols = visibleCols.filter((c) => c.kind === "longtext");
-  const jsonCols = visibleCols.filter((c) => c.kind === "json");
-  const isColEditable = (c: Col) => (mode === "create" ? c.creatable : c.editable);
-  const editableShort = shortCols.filter(isColEditable);
-  const readonlyShort = shortCols.filter((c) => !isColEditable(c));
-  const editableLong = longCols.filter(isColEditable);
-  const readonlyLong = longCols.filter((c) => !isColEditable(c));
-  const editableJson = jsonCols.filter(isColEditable);
-  const readonlyJson = jsonCols.filter((c) => !isColEditable(c));
+  const editableShort = visibleCols.filter((c) => c.kind !== "longtext" && c.kind !== "json");
+  const editableLong = visibleCols.filter((c) => c.kind === "longtext");
+  const editableJson = visibleCols.filter((c) => c.kind === "json");
+  const cesShort = editableShort.filter((c) => CES_VISIBLE_SHORT.has(c.name));
+  const cesLong = editableLong.filter((c) => CES_VISIBLE_LONG.has(c.name));
+  const otherShort = editableShort.filter((c) => !isCesCol(c));
+  const otherLong = editableLong.filter((c) => !isCesCol(c));
+  const hasCesFields = cesShort.length + cesLong.length > 0;
   const hasEditableFields = editableShort.length + editableLong.length + editableJson.length > 0;
-  const hasReadonlyFields = readonlyShort.length + readonlyLong.length + readonlyJson.length > 0;
   const hasReglementationCol =
     activeSource?.columns.some(
       (c) => c.name === "reglementation" || c.name === "reglementation_generale"
@@ -343,8 +396,8 @@ export function ReglementsEditor({
         </div>
       ) : (
         <>
-      <nav className="rga-rail" aria-label="Type de document">
-        <div className="rga-rail-head">Documents</div>
+      <nav className="rga-rail" aria-label="Type de règlement">
+        <div className="rga-rail-head">Règlements</div>
         {sources.map((s) => (
           <button
             key={s.source}
@@ -368,13 +421,15 @@ export function ReglementsEditor({
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Rechercher une zone, un code, un texte…"
+              placeholder="Rechercher une zone…"
               aria-label="Rechercher"
             />
           </div>
-          <button className="rga-new" onClick={startCreate} disabled={!activeSource || !canCreate}>
-            + Nouvelle entrée
-          </button>
+          {canCreate && (
+            <button className="rga-new" onClick={startCreate} disabled={!activeSource}>
+              + Nouvelle entrée
+            </button>
+          )}
         </div>
 
         <div className="rga-list-body">
@@ -387,8 +442,8 @@ export function ReglementsEditor({
           {!loadingList && visibleRows.length === 0 && (
             <div className="rga-empty">
               {canCreate
-                ? "Aucune entrée. Crée-en une avec « Nouvelle entrée »."
-                : "Aucune entrée trouvée."}
+                ? "Aucune zone. Créez-en une avec « Nouvelle entrée »."
+                : "Aucune zone trouvée."}
             </div>
           )}
           {!loadingList &&
@@ -399,19 +454,22 @@ export function ReglementsEditor({
                 rawKey != null && String(rawKey).trim() !== ""
                   ? String(rawKey)
                   : `__missing_pk_${idx}`;
-              const primary =
+              const primaryFromCol =
                 r[activeSource.list_primary] != null &&
                 String(r[activeSource.list_primary]).trim() !== ""
                   ? String(r[activeSource.list_primary])
-                  : keyVal.startsWith("__missing_pk_")
-                    ? "—"
-                    : keyVal;
+                  : null;
               const secondary =
                 activeSource.list_secondary &&
                 r[activeSource.list_secondary] != null &&
                 String(r[activeSource.list_secondary]).trim() !== ""
                   ? String(r[activeSource.list_secondary])
                   : null;
+              const primary =
+                primaryFromCol ||
+                secondary ||
+                (keyVal.startsWith("__missing_pk_") ? "—" : keyVal);
+              const secondaryShown = primaryFromCol ? secondary : null;
               return (
                 <button
                   key={`${activeSource.source}-${keyVal}`}
@@ -426,7 +484,9 @@ export function ReglementsEditor({
                       </span>
                     )}
                   </div>
-                  {secondary && <span className="rga-row-secondary">{secondary}</span>}
+                  {secondaryShown && (
+                    <span className="rga-row-secondary">{secondaryShown}</span>
+                  )}
                 </button>
               );
             })}
@@ -439,8 +499,7 @@ export function ReglementsEditor({
           <div className="rga-editor-empty">
             <div className="rga-editor-empty-inner">
               <DocIcon />
-              <p>Sélectionne une entrée à gauche pour modifier son règlement,</p>
-              <p>ou crée une nouvelle entrée.</p>
+              <p>Choisissez une zone à gauche pour afficher et modifier son règlement.</p>
             </div>
           </div>
         )}
@@ -455,7 +514,9 @@ export function ReglementsEditor({
                 <h2 className="rga-editor-title">
                   {mode === "create"
                     ? "Nouvelle entrée"
-                    : form[activeSource!.list_primary] || "(sans titre)"}
+                    : form[activeSource!.list_primary] ||
+                      (activeSource!.list_secondary && form[activeSource!.list_secondary]) ||
+                      "(sans titre)"}
                 </h2>
               </div>
               {dirty && <span className="rga-badge-dirty">Non enregistré</span>}
@@ -466,67 +527,37 @@ export function ReglementsEditor({
 
               {!loadingRow && (
                 <>
-                  {(hasEditableFields || hasReadonlyFields) && (
-                    <div className="rga-editor-guide" role="note">
-                      <span className="rga-guide-item is-edit">
-                        <span className="rga-guide-dot" aria-hidden />
-                        Modifiable
-                      </span>
-                      <span className="rga-guide-item is-ref">
-                        <span className="rga-guide-dot" aria-hidden />
-                        Référence (non modifiable)
-                      </span>
-                      {hasEditableFields && (
-                        <span className="rga-guide-hint">
-                          Complétez les champs verts puis cliquez sur Enregistrer.
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {hasReadonlyFields && (
-                    <section className="rga-section rga-section-ref" aria-label="Informations de référence">
-                      <h3 className="rga-section-title">Informations de référence</h3>
-                      {readonlyShort.length > 0 && (
-                        <div className="rga-grid">
-                          {readonlyShort.map((c) => (
-                            <Field
-                              key={c.name}
+                  {hasEditableFields && (
+                    <section className="rga-section" aria-label="Règlement">
+                      {hasCesFields && (
+                        <div className="rga-ces">
+                          {cesShort.length > 0 && (
+                            <div className="rga-ces-metrics">
+                              {cesShort.map((c) => (
+                                <CesMetricField
+                                  key={c.name}
+                                  col={c}
+                                  value={form[c.name]}
+                                  onChange={(v) => setField(c.name, v)}
+                                />
+                              ))}
+                            </div>
+                          )}
+                          {cesLong.map((c) => (
+                            <LongTextField
+                              key={`${selectedKey ?? "new"}-${c.name}`}
                               col={c}
-                              value={form[c.name]}
-                              readOnly
+                              value={form[c.name] ?? ""}
+                              readOnly={false}
+                              compact
                               onChange={(v) => setField(c.name, v)}
                             />
                           ))}
                         </div>
                       )}
-                      {readonlyLong.map((c) => (
-                        <LongTextField
-                          key={c.name}
-                          col={c}
-                          value={form[c.name] ?? ""}
-                          readOnly
-                          onChange={(v) => setField(c.name, v)}
-                        />
-                      ))}
-                      {readonlyJson.map((c) => (
-                        <JsonField
-                          key={c.name}
-                          col={c}
-                          value={form[c.name] ?? ""}
-                          readOnly
-                          onChange={(v) => setField(c.name, v)}
-                        />
-                      ))}
-                    </section>
-                  )}
-
-                  {hasEditableFields && (
-                    <section className="rga-section rga-section-edit" aria-label="Champs modifiables">
-                      <h3 className="rga-section-title">Champs à compléter ou modifier</h3>
-                      {editableShort.length > 0 && (
+                      {otherShort.length > 0 && (
                         <div className="rga-grid">
-                          {editableShort.map((c) => (
+                          {otherShort.map((c) => (
                             <Field
                               key={c.name}
                               col={c}
@@ -537,9 +568,9 @@ export function ReglementsEditor({
                           ))}
                         </div>
                       )}
-                      {editableLong.map((c) => (
+                      {otherLong.map((c) => (
                         <LongTextField
-                          key={c.name}
+                          key={`${selectedKey ?? "new"}-${c.name}`}
                           col={c}
                           value={form[c.name] ?? ""}
                           readOnly={false}
@@ -556,6 +587,9 @@ export function ReglementsEditor({
                         />
                       ))}
                     </section>
+                  )}
+                  {!hasEditableFields && (
+                    <p className="rga-muted">Aucun champ modifiable pour cette entrée.</p>
                   )}
                 </>
               )}
@@ -623,59 +657,47 @@ function ReglementMarkdown({ content }: { content: string }) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Champ texte long : édition markdown + aperçu en direct                     */
-/* Modes : Édition (textarea seul) / Côte à côte / Aperçu                      */
+/* Champ texte long : aperçu + bouton Modifier                                */
 /* -------------------------------------------------------------------------- */
 function LongTextField({
   col,
   value,
   readOnly,
   onChange,
+  compact = false,
 }: {
   col: Col;
   value: string;
   readOnly: boolean;
   onChange: (v: string) => void;
+  compact?: boolean;
 }) {
   const isReglement =
     col.name === "reglementation" || col.name === "reglementation_generale";
-  // le règlement s'ouvre côte à côte (lecture confortable + édition) ;
-  // les autres champs longs s'ouvrent en édition directe.
-  const [view, setView] = useState<"edit" | "split" | "preview">(
-    isReglement ? "split" : "edit"
-  );
+  const [editing, setEditing] = useState(() => !String(value || "").trim());
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const label = compact && col.name === "ces_citation" ? "Citation" : col.label;
 
-  const editor = (
-    <textarea
-      id={`f-${col.name}`}
-      className={`rga-textarea ${isReglement ? "is-reglement" : ""}`}
-      value={value}
-      readOnly={readOnly}
-      onChange={(e) => onChange(e.target.value)}
-      spellCheck
-      placeholder="Texte au format Markdown (titres ##, listes -, gras **…**, tableaux |…|)"
-    />
-  );
+  useEffect(() => {
+    if (editing) textareaRef.current?.focus();
+  }, [editing]);
 
   const preview = (
     <div
-      className={`rga-markdown ${isReglement ? "is-reglement" : ""}`}
-      aria-label={`Aperçu — ${col.label}`}
+      className={`rga-markdown ${isReglement ? "is-reglement" : ""} ${compact ? "is-compact" : ""}`}
+      aria-label={`${label} — aperçu`}
     >
       <ReglementMarkdown content={value} />
     </div>
   );
 
-  // lecture seule : aperçu uniquement
+  const shell = `rga-field-shell rga-longfield${compact ? " is-compact" : ""}`;
+
   if (readOnly) {
     return (
-      <div className={fieldShellClass(true, "rga-longfield")}>
+      <div className={shell}>
         <div className="rga-longfield-head">
-          <label className="rga-label">
-            {col.label}
-            <FieldBadge readOnly />
-            <span className="rga-chars">{(value || "").length} caractères</span>
-          </label>
+          <label className="rga-label">{label}</label>
         </div>
         {preview}
       </div>
@@ -683,61 +705,62 @@ function LongTextField({
   }
 
   return (
-    <div className={fieldShellClass(false, "rga-longfield")}>
+    <div className={shell}>
       <div className="rga-longfield-head">
-        <label className="rga-label" htmlFor={view === "preview" ? undefined : `f-${col.name}`}>
-          {col.label}
-          <FieldBadge readOnly={false} />
-          <span className="rga-chars">{(value || "").length} caractères</span>
+        <label className="rga-label" htmlFor={editing ? `f-${col.name}` : undefined}>
+          {label}
         </label>
-        <div className="rga-view-toggle" role="tablist" aria-label={`Affichage — ${col.label}`}>
-          <button
-            type="button"
-            role="tab"
-            className={`rga-view-toggle-btn ${view === "edit" ? "is-active" : ""}`}
-            aria-selected={view === "edit"}
-            onClick={() => setView("edit")}
-          >
-            Édition
-          </button>
-          <button
-            type="button"
-            role="tab"
-            className={`rga-view-toggle-btn ${view === "split" ? "is-active" : ""}`}
-            aria-selected={view === "split"}
-            onClick={() => setView("split")}
-          >
-            Côte à côte
-          </button>
-          <button
-            type="button"
-            role="tab"
-            className={`rga-view-toggle-btn ${view === "preview" ? "is-active" : ""}`}
-            aria-selected={view === "preview"}
-            onClick={() => setView("preview")}
-          >
-            Aperçu
-          </button>
-        </div>
+        <button
+          type="button"
+          className="rga-edit-toggle"
+          onClick={() => setEditing((v) => !v)}
+        >
+          {editing ? "Aperçu" : "Modifier"}
+        </button>
       </div>
-
-      {view === "split" ? (
-        <div className="rga-split">
-          <div className="rga-split-pane">
-            <div className="rga-pane-tag">Markdown — modifiable</div>
-            {editor}
-          </div>
-          <div className="rga-split-pane">
-            <div className="rga-pane-tag">Aperçu</div>
-            {preview}
-          </div>
-        </div>
-      ) : view === "edit" ? (
-        editor
+      {editing ? (
+        <textarea
+          ref={textareaRef}
+          id={`f-${col.name}`}
+          className={`rga-textarea ${isReglement ? "is-reglement" : ""} ${compact ? "is-compact" : ""}`}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          spellCheck
+          placeholder={compact ? "Citation du CES…" : "Saisissez le règlement de cette zone…"}
+        />
       ) : (
         preview
       )}
     </div>
+  );
+}
+
+function CesMetricField({
+  col,
+  value,
+  onChange,
+}: {
+  col: Col;
+  value: any;
+  onChange: (v: any) => void;
+}) {
+  const meta = CES_COMPACT_META[col.name] || { label: col.label, unit: "" };
+  return (
+    <label className="rga-ces-metric" htmlFor={`f-${col.name}`}>
+      <span className="rga-ces-metric-label">{meta.label}</span>
+      <span className="rga-ces-metric-ctrl">
+        <input
+          id={`f-${col.name}`}
+          className="rga-ces-input"
+          type="number"
+          step="any"
+          inputMode="decimal"
+          value={value ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+        />
+        {meta.unit && <span className="rga-ces-unit">{meta.unit}</span>}
+      </span>
+    </label>
   );
 }
 
@@ -778,12 +801,9 @@ function JsonField({
 
   if (readOnly) {
     return (
-      <div className={fieldShellClass(true, "rga-longfield")}>
+      <div className="rga-field-shell rga-longfield">
         <div className="rga-longfield-head">
-          <label className="rga-label">
-            {col.label}
-            <FieldBadge readOnly />
-          </label>
+          <label className="rga-label">{col.label}</label>
         </div>
         <pre className="rga-json-block" aria-label={`${col.label} — JSON`}>
           {display || "—"}
@@ -793,11 +813,10 @@ function JsonField({
   }
 
   return (
-    <div className={fieldShellClass(false, "rga-longfield")}>
+    <div className="rga-field-shell rga-longfield">
       <div className="rga-longfield-head">
         <label className="rga-label" htmlFor={`f-${col.name}`}>
           {col.label}
-          <FieldBadge readOnly={false} />
         </label>
       </div>
       <textarea
@@ -813,18 +832,10 @@ function JsonField({
 }
 
 /* -------------------------------------------------------------------------- */
-/* Habillage champ : carte + badge modifiable / référence                       */
+/* Habillage champ                                                            */
 /* -------------------------------------------------------------------------- */
-function fieldShellClass(readOnly: boolean, extra = ""): string {
-  return `rga-field-shell ${readOnly ? "is-readonly" : "is-editable"} ${extra}`.trim();
-}
-
-function FieldBadge({ readOnly }: { readOnly: boolean }) {
-  return (
-    <span className={`rga-field-badge ${readOnly ? "is-ref" : "is-edit"}`}>
-      {readOnly ? "Référence" : "Modifiable"}
-    </span>
-  );
+function fieldShellClass(extra = ""): string {
+  return `rga-field-shell ${extra}`.trim();
 }
 
 /* -------------------------------------------------------------------------- */
@@ -862,12 +873,11 @@ function ExpandingTextField({
 }) {
   const ref = useAutoResizeTextarea(value);
   return (
-    <div className={fieldShellClass(readOnly, "rga-field rga-field-wide")}>
+    <div className={fieldShellClass("rga-field rga-field-wide")}>
       <div className="rga-field-head">
         <label className="rga-label" htmlFor={`f-${col.name}`}>
           {col.label}
         </label>
-        <FieldBadge readOnly={readOnly} />
       </div>
       <textarea
         ref={ref}
@@ -898,10 +908,9 @@ function Field({
 }) {
   if (col.kind === "bool") {
     return (
-      <div className={fieldShellClass(readOnly, "rga-field rga-field-bool")}>
+      <div className={fieldShellClass("rga-field rga-field-bool")}>
         <div className="rga-field-head">
           <span className="rga-label">{col.label}</span>
-          <FieldBadge readOnly={readOnly} />
         </div>
         <label className="rga-switch">
           <input
@@ -917,9 +926,36 @@ function Field({
     );
   }
 
-  const type = col.kind === "date" ? "date" : col.kind === "int" ? "number" : "text";
+  const type =
+    col.kind === "date" ? "date" : col.kind === "int" || col.kind === "float" ? "number" : "text";
   const v =
     col.kind === "date" && typeof value === "string" ? value.slice(0, 10) : value ?? "";
+
+  if (col.options && col.options.length > 0) {
+    return (
+      <div className={fieldShellClass("rga-field")}>
+        <div className="rga-field-head">
+          <label className="rga-label" htmlFor={`f-${col.name}`}>
+            {col.label}
+          </label>
+        </div>
+        <select
+          id={`f-${col.name}`}
+          className="rga-input"
+          value={v ?? ""}
+          disabled={readOnly}
+          onChange={(e) => onChange(e.target.value)}
+        >
+          <option value="">—</option>
+          {col.options.map((opt) => (
+            <option key={opt} value={opt}>
+              {CES_OPTION_LABELS[opt] || opt}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  }
 
   if (col.kind === "text" && isExpandingTextField(col.name, v)) {
     return (
@@ -933,12 +969,11 @@ function Field({
   }
 
   return (
-    <div className={fieldShellClass(readOnly, "rga-field")}>
+    <div className={fieldShellClass("rga-field")}>
       <div className="rga-field-head">
         <label className="rga-label" htmlFor={`f-${col.name}`}>
           {col.label}
         </label>
-        <FieldBadge readOnly={readOnly} />
       </div>
       <input
         id={`f-${col.name}`}
@@ -946,6 +981,7 @@ function Field({
         type={type}
         value={v}
         readOnly={readOnly}
+        step={col.kind === "float" ? "any" : undefined}
         onChange={(e) => onChange(e.target.value)}
       />
     </div>
@@ -990,15 +1026,14 @@ function DocIcon() {
 /* -------------------------------------------------------------------------- */
 const CSS = `
 .rga-root{
-  --ink:#111111; --paper:#ffffff; --panel:#fafafa; --rail:#111111;
-  --canvas:#eceeea; --card:#ffffff;
-  --line:#e8e8e8; --muted:#4b4b4b;
+  --ink:#111111; --paper:#ffffff; --panel:#f7f7f6; --rail:#111111;
+  --canvas:#f7f7f6; --card:#ffffff;
+  --line:#e6e6e4; --muted:#5a5a5a;
   --accent:#85e372; --accent-d:#289f01; --accent-soft:rgba(133,227,114,.14);
-  --edit-bg:#f4fbf1; --edit-border:#8fd67a; --edit-ring:rgba(40,159,1,.18);
-  --ref-bg:#f5f5f4; --ref-border:#d2d6d0;
+  --edit-ring:rgba(40,159,1,.16);
   --green:#289f01; --danger:#c0362c;
   --font-ui:"Kerelia Sans","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
-  display:grid; grid-template-columns:200px 320px 1fr;
+  display:grid; grid-template-columns:168px 280px 1fr;
   height:100%; min-height:600px; color:var(--ink);
   font-family:var(--font-ui); font-weight:400; background:var(--paper);
   border:1px solid var(--line); border-radius:12px; overflow:hidden;
@@ -1058,82 +1093,69 @@ const CSS = `
 .rga-empty,.rga-muted{color:var(--muted); font-size:13px; padding:16px; line-height:1.5;}
 
 /* éditeur */
-.rga-editor{display:flex; flex-direction:column; min-height:0; background:var(--canvas);}
+.rga-editor{display:flex; flex-direction:column; min-height:0; background:var(--paper);}
 .rga-editor-empty{flex:1; display:grid; place-items:center; color:var(--muted); background:var(--paper);}
-.rga-editor-empty-inner{text-align:center; line-height:1.6;}
+.rga-editor-empty-inner{text-align:center; line-height:1.6; max-width:28rem; padding:0 24px;}
 .rga-editor-empty-inner svg{color:var(--line); margin-bottom:12px;}
-.rga-editor-head{display:flex; align-items:flex-start; justify-content:space-between; padding:20px 28px; border-bottom:1px solid var(--line); background:var(--paper);}
+.rga-editor-head{display:flex; align-items:flex-start; justify-content:space-between; padding:20px 28px 16px; border-bottom:1px solid var(--line); background:var(--paper);}
 .rga-editor-kicker{font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--accent-d); font-weight:600;}
 .rga-editor-title{margin:4px 0 0; font-size:22px; font-weight:600; letter-spacing:-.01em;}
 .rga-badge-dirty{align-self:center; font-size:12px; font-weight:600; color:#fff; background:#111; padding:4px 10px; border-radius:999px;}
-.rga-editor-body{overflow:auto; padding:20px 24px 28px; flex:1; min-height:0; background:var(--canvas);}
+.rga-editor-body{overflow:auto; padding:20px 28px 28px; flex:1; min-height:0; background:var(--paper);}
 
-.rga-editor-guide{
-  display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px;
-  margin-bottom:18px; padding:12px 14px; border-radius:10px;
-  background:var(--paper); border:1px solid var(--line);
-  box-shadow:0 1px 2px rgba(0,0,0,.04); font-size:12px; color:var(--muted);
+.rga-section{margin-bottom:8px;}
+.rga-ces{
+  display:flex; flex-direction:column; gap:8px;
+  margin-bottom:14px; padding:8px 10px; border:1px solid var(--line);
+  border-radius:8px; background:var(--accent-soft);
 }
-.rga-guide-item{display:inline-flex; align-items:center; gap:7px; font-weight:600; color:var(--ink);}
-.rga-guide-dot{width:10px; height:10px; border-radius:3px; flex-shrink:0;}
-.rga-guide-item.is-edit .rga-guide-dot{background:var(--accent-d); box-shadow:0 0 0 2px var(--edit-ring);}
-.rga-guide-item.is-ref .rga-guide-dot{background:#b8beb5;}
-.rga-guide-hint{font-weight:400; color:var(--muted);}
-
-.rga-section{margin-bottom:22px;}
-.rga-section-title{
-  margin:0 0 12px; font-size:13px; font-weight:700; letter-spacing:.04em;
-  text-transform:uppercase; color:var(--muted);
+.rga-ces-metrics{display:flex; flex-wrap:wrap; gap:8px;}
+.rga-ces-metric{
+  display:flex; flex-direction:column; gap:3px;
+  min-width:0; width:132px;
+  background:var(--card); border:1px solid var(--line); border-radius:8px;
+  padding:6px 8px;
 }
-.rga-section-edit .rga-section-title{color:var(--accent-d);}
-.rga-section-ref .rga-section-title{color:#6b6f68;}
-
+.rga-ces-metric-label{font-size:11px; font-weight:600; color:var(--muted); letter-spacing:.02em;}
+.rga-ces-metric-ctrl{display:flex; align-items:baseline; gap:4px;}
+.rga-ces-input{
+  width:4.6rem; min-width:0; font-family:inherit; font-size:14px; font-weight:600;
+  padding:4px 6px; border:1px solid #d8d8d6; border-radius:6px; background:#fff;
+  color:var(--ink); outline:0;
+}
+.rga-ces-input:focus{border-color:var(--accent-d); box-shadow:0 0 0 3px var(--edit-ring);}
+.rga-ces-unit{font-size:12px; font-weight:600; color:var(--muted);}
+.rga-ces .rga-longfield{margin:0; padding:6px 8px; border-radius:8px;}
+.rga-ces .rga-longfield.is-compact .rga-longfield-head{margin-bottom:4px;}
+.rga-ces .rga-longfield.is-compact .rga-label{font-size:11px; font-weight:600; color:var(--muted);}
+.rga-ces .rga-edit-toggle{font-size:11px; padding:2px 8px; border-radius:6px;}
+.rga-markdown.is-compact{
+  min-height:0; max-height:4.6em; overflow:auto;
+  padding:6px 8px; font-size:12px; line-height:1.4; background:#fff;
+}
+.rga-textarea.is-compact{min-height:64px; padding:8px 10px; font-size:13px; line-height:1.45;}
 .rga-field-shell{
   background:var(--card); border:1px solid var(--line); border-radius:10px;
-  padding:12px 14px; box-shadow:0 1px 2px rgba(0,0,0,.04);
-}
-.rga-field-shell.is-editable{
-  border-color:var(--edit-border); background:var(--edit-bg);
-  box-shadow:0 1px 0 rgba(40,159,1,.06), 0 2px 8px rgba(40,159,1,.06);
-}
-.rga-field-shell.is-readonly{
-  border-color:var(--ref-border); background:var(--ref-bg);
-  border-style:dashed;
+  padding:14px 16px;
 }
 .rga-field-head{display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:8px;}
-.rga-field-badge{
-  flex-shrink:0; font-size:10px; font-weight:700; letter-spacing:.03em;
-  text-transform:uppercase; padding:3px 8px; border-radius:999px; line-height:1.3;
-}
-.rga-field-badge.is-edit{color:#1f5f12; background:#dff5d6; border:1px solid #b8e8a8;}
-.rga-field-badge.is-ref{color:#5f635c; background:#ececea; border:1px solid #d5d8d2;}
 
-.rga-grid{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin-bottom:4px;}
+.rga-grid{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-bottom:12px;}
 .rga-field{display:flex; flex-direction:column; gap:8px;}
 .rga-field-wide{grid-column:1 / -1;}
 .rga-field-bool{justify-content:flex-end; gap:10px;}
-.rga-label{font-size:13px; font-weight:600; color:#1f1f1f; display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;}
-.rga-ro,.rga-chars{font-weight:400; font-size:11px; color:var(--muted);}
-.rga-chars{margin-left:auto;}
+.rga-label{font-size:13px; font-weight:600; color:#1f1f1f;}
 .rga-input{
   font-family:inherit; font-size:14px; padding:10px 12px;
-  border:1px solid #cfd4cc; border-radius:8px; background:#fff; color:var(--ink); outline:0;
-}
-.rga-field-shell.is-editable .rga-input{border-color:#b5ddb0; background:#fff;}
-.rga-field-shell.is-readonly .rga-input{
-  border-color:transparent; background:transparent; color:#3a3f38; padding-left:2px;
+  border:1px solid #d8d8d6; border-radius:8px; background:#fff; color:var(--ink); outline:0;
 }
 .rga-input:focus{border-color:var(--accent-d); box-shadow:0 0 0 3px var(--edit-ring);}
 .rga-input[readonly]{cursor:default;}
 .rga-input-auto{
   width:100%; min-height:42px; resize:none; overflow:hidden;
   font-family:inherit; font-size:14px; line-height:1.55;
-  padding:10px 12px; border:1px solid #cfd4cc; border-radius:8px;
+  padding:10px 12px; border:1px solid #d8d8d6; border-radius:8px;
   background:#fff; color:var(--ink); outline:0;
-}
-.rga-field-shell.is-editable .rga-input-auto{border-color:#b5ddb0;}
-.rga-field-shell.is-readonly .rga-input-auto{
-  border-color:transparent; background:transparent; color:#3a3f38; padding-left:2px;
 }
 .rga-input-auto:focus{border-color:var(--accent-d); box-shadow:0 0 0 3px var(--edit-ring);}
 .rga-input-auto.is-readonly{cursor:default;}
@@ -1149,30 +1171,18 @@ const CSS = `
 
 /* champ texte long */
 .rga-longfield{margin-bottom:14px;}
-.rga-longfield-head{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; flex-wrap:wrap;}
+.rga-longfield-head{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px;}
 .rga-longfield-head .rga-label{flex:1; min-width:0; margin:0;}
-.rga-field-shell.is-editable .rga-textarea{
-  border-color:#b5ddb0; background:#fff;
+.rga-edit-toggle{
+  border:1px solid var(--line); background:var(--paper); color:var(--accent-d);
+  font-family:inherit; font-size:13px; font-weight:600; padding:6px 12px;
+  border-radius:8px; cursor:pointer; flex-shrink:0;
 }
-.rga-field-shell.is-readonly .rga-markdown,
-.rga-field-shell.is-readonly .rga-json-block{
-  border-color:transparent; background:transparent; box-shadow:none; padding-left:2px;
-}
-.rga-view-toggle{display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:var(--panel); flex-shrink:0;}
-.rga-view-toggle-btn{border:0; background:transparent; padding:6px 12px; font-family:inherit; font-size:12px; font-weight:500; color:var(--muted); cursor:pointer; transition:background .12s,color .12s;}
-.rga-view-toggle-btn:hover{color:var(--ink); background:#f0f0f0;}
-.rga-view-toggle-btn.is-active{background:var(--paper); color:var(--accent-d); font-weight:600; box-shadow:inset 0 0 0 1px var(--line);}
+.rga-edit-toggle:hover{background:var(--accent-d); color:#fff; border-color:var(--accent-d);}
 
-/* éditeur côte à côte */
-.rga-split{display:grid; grid-template-columns:1fr 1fr; gap:14px; align-items:stretch;}
-.rga-split-pane{display:flex; flex-direction:column; min-width:0;}
-.rga-pane-tag{font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin-bottom:6px;}
-.rga-split .rga-textarea,.rga-split .rga-markdown{flex:1;}
-
-.rga-textarea{width:100%; font-family:inherit; font-size:14px; line-height:1.55; padding:12px 14px; border:1px solid #cfd4cc; border-radius:8px; background:#fff; color:var(--ink); outline:0; resize:vertical; min-height:120px;}
+.rga-textarea{width:100%; font-family:inherit; font-size:15px; line-height:1.6; padding:14px 16px; border:1px solid #d8d8d6; border-radius:8px; background:#fff; color:var(--ink); outline:0; resize:vertical; min-height:160px;}
 .rga-textarea:focus{border-color:var(--accent-d); box-shadow:0 0 0 3px var(--edit-ring);}
-.rga-textarea[readonly]{background:transparent; color:var(--muted);}
-.rga-textarea.is-reglement{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:13px; line-height:1.65; min-height:340px;}
+.rga-textarea.is-reglement{min-height:420px;}
 .rga-json-block{
   margin:0; padding:14px 16px; border:1px solid var(--line); border-radius:8px;
   background:#f8f8f8; color:var(--ink); font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
@@ -1180,8 +1190,8 @@ const CSS = `
 }
 .rga-json-textarea{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px; min-height:220px;}
 
-.rga-markdown{font-size:15px; line-height:1.7; color:var(--ink); padding:14px 16px; border:1px solid #cfd4cc; border-radius:8px; background:#fff; min-height:120px; overflow:auto;}
-.rga-markdown.is-reglement{background:linear-gradient(var(--accent-d),var(--accent-d)) 14px 0/3px 100% no-repeat, #fff; padding-left:26px; min-height:340px;}
+.rga-markdown{font-size:15px; line-height:1.7; color:var(--ink); padding:16px 18px; border:1px solid var(--line); border-radius:8px; background:#fafafa; min-height:120px; overflow:auto;}
+.rga-markdown.is-reglement{min-height:420px; background:#fff;}
 .rga-markdown-empty{margin:0; color:var(--muted); font-style:italic;}
 .rga-markdown > :first-child{margin-top:0;}
 .rga-markdown > :last-child{margin-bottom:0;}
@@ -1236,9 +1246,6 @@ const CSS = `
 
 :focus-visible{outline:2px solid var(--accent-d); outline-offset:2px;}
 
-@media (max-width:1200px){
-  .rga-split{grid-template-columns:1fr;}
-}
 @media (max-width:900px){
   .rga-root{grid-template-columns:1fr; grid-auto-rows:auto;}
   .rga-rail{flex-direction:row; overflow:auto;}

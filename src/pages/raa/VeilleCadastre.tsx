@@ -68,6 +68,7 @@ type Accueil = {
   schema_ready: boolean;
   latest: { nb_parcelles?: number; millesime_pci?: string | null; imported_at?: string | null };
   photos: Photo[];
+  last_run?: { run_at?: string | null; millesime_pci?: string | null } | null;
   counts: Record<string, number>;
   nb_evenements: number;
   pending?: { en_attente_apply?: boolean; fichier?: string; millesime_pci?: string | null } | null;
@@ -101,6 +102,23 @@ const fmtDate = (iso?: string | null) => {
   return new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" }).format(d);
 };
 
+function isoDay(iso?: string | null) {
+  if (!iso) return null;
+  const s = iso.slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+}
+
+function eventDay(ev: VeilleEvent) {
+  return isoDay(ev.millesime_pci) || isoDay(ev.run_at);
+}
+
+function toLocalIso(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 const fmtM2 = (n?: number | null) => {
   if (n == null || Number.isNaN(n)) return "—";
   return `${Math.round(n).toLocaleString("fr-FR")} m²`;
@@ -132,6 +150,7 @@ export default function VeilleCadastre({ cfg }: { cfg: RaaCommuneConfig }) {
   } | null>(null);
   const [openEv, setOpenEv] = useState<string | number | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [dateFilter, setDateFilter] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -229,9 +248,48 @@ export default function VeilleCadastre({ cfg }: { cfg: RaaCommuneConfig }) {
   };
 
   const filtered = useMemo(() => {
-    if (typeFilter === "all") return events;
-    return events.filter((e) => e.type === typeFilter);
-  }, [events, typeFilter]);
+    return events.filter((e) => {
+      if (typeFilter !== "all" && e.type !== typeFilter) return false;
+      if (dateFilter && eventDay(e) !== dateFilter) return false;
+      return true;
+    });
+  }, [events, typeFilter, dateFilter]);
+
+  const byDay = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const e of events) {
+      const day = eventDay(e);
+      if (!day) continue;
+      map.set(day, (map.get(day) || 0) + 1);
+    }
+    return map;
+  }, [events]);
+
+  const lastModif = useMemo(() => {
+    const days = [...byDay.keys()].sort();
+    return days[days.length - 1] || null;
+  }, [byDay]);
+
+  const statutCadastre = useMemo(() => {
+    const verif = accueil?.last_run?.run_at;
+    if (lastModif) {
+      return `Cadastre à jour, dernière modification datant du ${fmtDate(lastModif)}`
+        + (verif ? ` · vérifié le ${fmtDate(verif)}` : "");
+    }
+    if (verif) {
+      return `Cadastre à jour · aucune modification cadastrale enregistrée · vérifié le ${fmtDate(verif)}`;
+    }
+    return "Cadastre à jour · aucune modification cadastrale enregistrée pour l’instant.";
+  }, [accueil, lastModif]);
+
+  const selectDay = (iso: string, count: number) => {
+    setDateFilter((prev) => (prev === iso ? null : iso));
+    if (count > 0) {
+      requestAnimationFrame(() => {
+        document.getElementById("vc-fil")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+  };
 
   const counts = accueil?.counts || {};
   const mapFeatures = useMemo(() => collectMapFeatures(fiche, dated), [fiche, dated]);
@@ -274,6 +332,23 @@ export default function VeilleCadastre({ cfg }: { cfg: RaaCommuneConfig }) {
         <span className="rv__dot" />
         <span><b>{accueil?.nb_evenements ?? 0}</b> mouvement{(accueil?.nb_evenements || 0) > 1 ? "s" : ""}</span>
       </div>
+
+      <p className="vc__uptodate">{statutCadastre}</p>
+
+      <ActivityHeatmap
+        byDay={byDay}
+        selected={dateFilter}
+        onSelect={selectDay}
+      />
+      {dateFilter && (
+        <p className="vc__daypick">
+          Mouvements du <strong>{fmtDate(dateFilter)}</strong>
+          {" · "}
+          <button type="button" className="vc__linkbtn" onClick={() => setDateFilter(null)}>
+            Afficher toutes les dates
+          </button>
+        </p>
+      )}
 
       <form className="vc__search" onSubmit={search}>
         <Search size={16} aria-hidden />
@@ -435,15 +510,21 @@ export default function VeilleCadastre({ cfg }: { cfg: RaaCommuneConfig }) {
       {loading ? (
         <div className="rv__skel">{[0, 1, 2].map((i) => <div key={i} className="rv__skelcard" />)}</div>
       ) : filtered.length === 0 ? (
-        <div className="rv__empty">
+        <div className="rv__empty" id="vc-fil">
           <Split size={28} />
           <p>
-            Aucun mouvement enregistré pour l’instant.
-            Le fil se remplit au premier <strong>--apply</strong> (photo + latest + événements).
+            {dateFilter
+              ? `Aucun mouvement cadastral le ${fmtDate(dateFilter)}.`
+              : "Aucun mouvement enregistré pour l’instant. Le fil se remplit au premier --apply (photo + latest + événements)."}
           </p>
+          {dateFilter && (
+            <button type="button" className="rv__btn" onClick={() => setDateFilter(null)}>
+              Toutes les dates
+            </button>
+          )}
         </div>
       ) : (
-        <div>
+        <div id="vc-fil">
           {filtered.map((ev) => {
             const meta = TYPE_META[ev.type] || TYPE_META.remaniement;
             const open = openEv === ev.id;
@@ -615,13 +696,122 @@ function ParcelMiniMap({ features }: { features: Array<{ geojson: { type: string
   );
 }
 
+function ActivityHeatmap({
+  byDay,
+  selected,
+  onSelect,
+}: {
+  byDay: Map<string, number>;
+  selected: string | null;
+  onSelect: (iso: string, count: number) => void;
+}) {
+  const { weeks, months } = useMemo(() => buildHeatmapWeeks(53), []);
+  return (
+    <div className="vc__heat">
+      <div className="vc__heathead">
+        <span>Activité cadastrale (12 derniers mois)</span>
+        <span className="vc__heatleg">
+          Moins
+          <i className="vc__sq vc__sq--0" />
+          <i className="vc__sq vc__sq--1" />
+          <i className="vc__sq vc__sq--2" />
+          <i className="vc__sq vc__sq--3" />
+          Plus
+        </span>
+      </div>
+      <div className="vc__heatscroll">
+        <div
+          className="vc__heatgrid"
+          style={{
+            gridTemplateColumns: `auto repeat(${weeks.length}, 11px)`,
+            gridTemplateRows: "14px repeat(7, 11px)",
+          }}
+        >
+          {months.map((m) => (
+            <span
+              key={`${m.label}-${m.col}`}
+              className="vc__heatmonth"
+              style={{ gridColumn: `${m.col + 2} / span ${Math.max(m.span, 1)}`, gridRow: 1 }}
+            >
+              {m.label}
+            </span>
+          ))}
+          {["L", "M", "M", "J", "V", "S", "D"].map((lab, row) => (
+            <span key={lab + row} className="vc__heatdow" style={{ gridRow: row + 2, gridColumn: 1 }}>
+              {row % 2 === 0 ? lab : ""}
+            </span>
+          ))}
+          {weeks.map((week, wi) =>
+            week.map((iso, di) => {
+              if (!iso) {
+                return <span key={`${wi}-${di}`} className="vc__sq vc__sq--empty" style={{ gridColumn: wi + 2, gridRow: di + 2 }} />;
+              }
+              const n = byDay.get(iso) || 0;
+              const lvl = n === 0 ? 0 : n < 5 ? 1 : n < 13 ? 2 : 3;
+              return (
+                <button
+                  key={iso}
+                  type="button"
+                  className={`vc__sq vc__sq--${lvl}${selected === iso ? " vc__sq--on" : ""}`}
+                  style={{ gridColumn: wi + 2, gridRow: di + 2 }}
+                  title={`${fmtDate(iso)} — ${n} mouvement${n > 1 ? "s" : ""}`}
+                  aria-label={`${fmtDate(iso)}, ${n} mouvement${n > 1 ? "s" : ""}`}
+                  onClick={() => onSelect(iso, n)}
+                />
+              );
+            }),
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function buildHeatmapWeeks(weekCount: number) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const weekday = today.getDay() === 0 ? 6 : today.getDay() - 1;
+  const endMonday = new Date(today);
+  endMonday.setDate(today.getDate() - weekday);
+  const start = new Date(endMonday);
+  start.setDate(start.getDate() - (weekCount - 1) * 7);
+
+  const weeks: Array<Array<string | null>> = [];
+  for (let w = 0; w < weekCount; w++) {
+    const week: Array<string | null> = [];
+    for (let d = 0; d < 7; d++) {
+      const cell = new Date(start);
+      cell.setDate(start.getDate() + w * 7 + d);
+      week.push(cell > today ? null : toLocalIso(cell));
+    }
+    weeks.push(week);
+  }
+
+  const months: Array<{ label: string; col: number; span: number }> = [];
+  let current: { label: string; col: number; span: number } | null = null;
+  for (let w = 0; w < weeks.length; w++) {
+    const iso = weeks[w].find(Boolean);
+    if (!iso) continue;
+    const label = new Date(`${iso}T00:00:00`).toLocaleDateString("fr-FR", { month: "short" });
+    if (!current || current.label !== label) {
+      if (current) months.push(current);
+      current = { label, col: w, span: 1 };
+    } else {
+      current.span += 1;
+    }
+  }
+  if (current) months.push(current);
+  return { weeks, months };
+}
+
 function demoAccueil(cfg: RaaCommuneConfig): Accueil {
   return {
     commune: cfg.communeLabel,
     insee: "66008",
     schema_ready: true,
-    latest: { nb_parcelles: 15585, millesime_pci: null, imported_at: null },
+    latest: { nb_parcelles: 15585, millesime_pci: "2026-06-01", imported_at: "2026-09-14T01:01:32Z" },
     photos: [],
+    last_run: { run_at: "2026-09-14T01:01:32Z", millesime_pci: "2026-06-01" },
     counts: { division: 17, fusion: 0, recodage: 0, remaniement: 0, suppression: 0, creation: 2 },
     nb_evenements: 19,
     pending: { en_attente_apply: true, millesime_pci: "2026-06-01" },
@@ -683,6 +873,29 @@ function demoFiche(idu: string): Fiche {
 
 const VC_CSS = `
 .vc{display:flex; flex-direction:column; gap:0;}
+.vc__uptodate{margin:0 0 1rem; padding:.7rem .9rem; border-radius:.7rem; background:#eef8f1;
+  border:1px solid #c8e6d0; color:#1a7a3a; font-size:.86rem; line-height:1.45; font-weight:600;}
+.vc__heat{margin:0 0 1.1rem; padding:.75rem .85rem .85rem; border:1px solid var(--border);
+  border-radius:.85rem; background:#fff;}
+.vc__heathead{display:flex; justify-content:space-between; align-items:center; gap:.75rem;
+  font-size:.78rem; font-weight:600; color:var(--muted); margin-bottom:.55rem; flex-wrap:wrap;}
+.vc__heatleg{display:inline-flex; align-items:center; gap:.28rem; font-weight:500; font-size:.7rem; color:var(--faint);}
+.vc__heatscroll{overflow-x:auto; padding-bottom:.15rem;}
+.vc__heatgrid{display:grid; gap:3px; align-items:center; min-width:max-content;}
+.vc__heatmonth{font-size:.65rem; color:var(--faint); line-height:14px; overflow:hidden; white-space:nowrap;}
+.vc__heatdow{font-size:.6rem; color:var(--faint); line-height:11px; padding-right:.35rem;}
+.vc__sq{width:11px; height:11px; padding:0; border:none; border-radius:2px; background:#ebedf0; display:inline-block;}
+button.vc__sq{cursor:pointer;}
+button.vc__sq:hover{outline:1px solid #1a7a3a; outline-offset:1px;}
+.vc__sq--empty{visibility:hidden;}
+.vc__sq--0{background:#ebedf0;}
+.vc__sq--1{background:#9be9a8;}
+.vc__sq--2{background:#40c463;}
+.vc__sq--3{background:#216e39;}
+.vc__sq--on{box-shadow:0 0 0 2px #1a7a3a;}
+.vc__daypick{margin:0 0 .85rem; font-size:.82rem; color:var(--muted);}
+.vc__linkbtn{border:none; background:none; padding:0; font:inherit; font-weight:700; color:#1a6fa8; cursor:pointer;}
+.vc__linkbtn:hover{text-decoration:underline;}
 .vc__banner{margin:0 0 1rem; padding:.7rem .9rem; border-radius:.7rem; background:#fffaf0;
   border:1px solid #f0d9a8; color:#7a5a00; font-size:.82rem; line-height:1.45;}
 .vc__banner code{font-size:.78rem; background:#fff6e0; padding:.05rem .3rem; border-radius:.3rem;}

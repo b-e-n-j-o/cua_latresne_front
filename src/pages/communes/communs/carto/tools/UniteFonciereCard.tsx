@@ -16,6 +16,7 @@ import { MntVisualizationEmbed } from "../../../../../components/tools/mnt/MntVi
 import { buildCuaViewerPath } from "../../../../../utils/cuaViewer";
 import { apiFetch } from "../../../../../api/apiFetch";
 import { generateCommuneCua, usesDirectCuaPipeline } from "../cua/generateCommuneCua";
+import { CARTO_SHOW_CIF_UI, CARTO_SHOW_TERRAIN_VIZ_UI } from "../cartoAgentUiFlags";
 
 type UFParcelle = {
   section: string;
@@ -431,15 +432,6 @@ export default function UniteFonciereCard({
           <div className="text-md font-semibold text-gray-700 mb-1">Choisir une action</div>
 
           <button
-            onClick={() => void runCifSse()}
-            disabled={cifBusy}
-            className="w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white py-2 px-3 rounded text-sm transition-colors disabled:opacity-60"
-          >
-            {cifBusy ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
-            <span>{cifBusy ? "Génération CIF en cours..." : "Générer la carte d'identité foncière"}</span>
-          </button>
-
-          <button
             onClick={() => void runGenerateCua()}
             disabled={cuaLoading}
             className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-2 px-3 rounded text-sm transition-colors disabled:opacity-60"
@@ -448,32 +440,47 @@ export default function UniteFonciereCard({
             <span>{cuaLoading ? "Génération CUA en cours..." : "Certificat d'urbanisme"}</span>
           </button>
 
-          <div className="text-xs text-slate-500 pt-1 border-t border-slate-100 mt-2">
-            Visualisation 3D
-          </div>
-          <button
-            type="button"
-            onClick={() => setTerrainViz("mnt")}
-            disabled={!mntPrimary}
-            title={
-              ufParcelles.length > 1
-                ? "MNT sur la 1re parcelle listée ; pour l’ensemble UF utiliser LiDAR."
-                : "Topographie MNT 3D"
-            }
-            className="w-full flex items-center justify-center gap-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white py-2 px-3 rounded text-sm transition-colors"
-          >
-            <Mountain size={16} />
-            <span>Topographie (MNT)</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setTerrainViz("lidar")}
-            disabled={lidarParcelles.length === 0}
-            className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white py-2 px-3 rounded text-sm transition-colors"
-          >
-            <Cloud size={16} />
-            <span>Nuage LiDAR HD</span>
-          </button>
+          {CARTO_SHOW_CIF_UI ? (
+            <button
+              onClick={() => void runCifSse()}
+              disabled={cifBusy}
+              className="w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white py-2 px-3 rounded text-sm transition-colors disabled:opacity-60"
+            >
+              {cifBusy ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
+              <span>{cifBusy ? "Génération CIF en cours..." : "Générer la carte d'identité foncière"}</span>
+            </button>
+          ) : null}
+
+          {CARTO_SHOW_TERRAIN_VIZ_UI ? (
+            <>
+              <div className="text-xs text-slate-500 pt-1 border-t border-slate-100 mt-2">
+                Visualisation 3D
+              </div>
+              <button
+                type="button"
+                onClick={() => setTerrainViz("mnt")}
+                disabled={!mntPrimary}
+                title={
+                  ufParcelles.length > 1
+                    ? "MNT sur la 1re parcelle listée ; pour l’ensemble UF utiliser LiDAR."
+                    : "Topographie MNT 3D"
+                }
+                className="w-full flex items-center justify-center gap-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white py-2 px-3 rounded text-sm transition-colors"
+              >
+                <Mountain size={16} />
+                <span>Topographie (MNT)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setTerrainViz("lidar")}
+                disabled={lidarParcelles.length === 0}
+                className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white py-2 px-3 rounded text-sm transition-colors"
+              >
+                <Cloud size={16} />
+                <span>Nuage LiDAR HD</span>
+              </button>
+            </>
+          ) : null}
         </div>
 
         {cuaStarted && useDirectCuaPipeline && (
@@ -532,7 +539,7 @@ export default function UniteFonciereCard({
           </div>
         )}
 
-        {cifStarted && (
+        {CARTO_SHOW_CIF_UI && cifStarted && (
           <div className="mt-3 p-2.5 bg-slate-50 border border-slate-200 rounded-md text-xs">
             <div className="flex items-center gap-2 mb-2 text-slate-700 font-medium">
               {cifReady ? <CheckCircle2 size={14} className="text-emerald-600" /> : <Loader2 size={14} className="animate-spin text-slate-500" />}
@@ -592,7 +599,7 @@ export default function UniteFonciereCard({
         )}
       </div>
 
-      {terrainViz && (
+      {CARTO_SHOW_TERRAIN_VIZ_UI && terrainViz && (
         <div
           className="fixed inset-0 z-[60] flex items-center justify-center bg-black/55 p-3 sm:p-6"
           role="presentation"

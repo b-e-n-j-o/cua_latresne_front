@@ -15,7 +15,6 @@ import PluChat from "./pages/plu-chat/PluChat";
 import LidarViewerPage from "./pages/visualisations_de_test/lidar/LidarViewerPage";
 import MntViewerPage from "./pages/visualisations_de_test/mnt/MntViewerPage";
 import LatresneTilesPage from "./pages/communes/latresne/cua/LatresnePagePMTiles";
-import PortailApp from "./portail/PortailApp";
 import CommuneLayout, { CommunePortalEntry } from "./layouts/CommuneLayout";
 import {
   CommuneCatalogueRoute,
@@ -28,6 +27,7 @@ import {
 } from "./layouts/communePortalRoutes";
 import DemoRequestPage from "./pages/website/DemoRequestPage";
 import MarkdownBatchPage from "./pages/tools/MarkdownBatchPage";
+import LlmPlaygroundPage from "./pages/tools/LlmPlaygroundPage";
 import {
   CertificatsUrbanismePage,
   CarteIdentiteFoncierePage,
@@ -118,8 +118,7 @@ export default function App() {
         <Route path="/admin/db" element={<Navigate to="/admin" replace />} />
         <Route path="/admin/reglement" element={<ReglementsAdminPage />} />
         <Route path="/markdown" element={<MarkdownBatchPage />} />
-        {/* Ancien portail démo — distinct du portail commune /:commune/outil */}
-        <Route path="/portail/*" element={<PortailApp />} />
+        <Route path="/llm" element={<LlmPlaygroundPage />} />
 
         {/* Portail cartographique par commune (barre latérale + outils) */}
         <Route path="/:communeSlug" element={<CommuneLayout />}>

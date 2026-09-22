@@ -1,5 +1,7 @@
 import type maplibregl from "maplibre-gl";
 import type { RefObject } from "react";
+import { pickCuaHistoryPingFeature } from "./history/historyMapUtils";
+import { CUA_PING_PICK_RADIUS_STICKY } from "./history/cuaHistoryPingLayers";
 
 export type CartoTooltipLayerDef = {
   id: string;
@@ -150,6 +152,8 @@ export function attachCartoHoverHandlers(
   const { defs, layerVisibleRef, parcelleHitLayerId, canShow, setTooltip } = opts;
 
   const onMove = (e: maplibregl.MapMouseEvent) => {
+    if (pickCuaHistoryPingFeature(map, e.point, CUA_PING_PICK_RADIUS_STICKY)) return;
+
     if (!canShow()) return;
 
     if (

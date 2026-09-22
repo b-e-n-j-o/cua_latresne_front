@@ -607,6 +607,39 @@
   margin-top: 0.25rem;
 }
 
+.plu-chat__limit {
+  max-width: 44rem;
+  margin: 0 auto 0.65rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 0.85rem;
+  border: 1px solid #f0c36d;
+  background: #fff8e8;
+  color: #5c4a1f;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 0.9rem;
+}
+
+.plu-chat__limit p {
+  margin: 0;
+  flex: 1 1 14rem;
+}
+
+.plu-chat__limit-btn {
+  border: none;
+  border-radius: 999px;
+  background: var(--plu-text);
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 550;
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+}
+
 .plu-chat__typing {
   display: flex;
   align-items: center;
@@ -641,6 +674,160 @@
     opacity: 1;
     transform: scale(1);
   }
+}
+
+.plu-chat__confirm {
+  margin-top: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.plu-chat__pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.plu-chat__pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.34rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.plu-chat__pill--removable {
+  padding-right: 0.95rem;
+}
+
+.plu-chat__pill-remove {
+  position: absolute;
+  top: -0.28rem;
+  right: -0.28rem;
+  width: 0.92rem;
+  height: 0.92rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(17, 17, 17, 0.12);
+  background: #fff;
+  color: #5a5a5a;
+  cursor: pointer;
+  line-height: 0;
+}
+
+.plu-chat__pill-remove:hover:not(:disabled) {
+  background: #111;
+  color: #fff;
+  border-color: #111;
+}
+
+.plu-chat__pill-remove:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.plu-chat__pill--ok {
+  background: var(--plu-accent-soft);
+  color: #1b5e12;
+  border: 1px solid rgba(40, 159, 1, 0.22);
+}
+
+.plu-chat__pill--missing {
+  background: #fff4ed;
+  color: #9a3412;
+  border: 1px dashed #fdba74;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.plu-chat__pill--add {
+  width: 1.85rem;
+  height: 1.85rem;
+  padding: 0;
+  justify-content: center;
+  background: var(--plu-accent);
+  color: #15630e;
+  border: none;
+  cursor: pointer;
+}
+
+.plu-chat__pill--add:hover:not(:disabled) {
+  background: var(--plu-accent-hover);
+  color: #fff;
+}
+
+.plu-chat__pill--add:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.plu-chat__pill-add-form {
+  display: inline-flex;
+}
+
+.plu-chat__pill-add-input {
+  width: 6.75rem;
+  padding: 0.34rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid rgba(40, 159, 1, 0.35);
+  background: #fff;
+  color: var(--plu-text);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.plu-chat__pill-add-input:focus {
+  outline: none;
+  border-color: var(--plu-accent-hover);
+  box-shadow: 0 0 0 3px var(--plu-accent-soft);
+}
+
+.plu-chat__pills--actions {
+  margin-top: 0.15rem;
+}
+
+.plu-chat__pill--action {
+  border: none;
+  background: var(--plu-accent);
+  color: #111;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.plu-chat__pill--action:hover:not(:disabled) {
+  background: var(--plu-accent-hover);
+  color: #fff;
+}
+
+.plu-chat__pill--action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.plu-chat__confirm-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--plu-text-muted);
+}
+
+.plu-chat__confirm-hint code {
+  font-size: 0.75rem;
+  background: var(--plu-surface);
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.3rem;
 }
 
 .plu-chat__composer-wrap {
@@ -719,6 +906,36 @@
 .plu-chat__send:disabled {
   opacity: 0.35;
   cursor: not-allowed;
+}
+
+.plu-chat__mode {
+  max-width: 44rem;
+  margin: 0.45rem auto 0;
+  display: flex;
+  gap: 0.25rem;
+  width: fit-content;
+  padding: 0.15rem;
+  border-radius: 999px;
+  background: #f4f4f4;
+}
+
+.plu-chat__mode-btn {
+  border: none;
+  background: transparent;
+  color: #6b6b6b;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 550;
+  letter-spacing: 0.01em;
+  padding: 0.28rem 0.7rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.plu-chat__mode-btn.is-active {
+  background: #fff;
+  color: var(--plu-text);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
 }
 
 @media (max-width: 768px) {
