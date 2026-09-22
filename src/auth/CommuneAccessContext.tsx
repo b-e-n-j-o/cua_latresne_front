@@ -9,6 +9,7 @@ type CommuneAccessContextValue = {
   user: User | null;
   allowedSlugs: CommunePortalSlug[] | null;
   unrestricted: boolean;
+  isSuperadmin: boolean;
   refresh: () => Promise<void>;
 };
 
@@ -71,12 +72,13 @@ export function CommuneAccessProvider({ children }: { children: React.ReactNode 
       user,
       allowedSlugs: access.allowedSlugs,
       unrestricted: access.unrestricted,
+      isSuperadmin: Boolean(access.isSuperadmin),
       refresh: async () => {
         const { data } = await supabase.auth.getSession();
         await loadForUser(data.session?.user ?? null, { silent: true });
       },
     }),
-    [loading, user, access.allowedSlugs, access.unrestricted]
+    [loading, user, access.allowedSlugs, access.unrestricted, access.isSuperadmin]
   );
 
   return (
@@ -90,4 +92,10 @@ export function useCommuneAccess(): CommuneAccessContextValue {
     throw new Error("useCommuneAccess doit être utilisé dans CommuneAccessProvider");
   }
   return ctx;
+}
+
+/** False hors portail (ex. /chat-urba public) ou si le rôle n'est pas superadmin. */
+export function useIsSuperadmin(): boolean {
+  const ctx = useContext(CommuneAccessContext);
+  return Boolean(ctx?.isSuperadmin);
 }

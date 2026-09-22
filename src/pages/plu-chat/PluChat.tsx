@@ -16,6 +16,7 @@ import {
   mapDataHasParcelleGeometry,
   pluAuthHeaders,
 } from "./pluAuth";
+import { useIsSuperadmin } from "../../auth/CommuneAccessContext";
 
 const API_BASE = (import.meta.env.VITE_API_BASE || "http://localhost:8000").replace(/\/$/, "");
 const RESPONSE_MODE_KEY = "plu-chat-response-mode";
@@ -519,14 +520,20 @@ function formatMeta(data: ApiTurn, zonesSummary?: string) {
     .join(" · ");
 }
 
-function mapSessionMessages(raw: SessionState["messages"]): ChatMessage[] {
+function mapSessionMessages(
+  raw: SessionState["messages"],
+  showAudit: boolean,
+): ChatMessage[] {
   return raw.map((m) => ({
     id: uid(),
     role: m.role === "user" ? "user" : "assistant",
     content: m.content,
-    dbMessageId: m.role === "model" || m.role === "assistant" ? m.id : undefined,
-    hasRawContext: Boolean(m.has_raw_context),
-    meta: formatUsageMeta(m.usage) || undefined,
+    dbMessageId:
+      showAudit && (m.role === "model" || m.role === "assistant")
+        ? m.id
+        : undefined,
+    hasRawContext: showAudit && Boolean(m.has_raw_context),
+    meta: showAudit ? formatUsageMeta(m.usage) || undefined : undefined,
   }));
 }
 
@@ -550,6 +557,7 @@ function AssistantMarkdown({ content }: { content: string }) {
 }
 
 export default function PluChat({ commune = "argeles" }: PluChatProps) {
+  const isSuperadmin = useIsSuperadmin();
   const communeConfig = PLU_COMMUNE_CONFIG[commune];
   const apiRoot = pluApiRoot(API_BASE, commune);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -672,7 +680,7 @@ export default function PluChat({ commune = "argeles" }: PluChatProps) {
       const data: SessionState = await res.json();
       setSessionId(data.session_id);
       setZonesSummary(zonesSummaryFromZones(data.zones));
-      setMessages(mapSessionMessages(data.messages));
+      setMessages(mapSessionMessages(data.messages, isSuperadmin));
       setContextLimitReached(contextLimitReachedFromPayload(data));
       setInput("");
 
@@ -742,17 +750,19 @@ export default function PluChat({ commune = "argeles" }: PluChatProps) {
           id: uid(),
           role: "assistant",
           content: data.answer || "Aucune réponse reçue.",
-          meta: formatMeta(data, summary ?? zonesSummary ?? undefined) || undefined,
+          meta: isSuperadmin
+            ? formatMeta(data, summary ?? zonesSummary ?? undefined) || undefined
+            : undefined,
           mapData: mapData ?? data.map_data ?? null,
-          dbMessageId: data.model_message_id,
-          hasRawContext: Boolean(data.model_message_id),
+          dbMessageId: isSuperadmin ? data.model_message_id : undefined,
+          hasRawContext: isSuperadmin && Boolean(data.model_message_id),
         },
       ]);
 
       setContextLimitReached(contextLimitReachedFromPayload(data));
       await revealMapPanel(data, sid ?? sessionId, revealOptions);
     },
-    [sessionId, zonesSummary, revealMapPanel],
+    [sessionId, zonesSummary, revealMapPanel, isSuperadmin],
   );
 
   const sendMessage = async (text: string, options?: { confirmed?: boolean }) => {
@@ -1142,8 +1152,10 @@ export default function PluChat({ commune = "argeles" }: PluChatProps) {
                               />
                             )}
                           </div>
-                          {msg.meta && <div className="plu-chat__meta">{msg.meta}</div>}
-                          {msg.role === "assistant" && sessionId && msg.dbMessageId && (
+                          {isSuperadmin && msg.meta && (
+                            <div className="plu-chat__meta">{msg.meta}</div>
+                          )}
+                          {isSuperadmin && sessionId && msg.dbMessageId && (
                               <button
                                 type="button"
                                 className="plu-chat__ctx-btn"
@@ -1203,7 +1215,7 @@ export default function PluChat({ commune = "argeles" }: PluChatProps) {
         onClose={() => setMapVisible(false)}
       />
 
-      {rawContextTarget && sessionId && (
+      {isSuperadmin && rawContextTarget && sessionId && (
         <PluRawContextPanel
           apiRoot={apiRoot}
           sessionId={sessionId}
