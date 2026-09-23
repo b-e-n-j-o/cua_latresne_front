@@ -107,6 +107,7 @@ export default function UniteFonciereCard({
   const [cuaViewerUrl, setCuaViewerUrl] = useState<string | null>(null);
   const [cuaDocxUrl, setCuaDocxUrl] = useState<string | null>(null);
   const [cuaCarteUrl, setCuaCarteUrl] = useState<string | null>(null);
+  const [cuaCarte3dUrl, setCuaCarte3dUrl] = useState<string | null>(null);
   const [cuaSlug, setCuaSlug] = useState<string | null>(null);
   const [cuaStarted, setCuaStarted] = useState(false);
 
@@ -242,6 +243,7 @@ export default function UniteFonciereCard({
     setCuaViewerUrl(null);
     setCuaDocxUrl(null);
     setCuaCarteUrl(null);
+    setCuaCarte3dUrl(null);
     setCuaSlug(null);
 
     try {
@@ -266,6 +268,9 @@ export default function UniteFonciereCard({
       }
       if (result.carteUrl) {
         setCuaCarteUrl(result.carteUrl);
+      }
+      if (result.carte3dUrl) {
+        setCuaCarte3dUrl(result.carte3dUrl);
       }
     } catch (e) {
       setCuaError((e as Error).message || "Erreur lors de la génération du CUA.");
@@ -530,7 +535,14 @@ export default function UniteFonciereCard({
                 className="inline-flex items-center gap-1.5 rounded bg-slate-700 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
               >
                 <MapPin size={13} />
-                Carte d&apos;urbanisme
+              <button
+                type="button"
+                onClick={() => cuaCarte3dUrl && window.open(cuaCarte3dUrl, "_blank", "noopener,noreferrer")}
+                disabled={!cuaCarte3dUrl}
+                className="inline-flex items-center gap-1.5 rounded bg-slate-800 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-slate-900 disabled:opacity-50"
+              >
+                <MapPin size={13} />
+                Carte 3D
               </button>
             </div>
             {cuaSlug && (

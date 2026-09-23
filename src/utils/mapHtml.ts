@@ -33,7 +33,21 @@ export function htmlToBlobUrl(html: string): string {
   return URL.createObjectURL(blob);
 }
 
-/** En local, les liens stockés pointent vers kerelia.fr (prod). On les ramène sur l’origine courante. */
+export function communeCartoPublicUrl(
+  communeSlug: string | null | undefined,
+  pipelineSlug: string | null | undefined,
+  vue?: "2d" | "3d",
+): string | null {
+  const commune = (communeSlug || "").trim().toLowerCase();
+  const slug = (pipelineSlug || "").trim();
+  if (!commune || !slug) return null;
+  if (commune !== "argeles" && commune !== "latresne") return null;
+  const api = (import.meta.env.VITE_API_BASE || "https://api.kerelia.fr").replace(/\/$/, "");
+  const base = `${api}/communes/${commune}/carto/${slug}`;
+  return vue === "3d" ? `${base}?vue=3d` : base;
+}
+
+/** En local, les liens /maps de kerelia.fr sont ramenés sur l’origine courante. */
 export function localizeMapsViewerUrl(url: string | null | undefined): string | null {
   if (!url) return null;
   try {

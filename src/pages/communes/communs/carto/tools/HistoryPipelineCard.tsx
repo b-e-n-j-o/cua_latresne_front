@@ -1,7 +1,7 @@
 import { MapPin, FileText, Calendar, User, ExternalLink } from "lucide-react";
 import { getCerfaParcelleRefs } from "../history/cerfaParcelleRefs";
 import { getExpirationProgress } from "../history/historyPipelineLinks";
-import { localizeMapsViewerUrl } from "../../../../../utils/mapHtml";
+import { communeCartoPublicUrl, localizeMapsViewerUrl } from "../../../../../utils/mapHtml";
 
 export { getExpirationProgress };
 
@@ -253,7 +253,11 @@ export default function HistoryPipelineCard({
         <div className={`border-t border-gray-200 flex flex-col ${mapPopup ? "mt-2 pt-2 gap-1" : "mt-4 pt-3 gap-2"}`}>
           {pipeline.qr_url && (
             <a
-              href={localizeMapsViewerUrl(pipeline.qr_url) || pipeline.qr_url}
+              href={
+                communeCartoPublicUrl(pipeline.commune || "latresne", pipeline.slug) ||
+                localizeMapsViewerUrl(pipeline.qr_url) ||
+                pipeline.qr_url
+              }
               target="_blank"
               rel="noopener noreferrer"
               className={`w-full flex items-center justify-center gap-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded transition-colors ${mapPopup ? "py-2 px-3 text-[13px]" : "py-2 px-3 text-sm"}`}

@@ -6,6 +6,7 @@ import {
   formatValidityEndLabel,
   getExpirationProgress,
   resolveHistoryCarteUrl,
+  resolveHistoryCarte3dUrl,
   resolveHistoryCuaViewerPath,
 } from "../history/historyPipelineLinks";
 import SuiviInstructionCard from "../tools/SuiviInstructionCard";
@@ -59,6 +60,7 @@ export default function ProjectHistoryCard({
   const validityLabel = formatValidityEndLabel(row.created_at);
   const cuaViewerPath = resolveHistoryCuaViewerPath(row);
   const carteUrl = resolveHistoryCarteUrl(row);
+  const carte3dUrl = resolveHistoryCarte3dUrl(row);
 
   const onDeleteClick = async (e: MouseEvent) => {
     e.preventDefault();
@@ -194,6 +196,17 @@ export default function ProjectHistoryCard({
                 onClick={(e) => e.stopPropagation()}
               >
                 Carte
+              </a>
+            ) : null}
+            {carte3dUrl ? (
+              <a
+                href={carte3dUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="cua-history-row__action cua-history-row__action--secondary"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Carte 3D
               </a>
             ) : null}
           </div>

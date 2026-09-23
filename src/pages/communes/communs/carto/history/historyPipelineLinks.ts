@@ -1,5 +1,5 @@
 import { encodeCuaViewerToken } from "../../../../../utils/cuaViewer";
-import { localizeMapsViewerUrl } from "../../../../../utils/mapHtml";
+import { communeCartoPublicUrl, localizeMapsViewerUrl } from "../../../../../utils/mapHtml";
 import type { HistoryPipeline } from "../tools/HistoryPipelineCard";
 
 export function getValidityExpiryDate(createdAt: string | undefined): Date | null {
@@ -57,13 +57,20 @@ export function resolveHistoryCuaViewerPath(pipeline: HistoryPipeline): string |
 }
 
 export function resolveHistoryCarteUrl(pipeline: HistoryPipeline): string | null {
-  const meta = pipeline.metadata;
-  return localizeMapsViewerUrl(
-    pipeline.qr_url ||
-      pipeline.carte_2d_url ||
-      meta?.carte_2d_url ||
-      pipeline.carte_3d_url ||
-      meta?.carte_3d_url ||
-      null,
+  return (
+    communeCartoPublicUrl(pipeline.commune || "latresne", pipeline.slug) ||
+    localizeMapsViewerUrl(
+      pipeline.qr_url ||
+        pipeline.carte_2d_url ||
+        pipeline.metadata?.carte_2d_url ||
+        pipeline.carte_3d_url ||
+        pipeline.metadata?.carte_3d_url ||
+        null,
+    )
   );
+}
+
+export function resolveHistoryCarte3dUrl(pipeline: HistoryPipeline): string | null {
+  if (!pipeline.carte_3d_url && !pipeline.metadata?.carte_3d_url) return null;
+  return communeCartoPublicUrl(pipeline.commune || "latresne", pipeline.slug, "3d");
 }

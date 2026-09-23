@@ -33,6 +33,7 @@ export type GenerateArgelesCuaSuccess = {
   docxUrl?: string | null;
   viewerUrl?: string | null;
   carteUrl?: string | null;
+  carte3dUrl?: string | null;
   nCouchesConcernees?: number;
 };
 
@@ -76,6 +77,7 @@ export async function generateArgelesCua(
     output_cua?: string | null;
     cua_viewer_url?: string | null;
     carte_context_url?: string | null;
+    carte_3d_url?: string | null;
     n_couches_concernees?: number;
     detail?: unknown;
   };
@@ -90,6 +92,7 @@ export async function generateArgelesCua(
     docxUrl,
     viewerUrl: docxUrl ? buildCuaViewerPath(docxUrl) : data.cua_viewer_url ?? null,
     carteUrl: data.carte_context_url ?? null,
+    carte3dUrl: data.carte_3d_url ?? null,
     nCouchesConcernees: data.n_couches_concernees,
   };
 }

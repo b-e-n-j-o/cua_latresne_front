@@ -45,7 +45,7 @@ function ColorLegendItems({
 }) {
   return (
     <div className="space-y-0.5">
-      {items.map((l) => (
+          {items.map((l) => (
         <div key={l.label} className="flex items-center gap-1.5 py-0.5 min-w-0">
           <span className="rsp-swatch inline-block shrink-0" style={{ background: l.color }} />
           <span className="flex-1 truncate text-[10px] text-[#0b131f]/75" title={l.label}>

@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { UploadCloud } from "lucide-react";
 import type { HistoryPipeline } from "../../../../components/tools/carto/HistoryPipelineCard";
 import { encodeCuaViewerToken, downloadCuaDocx } from "../../../../utils/cuaViewer";
-import { htmlToBlobUrl, localizeMapsViewerUrl } from "../../../../utils/mapHtml";
+import { communeCartoPublicUrl, localizeMapsViewerUrl } from "../../../../utils/mapHtml";
 import { apiFetch } from "../../../../api/apiFetch";
 
 type ProjectFile = {
@@ -105,19 +105,22 @@ export default function ProjectPage() {
   const projectLink = useMemo(() => {
     if (!project) return null;
     const p = project as HistoryPipeline & { maps_page?: string };
-    return localizeMapsViewerUrl(p.qr_url || p.maps_page || null);
-  }, [project]);
-  const expiration = useMemo(() => getExpirationProgress(project?.created_at), [project?.created_at]);
+    return (
+      communeCartoPublicUrl(p.commune || "latresne", slug) ||
+      localizeMapsViewerUrl(p.qr_url || p.maps_page || null)
+    );
+  }, [project, slug]);
 
   const map2dUrl = useMemo(() => {
-    const p: any = project;
-    return p?.carte_2d_url || p?.metadata?.carte_2d_url || "";
-  }, [project]);
+    const p = project as HistoryPipeline & { commune?: string };
+    return communeCartoPublicUrl(p?.commune || "latresne", slug, "2d") || "";
+  }, [project, slug]);
 
   const map3dUrl = useMemo(() => {
-    const p: any = project;
-    return p?.carte_3d_url || p?.metadata?.carte_3d_url || "";
-  }, [project]);
+    const p = project as HistoryPipeline & { commune?: string };
+    return communeCartoPublicUrl(p?.commune || "latresne", slug, "3d") || "";
+  }, [project, slug]);
+  const expiration = useMemo(() => getExpirationProgress(project?.created_at), [project?.created_at]);
 
   const cuaDocxFile = useMemo(() => {
     const fromFiles =
@@ -143,6 +146,27 @@ export default function ProjectPage() {
     }
     return null;
   }, [files, project, slug]);
+
+  const dxfFile = useMemo(() => {
+    const fromFiles =
+      files.find((f) => f.file_kind === "topo_dxf" && (f.public_url || f.storage_path)) ||
+      files.find((f) => (f.filename || "").toLowerCase().endsWith(".dxf") && (f.public_url || f.storage_path));
+    if (fromFiles) return fromFiles;
+
+    const p = project as HistoryPipeline & { topo_dxf_url?: string; metadata?: { topo_dxf_url?: string } };
+    const url = p?.topo_dxf_url || p?.metadata?.topo_dxf_url;
+    if (!url) return null;
+    return {
+      id: "pipeline-topo-dxf",
+      file_kind: "topo_dxf",
+      filename: "topo_mnt.dxf",
+      public_url: url,
+      storage_bucket: "visualisation",
+      storage_path: slug ? `${slug}/topo_mnt.dxf` : "",
+    } satisfies ProjectFile;
+  }, [files, project, slug]);
+
+  const canDownloadDxf = Boolean(cuaDocxFile && (map2dUrl || map3dUrl) && dxfFile?.public_url);
 
   const openCuaViewer = (file: ProjectFile) => {
     const token = buildCuaViewerTokenFromFile(file, slug);
@@ -208,37 +232,12 @@ export default function ProjectPage() {
     if (!targetUrl) {
       setMapError("Aucune URL de carte disponible pour ce projet.");
       setMapIframeSrc("");
+      setMapLoading(false);
       return;
     }
-
-    let blobUrl: string | null = null;
-    let cancelled = false;
-
-    async function loadMap() {
-      setMapLoading(true);
-      setMapError(null);
-      try {
-        const res = await fetch(targetUrl);
-        if (!res.ok) throw new Error(`Erreur ${res.status}`);
-        const html = await res.text();
-        if (cancelled) return;
-        blobUrl = htmlToBlobUrl(html);
-        setMapIframeSrc(blobUrl);
-      } catch (e: any) {
-        if (cancelled) return;
-        setMapError(e?.message || "Erreur de chargement de la cartographie.");
-        setMapIframeSrc("");
-      } finally {
-        if (!cancelled) setMapLoading(false);
-      }
-    }
-
-    loadMap();
-
-    return () => {
-      cancelled = true;
-      if (blobUrl) URL.revokeObjectURL(blobUrl);
-    };
+    setMapError(null);
+    setMapLoading(false);
+    setMapIframeSrc(targetUrl);
   }, [activeTab, mapSelected, map2dUrl, map3dUrl]);
 
   useEffect(() => {
@@ -504,6 +503,15 @@ export default function ProjectPage() {
                       Voir les cartes de zonage 2D et de terrain 3D
                     </a>
                   )}
+                  {canDownloadDxf && dxfFile?.public_url && (
+                    <a
+                      href={dxfFile.public_url}
+                      download={dxfFile.filename || "topo_mnt.dxf"}
+                      className="inline-flex mt-2 ml-2 text-sm px-3 py-2 rounded border border-teal-600 text-teal-800 hover:bg-teal-50 transition-colors"
+                    >
+                      Télécharger DXF pour CAO
+                    </a>
+                  )}
                 </div>
               ) : (
                 <div className="text-sm text-gray-500">Projet introuvable.</div>
@@ -659,8 +667,8 @@ export default function ProjectPage() {
               </div>
             </div>
 
-            {projectLink && (
-              <div className="mb-3">
+            <div className="mb-3 flex flex-wrap gap-2">
+              {projectLink && (
                 <a
                   href={projectLink}
                   target="_blank"
@@ -669,8 +677,17 @@ export default function ProjectPage() {
                 >
                   Ouvrir la cartographie en page dédiée
                 </a>
-              </div>
-            )}
+              )}
+              {canDownloadDxf && dxfFile?.public_url && (
+                <a
+                  href={dxfFile.public_url}
+                  download={dxfFile.filename || "topo_mnt.dxf"}
+                  className="inline-flex text-sm px-3 py-2 rounded border border-teal-600 text-teal-800 hover:bg-teal-50 transition-colors"
+                >
+                  Télécharger DXF pour CAO
+                </a>
+              )}
+            </div>
 
             <div className="relative h-[70vh] rounded border border-gray-200 overflow-hidden bg-gray-50">
               {mapLoading && (

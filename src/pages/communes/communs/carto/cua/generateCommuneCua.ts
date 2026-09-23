@@ -38,6 +38,7 @@ export type GenerateCommuneCuaResult = {
   docxUrl?: string | null;
   viewerUrl?: string | null;
   carteUrl?: string | null;
+  carte3dUrl?: string | null;
 };
 
 const LATRESNE_DEFAULTS = {
@@ -73,6 +74,8 @@ async function pollLatresneJob(jobId: string): Promise<GenerateCommuneCuaResult>
         viewerUrl: data.result_enhanced?.cua_viewer_url ?? null,
         docxUrl: data.result_enhanced?.output_cua ?? data.result?.output_cua ?? null,
         carteUrl: data.result_enhanced?.carte_context_url ?? null,
+        carte3dUrl:
+          data.result_enhanced?.carte_3d_url ?? data.result?.carte_3d_url ?? null,
       };
     }
 

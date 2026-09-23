@@ -40,6 +40,7 @@ export default function ParcelleCuaGenerateAction({
   const [viewerUrl, setViewerUrl] = useState<string | null>(null);
   const [docxUrl, setDocxUrl] = useState<string | null>(null);
   const [carteUrl, setCarteUrl] = useState<string | null>(null);
+  const [carte3dUrl, setCarte3dUrl] = useState<string | null>(null);
   const [slug, setSlug] = useState<string | null>(null);
 
   const ready = Boolean(viewerUrl || docxUrl);
@@ -51,6 +52,7 @@ export default function ParcelleCuaGenerateAction({
     setViewerUrl(null);
     setDocxUrl(null);
     setCarteUrl(null);
+    setCarte3dUrl(null);
     setSlug(null);
 
     try {
@@ -73,6 +75,7 @@ export default function ParcelleCuaGenerateAction({
       if (result.docxUrl) setDocxUrl(result.docxUrl);
       if (result.viewerUrl) setViewerUrl(result.viewerUrl);
       if (result.carteUrl) setCarteUrl(result.carteUrl);
+      if (result.carte3dUrl) setCarte3dUrl(result.carte3dUrl);
     } catch (e) {
       setError((e as Error).message || "Erreur lors de la génération du CUA.");
     } finally {
@@ -217,6 +220,15 @@ export default function ParcelleCuaGenerateAction({
             >
               <MapPin size={13} />
               Carte d&apos;urbanisme
+            </button>
+            <button
+              type="button"
+              onClick={() => carte3dUrl && window.open(carte3dUrl, "_blank", "noopener,noreferrer")}
+              disabled={!carte3dUrl}
+              className="inline-flex items-center gap-1.5 rounded bg-slate-800 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-slate-900 disabled:opacity-50"
+            >
+              <MapPin size={13} />
+              Carte 3D
             </button>
           </div>
 
