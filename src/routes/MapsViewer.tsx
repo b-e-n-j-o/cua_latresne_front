@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { decodeMapsToken, htmlToBlobUrl } from "../utils/mapHtml";
 
 export default function MapsViewer() {
   const [carte2d, setCarte2d] = useState<string>("");
@@ -6,10 +7,10 @@ export default function MapsViewer() {
   const [carte3d, setCarte3d] = useState<string>("");
   const [selected, setSelected] = useState<"2d" | "3d">("2d");
   const [iframeSrc, setIframeSrc] = useState<string>("");
+  const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Lecture et décodage du token `t`
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const lsKey = params.get("ls");
@@ -20,74 +21,69 @@ export default function MapsViewer() {
         const raw = localStorage.getItem(lsKey);
         if (!raw) {
           setError("Données de carte introuvables (session expirée).");
+          setLoading(false);
           return;
         }
         const wrapped = JSON.parse(raw);
         const decoded = wrapped?.payload ?? wrapped;
-        const has2dUrl = typeof decoded.carte2d === "string" && decoded.carte2d.length > 0;
-        const has2dHtml =
-          typeof decoded.carte2d_html === "string" && decoded.carte2d_html.length > 0;
-        const has3d = typeof decoded.carte3d === "string" && decoded.carte3d.length > 0;
-        if (!has2dUrl && !has2dHtml) {
-          setError("Données de carte invalides.");
-          return;
-        }
-        setCarte2d(has2dUrl ? decoded.carte2d : "");
-        setCarte2dHtml(has2dHtml ? decoded.carte2d_html : "");
-        setCarte3d(has3d ? decoded.carte3d : "");
-        setSelected("2d");
-        return;
-      } catch (err: any) {
+        applyPayload(decoded);
+      } catch (err) {
         console.error("Erreur de lecture localStorage :", err);
         setError("Impossible de lire les données de carte.");
-        return;
+        setLoading(false);
       }
+      return;
     }
 
     if (!token) {
       setError("Aucun token de carte fourni.");
+      setLoading(false);
       return;
     }
 
     try {
-      const jsonStr = decodeURIComponent(escape(window.atob(token)));
-      const decoded = JSON.parse(jsonStr);
-
-      const has2dUrl = typeof decoded.carte2d === "string" && decoded.carte2d.length > 0;
-      const has2dHtml =
-        typeof decoded.carte2d_html === "string" && decoded.carte2d_html.length > 0;
-      const has3d = typeof decoded.carte3d === "string" && decoded.carte3d.length > 0;
-
-      if (!has2dUrl && !has2dHtml) {
-        setError("Token invalide : données manquantes.");
-        return;
-      }
-
-      setCarte2d(has2dUrl ? decoded.carte2d : "");
-      setCarte2dHtml(has2dHtml ? decoded.carte2d_html : "");
-      setCarte3d(has3d ? decoded.carte3d : "");
-      setSelected("2d");
-    } catch (err: any) {
+      applyPayload(decodeMapsToken(token));
+    } catch (err) {
       console.error("Erreur de décodage du token :", err);
       setError("Le lien fourni est invalide ou corrompu.");
+      setLoading(false);
     }
   }, []);
 
-  // Chargement de la carte selon l’onglet sélectionné
+  function applyPayload(decoded: Record<string, unknown>) {
+    const has2dUrl = typeof decoded.carte2d === "string" && decoded.carte2d.length > 0;
+    const has2dHtml =
+      typeof decoded.carte2d_html === "string" && decoded.carte2d_html.length > 0;
+    const has3d = typeof decoded.carte3d === "string" && decoded.carte3d.length > 0;
+    if (!has2dUrl && !has2dHtml && !has3d) {
+      setError("Token invalide : données manquantes.");
+      setLoading(false);
+      return;
+    }
+    setCarte2d(has2dUrl ? (decoded.carte2d as string) : "");
+    setCarte2dHtml(has2dHtml ? (decoded.carte2d_html as string) : "");
+    setCarte3d(has3d ? (decoded.carte3d as string) : "");
+    setSelected(has2dUrl || has2dHtml ? "2d" : "3d");
+    setReady(true);
+  }
+
   useEffect(() => {
+    if (!ready) return;
+    let blobUrl: string | null = null;
+    let cancelled = false;
+
     async function loadMap() {
       if (selected === "2d" && carte2dHtml) {
         setLoading(true);
         setError(null);
         try {
-          const blob = new Blob([carte2dHtml], { type: "text/html" });
-          const blobUrl = URL.createObjectURL(blob);
-          setIframeSrc(blobUrl);
-        } catch (err: any) {
+          blobUrl = htmlToBlobUrl(carte2dHtml);
+          if (!cancelled) setIframeSrc(blobUrl);
+        } catch (err) {
           console.error("Erreur de rendu HTML inline :", err);
-          setError("Impossible d'afficher la carte 2D.");
+          if (!cancelled) setError("Impossible d'afficher la carte 2D.");
         } finally {
-          setLoading(false);
+          if (!cancelled) setLoading(false);
         }
         return;
       }
@@ -105,19 +101,25 @@ export default function MapsViewer() {
         const res = await fetch(url);
         if (!res.ok) throw new Error(`Erreur ${res.status}`);
         const html = await res.text();
-        const blob = new Blob([html], { type: "text/html" });
-        const blobUrl = URL.createObjectURL(blob);
+        if (cancelled) return;
+        blobUrl = htmlToBlobUrl(html);
         setIframeSrc(blobUrl);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Erreur de chargement :", err);
-        setError(err.message);
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Erreur de chargement");
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
 
-    loadMap();
-  }, [selected, carte2d, carte2dHtml, carte3d]);
+    void loadMap();
+    return () => {
+      cancelled = true;
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+    };
+  }, [ready, selected, carte2d, carte2dHtml, carte3d]);
 
   return (
     <div
@@ -131,7 +133,6 @@ export default function MapsViewer() {
         position: "relative",
       }}
     >
-      {/* Toolbar */}
       <div
         style={{
           position: "absolute",
@@ -149,7 +150,7 @@ export default function MapsViewer() {
           backdropFilter: "blur(8px)",
         }}
       >
-        <label htmlFor="mapSelector">🗺️ Carte :</label>
+        <label htmlFor="mapSelector">Carte :</label>
         <select
           id="mapSelector"
           value={selected}
@@ -162,12 +163,13 @@ export default function MapsViewer() {
             background: "#fff",
           }}
         >
-          <option value="2d">Vue 2D</option>
+          <option value="2d" disabled={!carte2d && !carte2dHtml}>
+            Vue 2D
+          </option>
           {carte3d && <option value="3d">Vue 3D</option>}
         </select>
       </div>
 
-      {/* Loader / Erreur */}
       {loading && (
         <div
           style={{
@@ -199,12 +201,12 @@ export default function MapsViewer() {
         </div>
       )}
 
-      {/* Carte */}
-      {!error && (
+      {!error && iframeSrc && (
         <iframe
-          key={selected} // force le re-render quand on change
+          key={iframeSrc}
           src={iframeSrc}
           sandbox="allow-scripts allow-same-origin"
+          title="Carte CUA"
           style={{
             width: "100%",
             height: "100%",

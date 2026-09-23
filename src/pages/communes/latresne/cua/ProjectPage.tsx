@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { UploadCloud } from "lucide-react";
 import type { HistoryPipeline } from "../../../../components/tools/carto/HistoryPipelineCard";
 import { encodeCuaViewerToken, downloadCuaDocx } from "../../../../utils/cuaViewer";
+import { htmlToBlobUrl, localizeMapsViewerUrl } from "../../../../utils/mapHtml";
 import { apiFetch } from "../../../../api/apiFetch";
 
 type ProjectFile = {
@@ -103,7 +104,8 @@ export default function ProjectPage() {
 
   const projectLink = useMemo(() => {
     if (!project) return null;
-    return project.qr_url || project.output_cua || null;
+    const p = project as HistoryPipeline & { maps_page?: string };
+    return localizeMapsViewerUrl(p.qr_url || p.maps_page || null);
   }, [project]);
   const expiration = useMemo(() => getExpirationProgress(project?.created_at), [project?.created_at]);
 
@@ -220,8 +222,7 @@ export default function ProjectPage() {
         if (!res.ok) throw new Error(`Erreur ${res.status}`);
         const html = await res.text();
         if (cancelled) return;
-        const blob = new Blob([html], { type: "text/html" });
-        blobUrl = URL.createObjectURL(blob);
+        blobUrl = htmlToBlobUrl(html);
         setMapIframeSrc(blobUrl);
       } catch (e: any) {
         if (cancelled) return;

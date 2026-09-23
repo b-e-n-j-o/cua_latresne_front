@@ -11,6 +11,7 @@ import HistoryPanel from "./HistoryPanel";
 import { AdminMonitoringPage } from "./pages/admin";
 import ReglementsAdminPage from "./pages/reglements/ReglementsAdmin";
 import CuaViewer from "./routes/CuaViewer";
+import MapsViewer from "./routes/MapsViewer";
 import PluChat from "./pages/plu-chat/PluChat";
 import LidarViewerPage from "./pages/visualisations_de_test/lidar/LidarViewerPage";
 import MntViewerPage from "./pages/visualisations_de_test/mnt/MntViewerPage";
@@ -58,6 +59,7 @@ const PUBLIC_EXACT_ROUTES = [
   "/lidar",
   "/mnt",
   "/carto",
+  "/maps",
   "/urbanisme/certificats-durbanisme",
   "/urbanisme/carte-didentite-fonciere",
   "/urbanisme/veille-reglementaire",
@@ -68,7 +70,7 @@ const PUBLIC_EXACT_ROUTES = [
   "/outils/base-de-donnees-sig",
   "/outils/visualisation-mnt-lidar",
 ];
-const PUBLIC_PREFIX_ROUTES = ["/m/", "/cua"];
+const PUBLIC_PREFIX_ROUTES = ["/m/", "/cua", "/maps"];
 
 export default function App() {
   const location = useLocation();
@@ -90,6 +92,7 @@ export default function App() {
         <Route path="/update-password" element={<UpdatePasswordPage />} />
         <Route path="/notre-equipe" element={<Navigate to={{ pathname: "/", hash: "equipe" }} replace />} />
         <Route path="/cua" element={<CuaViewer />} />
+        <Route path="/maps" element={<MapsViewer />} />
         <Route path="/chat-urba" element={<PluChat commune="france" />} />
         <Route path="/latresne" element={<div>Page introuvable</div>} />
         <Route path="/lidar" element={<LidarViewerPage />} />
