@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useParams, Navigate } from "react-router-dom";
-import { BookOpen, FileStack, FileText, MessageSquare, Newspaper } from "lucide-react";
+import { BookOpen, FileStack, FileText, Grid3x3, History, MessageSquare, Newspaper } from "lucide-react";
 import { useCommuneAccess } from "../auth/CommuneAccessContext";
 import { canAccessCommuneSlug, resolveCommuneRedirectPath } from "../auth/communeAccess";
 import {
@@ -8,6 +8,9 @@ import {
   type PortalToolId,
 } from "./communePortalConfig";
 import CommunePortalUserMenu from "./CommunePortalUserMenu";
+import { RAA_NAV_BADGE_ENABLED } from "../pages/raa/raaConfig";
+import { RaaUnreadProvider, useRaaUnread } from "../pages/raa/RaaUnreadContext";
+
 import "./CommuneLayout.css";
 
 const TOOL_META: Record<
@@ -16,10 +19,48 @@ const TOOL_META: Record<
 > = {
   cua: { segment: "cua", title: "Certificats d’urbanisme", Icon: FileText },
   chat: { segment: "chat", title: "Assistant PLU", Icon: MessageSquare },
-  reglements: { segment: "reglements", title: "Règlements", Icon: BookOpen },
+  reglements: { segment: "reglements", title: "Règlements CUAs", Icon: BookOpen },
   documents: { segment: "documents", title: "Documents officiels Géoportail", Icon: FileStack },
   raa: { segment: "raa", title: "Veille des arrêtés RAA", Icon: Newspaper },
+  cadastre: { segment: "cadastre", title: "Veille cadastrale", Icon: Grid3x3 },
+  historique: { segment: "historique", title: "Historique des parcelles", Icon: History },
 };
+
+function NavTools({ communeSlug, tools }: { communeSlug: string; tools: PortalToolId[] }) {
+  const { unreadRouge } = useRaaUnread();
+  const badge = unreadRouge > 9 ? "9+" : String(unreadRouge);
+
+  return (
+    <div className="commune-portal__nav-tools">
+      {tools.map((toolId) => {
+        const { segment, title, Icon } = TOOL_META[toolId];
+        const showBadge = toolId === "raa" && RAA_NAV_BADGE_ENABLED && unreadRouge > 0;
+        const label = showBadge
+          ? `${title} — ${unreadRouge} recueil${unreadRouge > 1 ? "s" : ""} concernant la commune`
+          : title;
+        return (
+          <NavLink
+            key={toolId}
+            to={`/${communeSlug}/${segment}`}
+            title={label}
+            aria-label={label}
+            className={({ isActive }) =>
+              `commune-portal__nav-item${isActive ? " commune-portal__nav-item--active" : ""}`
+            }
+          >
+            <Icon size={22} strokeWidth={1.75} aria-hidden />
+            <span className="commune-portal__nav-label">{title}</span>
+            {showBadge ? (
+              <span className="commune-portal__nav-badge" aria-hidden>
+                {badge}
+              </span>
+            ) : null}
+          </NavLink>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function CommuneLayout() {
   const { communeSlug } = useParams<{ communeSlug: string }>();
@@ -42,45 +83,31 @@ export default function CommuneLayout() {
   }
 
   const portal = getCommunePortal(communeSlug)!;
+  const raaEnabled = portal.tools.includes("raa") && RAA_NAV_BADGE_ENABLED;
 
   return (
-    <div className="commune-portal" data-commune={communeSlug}>
-      <nav className="commune-portal__nav" aria-label={`Outils — ${portal.label}`}>
-        <a
-          href="/"
-          className="commune-portal__logo"
-          title="Kerelia"
-          aria-label="Accueil Kerelia"
-        >
-          <img src="/logo_kerelia_noir.png" alt="" width={32} height={32} />
-        </a>
+    <RaaUnreadProvider communeSlug={communeSlug} enabled={raaEnabled}>
+      <div className="commune-portal" data-commune={communeSlug}>
+        <nav className="commune-portal__nav" aria-label={`Outils — ${portal.label}`}>
+          <a
+            href="/"
+            className="commune-portal__logo"
+            title="Kerelia"
+            aria-label="Accueil Kerelia"
+          >
+            <img src="/logo_kerelia_noir.png" alt="" width={32} height={32} />
+          </a>
 
-        <div className="commune-portal__nav-tools">
-          {portal.tools.map((toolId) => {
-            const { segment, title, Icon } = TOOL_META[toolId];
-            return (
-              <NavLink
-                key={toolId}
-                to={`/${communeSlug}/${segment}`}
-                title={title}
-                className={({ isActive }) =>
-                  `commune-portal__nav-item${isActive ? " commune-portal__nav-item--active" : ""}`
-                }
-              >
-                <Icon size={22} strokeWidth={1.75} aria-hidden />
-                <span className="commune-portal__nav-label">{title}</span>
-              </NavLink>
-            );
-          })}
-        </div>
+          <NavTools communeSlug={communeSlug} tools={portal.tools} />
 
-        <CommunePortalUserMenu communeLabel={portal.label} />
-      </nav>
+          <CommunePortalUserMenu communeLabel={portal.label} />
+        </nav>
 
-      <main className="commune-portal__content">
-        <Outlet context={{ communeSlug, portal }} />
-      </main>
-    </div>
+        <main className="commune-portal__content">
+          <Outlet context={{ communeSlug, portal }} />
+        </main>
+      </div>
+    </RaaUnreadProvider>
   );
 }
 

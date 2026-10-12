@@ -1,0 +1,232 @@
+.aut-panel--embedded {
+  position: static;
+  top: auto;
+  left: auto;
+  z-index: auto;
+  width: auto;
+  max-height: none;
+  overflow: visible;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 4px 2px 8px 16px;
+  background: transparent;
+}
+.aut-panel {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 20;
+  width: min(360px, calc(100% - 24px));
+  max-height: calc(100% - 24px);
+  overflow: auto;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.18);
+  padding: 12px;
+  font-size: 12px;
+}
+.aut-panel__tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.aut-panel__tabs button {
+  flex: 1;
+  border: 1px solid #e5e7eb;
+  background: #f8fafc;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.aut-panel__tabs button.is-on {
+  background: #0f172a;
+  color: #fff;
+  border-color: #0f172a;
+}
+.aut-count {
+  color: #475569;
+  margin: 0 0 8px;
+}
+.aut-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.aut-checks label,
+.aut-years label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.aut-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.aut-years {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.aut-hit-list,
+.aut-tab__list,
+.aut-nl table {
+  width: 100%;
+}
+.aut-hit-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 8px;
+}
+.aut-hit-list button,
+.aut-tab__row {
+  width: 100%;
+  text-align: left;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  cursor: pointer;
+}
+.aut-nl__search {
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin-bottom: 8px;
+}
+.aut-nl table {
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.aut-nl th,
+.aut-nl td {
+  border-bottom: 1px solid #f1f5f9;
+  padding: 4px 2px;
+  text-align: left;
+}
+.aut-fiche__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.aut-fiche__title {
+  font-weight: 700;
+  font-size: 13px;
+}
+.aut-fiche__badges {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+.aut-badge {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 10px;
+  text-transform: capitalize;
+}
+.aut-fiche__close {
+  border: none;
+  background: transparent;
+  font-size: 18px;
+  cursor: pointer;
+  line-height: 1;
+}
+.aut-frise {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.aut-frise span {
+  display: block;
+  color: #64748b;
+  font-size: 10px;
+}
+.aut-dl {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 4px 8px;
+  margin: 0 0 10px;
+}
+.aut-dl dt {
+  color: #64748b;
+}
+.aut-siren {
+  display: block;
+  color: #64748b;
+  font-size: 10px;
+}
+.aut-parcelles ul {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 8px;
+}
+.aut-parcelles button {
+  background: none;
+  border: none;
+  color: #1d4ed8;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 12px;
+}
+.aut-geoloc {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 8px;
+  margin: 0;
+  line-height: 1.4;
+}
+.aut-methode {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 10px;
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+.aut-methode--actuel {
+  background: #dcfce7;
+  color: #166534;
+}
+.aut-methode--millesime {
+  background: #ffedd5;
+  color: #9a3412;
+}
+.aut-methode--op {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+.aut-tab {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #e5e7eb;
+}
+.aut-tab__title {
+  font-size: 12px;
+  margin: 0 0 6px;
+}
+.aut-tab__muted,
+.aut-tab__err {
+  font-size: 11px;
+  color: #64748b;
+}
+.aut-tab__id {
+  display: block;
+  font-weight: 600;
+}
+.aut-tab__meta {
+  display: block;
+  color: #64748b;
+  font-size: 10px;
+}

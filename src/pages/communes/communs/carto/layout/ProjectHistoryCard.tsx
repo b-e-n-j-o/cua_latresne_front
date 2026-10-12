@@ -43,6 +43,7 @@ export default function ProjectHistoryCard({
   isSelected,
   formattedDate,
   onSelect,
+  onOpenProject,
   onDelete,
   onSuiviChange,
   isDeleting,
@@ -176,6 +177,16 @@ export default function ProjectHistoryCard({
           ) : null}
 
           <div className="cua-history-row__actions">
+            <button
+              type="button"
+              className="cua-history-row__action cua-history-row__action--primary"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenProject();
+              }}
+            >
+              Voir le dossier
+            </button>
             {cuaViewerPath ? (
               <a
                 href={cuaViewerPath}

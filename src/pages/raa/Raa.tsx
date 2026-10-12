@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Navigate, useSearchParams } from "react-router-dom";
 import {
   RefreshCw, AlertTriangle, ArrowRight, ChevronDown, Loader2, Search,
 } from "lucide-react";
 import { getRaaConfig, type RaaCommuneConfig } from "./raaConfig";
-import VeilleCadastre from "./VeilleCadastre";
 import RaaDetailDrawer from "./RaaDetailDrawer";
 import {
   buildNiveau,
@@ -15,6 +14,7 @@ import {
   monthKey,
   type RaaItem,
 } from "./raaShared";
+import { useRaaUnread } from "./RaaUnreadContext";
 
 /* ------------------------------------------------------------------ *
  *  Veille des arrêtés RAA — multi-commune (slug portail)
@@ -88,8 +88,7 @@ type VeilleRaaPageProps = {
 
 export default function VeilleRaaPage({ communeSlug }: VeilleRaaPageProps) {
   const cfg = getRaaConfig(communeSlug);
-  const [searchParams, setSearchParams] = useSearchParams();
-  const onglet = searchParams.get("onglet") === "cadastre" ? "cadastre" : "raa";
+  const [searchParams] = useSearchParams();
 
   if (!cfg) {
     return (
@@ -99,31 +98,14 @@ export default function VeilleRaaPage({ communeSlug }: VeilleRaaPageProps) {
     );
   }
 
-  const setOnglet = (next: "raa" | "cadastre") => {
-    if (next === "cadastre") setSearchParams({ onglet: "cadastre" });
-    else setSearchParams({});
-  };
+  if (searchParams.get("onglet") === "cadastre") {
+    return <Navigate to={`/${communeSlug}/cadastre`} replace />;
+  }
 
   return (
-    <div className={`rv${onglet === "cadastre" ? " rv--scroll" : ""}`}>
+    <div className="rv">
       <style>{CSS}</style>
-      <nav className="rv__subnav" aria-label="Sous-onglets de la veille">
-        <button
-          type="button"
-          className={`rv__subnavbtn${onglet === "raa" ? " rv__subnavbtn--active" : ""}`}
-          onClick={() => setOnglet("raa")}
-        >
-          Arrêtés RAA
-        </button>
-        <button
-          type="button"
-          className={`rv__subnavbtn${onglet === "cadastre" ? " rv__subnavbtn--active" : ""}`}
-          onClick={() => setOnglet("cadastre")}
-        >
-          Veille cadastre
-        </button>
-      </nav>
-      {onglet === "cadastre" ? <VeilleCadastre cfg={cfg} /> : <VeilleRaaContent cfg={cfg} />}
+      <VeilleRaaContent cfg={cfg} />
     </div>
   );
 }
@@ -132,6 +114,7 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
   const niveau = useMemo(() => buildNiveau(cfg), [cfg]);
   const demoData = useMemo(() => buildDemo(cfg), [cfg]);
   const raaBase = `${API_BASE}/${cfg.slug}/raa`;
+  const { refresh: refreshUnread } = useRaaUnread();
 
   const [annee] = useState(new Date().getFullYear());
   const [items, setItems] = useState<RaaItem[]>([]);
@@ -154,6 +137,7 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
       const data = await r.json();
       setItems(data.raa || []);
       setDemo(false);
+      void refreshUnread();
     } catch {
       setItems(demoData);
       setDemo(true);
@@ -195,6 +179,7 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
       setItems(next);
       if (!next.some((it) => it.statut === "en_cours")) {
         stopListPolling();
+        void refreshUnread();
       }
     } catch {
       /* retenter au prochain tick */
@@ -217,6 +202,7 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
     patch(id, { vu: true });
     try {
       await fetch(`${raaBase}/${id}/marquer-vu`, { method: "POST" });
+      void refreshUnread();
     } catch {
       patch(id, { vu: false });
     }
@@ -333,6 +319,7 @@ function VeilleRaaContent({ cfg }: { cfg: RaaCommuneConfig }) {
         throw new Error(err?.detail || `Erreur ${r.status}`);
       }
       remove(id);
+      void refreshUnread();
     } catch (e) {
       window.alert(e instanceof Error ? e.message : "Impossible de masquer ce recueil.");
     } finally {

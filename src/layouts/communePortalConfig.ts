@@ -5,7 +5,7 @@
 
 export type CommunePortalSlug = "latresne" | "argeles" | "france";
 
-export type PortalToolId = "cua" | "chat" | "reglements" | "documents" | "raa";
+export type PortalToolId = "cua" | "chat" | "reglements" | "documents" | "raa" | "cadastre" | "historique";
 
 export type CommunePortalEntry = {
   slug: CommunePortalSlug;
@@ -19,12 +19,12 @@ export const COMMUNE_PORTAL: Record<CommunePortalSlug, CommunePortalEntry> = {
   latresne: {
     slug: "latresne",
     label: "Latresne",
-    tools: ["cua", "chat", "reglements", "documents", "raa"],
+    tools: ["cua", "chat", "reglements", "documents", "raa", "cadastre", "historique"],
   },
   argeles: {
     slug: "argeles",
     label: "Argelès-sur-Mer",
-    tools: ["cua", "chat", "reglements", "documents", "raa"],
+    tools: ["cua", "chat", "reglements", "documents", "raa", "cadastre", "historique"],
   },
   france: {
     slug: "france",

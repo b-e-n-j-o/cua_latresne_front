@@ -12,6 +12,7 @@ export type GenerateArgelesCuaOptions = {
   numeroCu?: string;
   demandeurNom?: string;
   persist?: boolean;
+  includeDxf?: boolean;
 };
 
 const NUMERO_CU_MAX_LEN = 80;
@@ -69,6 +70,7 @@ export async function generateArgelesCua(
         ...(demandeur ? { demandeur } : {}),
       },
       persist: options.persist ?? true,
+      include_dxf: Boolean(options.includeDxf),
     }),
   });
 

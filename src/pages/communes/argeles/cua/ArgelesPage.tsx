@@ -31,6 +31,9 @@ import { CARTO_SHOW_CIF_UI } from "../../communs/carto/cartoAgentUiFlags";
 import { CARTO_LAYERS } from "./cartoLayers";
 import { mountAllCartoLayers, syncCartoOnMap } from "./cartoFilters";
 import CartoLegendPanel from "./CartoLegendPanel";
+import AutorisationsUrbanisme from "./AutorisationsUrbanisme";
+import { AUT_CLICK_LAYERS, AUT_LAYER_IDS } from "../../communs/carto/autorisations/autorisationsMap";
+import { chargerSubdivisionsCible } from "../../communs/carto/subdivisionsCible";
 import StudyZoneControls from "../../../../components/carto/studyZone/StudyZoneControls";
 import StudyZoneLegendPanel from "../../../../components/carto/studyZone/StudyZoneLegendPanel";
 import { fetchStudyZoneCarto } from "../../../../components/carto/studyZone/studyZoneApi";
@@ -108,6 +111,9 @@ function moveLayerToTop(map: maplibregl.Map, layerId: string) {
 }
 
 function bringCadastreHitLayersToFront(map: maplibregl.Map) {
+  const stack = map.getStyle()?.layers;
+  const tail = stack?.slice(-CUA_HISTORY_LAYER_IDS.length).map((l) => l.id) ?? [];
+  if (CUA_HISTORY_LAYER_IDS.every((id, i) => tail[i] === id)) return;
   const overlayWithoutPings = MAP_UI_TOP_LAYER_IDS.filter(
     (id) => !CUA_HISTORY_LAYER_IDS.includes(id as (typeof CUA_HISTORY_LAYER_IDS)[number]),
   );
@@ -117,6 +123,11 @@ function bringCadastreHitLayersToFront(map: maplibregl.Map) {
     cadastreLabelLayerIds: CADASTRE_LABEL_LAYER_IDS,
     overlayLayerIds: overlayWithoutPings,
   });
+  for (const id of ["argeles-subdivisions-fill", "argeles-subdivisions-outline", "argeles-subdivisions-labels"]) {
+    moveLayerToTop(map, id);
+  }
+  for (const id of AUT_LAYER_IDS) moveLayerToTop(map, id);
+  bringCuaHistoryLayersToFront(map);
 }
 
 /** Grille cadastre GeoJSON (hors overlays sélection / UF). */
@@ -250,9 +261,10 @@ function isTopFeatureFromLayer(
   point: maplibregl.PointLike,
   layerId: "latresne_parcelles-fill" | "parcelle-search-fill"
 ): boolean {
-  const hits = map.queryRenderedFeatures(point, {
-    layers: ["parcelle-search-fill", "latresne_parcelles-fill"],
-  });
+  const layers = ["parcelle-search-fill", "latresne_parcelles-fill", ...AUT_CLICK_LAYERS].filter(
+    (id) => map.getLayer(id),
+  );
+  const hits = map.queryRenderedFeatures(point, { layers });
   if (!hits.length) return false;
   return hits[0].layer.id === layerId;
 }
@@ -445,8 +457,21 @@ export default function ArgelesPage() {
   const [isLoadingCadastre, setIsLoadingCadastre] = useState(true);
   const [isLegendHarvesting, setIsLegendHarvesting] = useState(false);
   const [ufState, setUfState] = useState<UFState | null>(null);
-  const [historySidebarTab, setHistorySidebarTab] = useState<"cua" | "cif">("cua");
+  const [historySidebarTab, setHistorySidebarTab] = useState<"cua" | "cif" | "aut">("cua");
+  const [focusAutId, setFocusAutId] = useState<string | null>(null);
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
+  useEffect(() => {
+    const onOpen = (ev: Event) => {
+      const id = (ev as CustomEvent<{ id?: string }>).detail?.id;
+      if (!id) return;
+      setLeftSidebarOpen(true);
+      setHistorySidebarTab("aut");
+      setLayerVisible((v) => ({ ...v, autorisations: true }));
+      setFocusAutId(id);
+    };
+    window.addEventListener("kerelia-open-aut", onOpen);
+    return () => window.removeEventListener("kerelia-open-aut", onOpen);
+  }, []);
   const [studyZoneMode, setStudyZoneMode] = useState<StudyZoneModeState | null>(null);
   const [studyZoneLoading, setStudyZoneLoading] = useState(false);
   const [studyZoneError, setStudyZoneError] = useState<string | null>(null);
@@ -494,7 +519,7 @@ export default function ArgelesPage() {
   const cartoHoverDetachRef = useRef<(() => void) | null>(null);
   const cuaHistoryPointerDetachRef = useRef<(() => void) | null>(null);
   const showHistoryPingsRef = useRef(true);
-  const historySidebarTabRef = useRef<"cua" | "cif">("cua");
+  const historySidebarTabRef = useRef<"cua" | "cif" | "aut">("cua");
   const handleSelectHistoryFromSlugRef = useRef<(slug: string) => void>(() => {});
   const handleSelectIdentiteProjectRef = useRef<(projectId: string) => void>(() => {});
   const setHoveredHistorySlugRef = useRef<(slug: string | null) => void>(() => {});
@@ -809,6 +834,7 @@ export default function ArgelesPage() {
     });
     mapRef.current = map;
 
+    map.on("idle", () => bringCadastreHitLayersToFront(map));
     map.on("load", async () => {
       map.setZoom(14);
       setCurrentZoom(14);
@@ -1266,6 +1292,8 @@ export default function ArgelesPage() {
         const props = (feature.properties ?? {}) as Record<string, unknown>;
         const geometry = feature.geometry;
         if (!geometry) return;
+
+        chargerSubdivisionsCible(map, "argeles", geometry as GeoJSON.Geometry);
 
         const normalizedSection = normalizeUfSection(props.section);
         const normalizedNumero = normalizeUfNumero(props.numero);
@@ -2182,13 +2210,27 @@ export default function ArgelesPage() {
             onSelectIdentite: handleSelectIdentiteProject,
             onHoverIdentite: setHoveredIdentiteProjectId,
             historySidebarTab,
-            onHistorySidebarTabChange: setHistorySidebarTab,
+            focusAutId,
+            onHistorySidebarTabChange: (tab) => {
+              setHistorySidebarTab(tab);
+              if (tab === "aut") setLayerVisible((v) => ({ ...v, autorisations: true }));
+            },
             onDeleteIdentiteProject: handleDeleteIdentiteProject,
           }}
         />
 
         <div className="flex-1 relative min-h-0 min-w-0">
           <div ref={containerRef} className="w-full h-full" />
+          {mapReady && mapRef.current ? (
+            <AutorisationsUrbanisme
+              map={mapRef.current}
+              communeSlug="argeles"
+              layerVisible={layerVisible.autorisations !== false}
+              cadastre={cadastreData}
+              onLayersReady={handleCartoAfterSync}
+              onHover={setTooltip}
+            />
+          ) : null}
         
           <MapTooltipOverlay tooltip={tooltip} />
           <MapLoadingOverlay

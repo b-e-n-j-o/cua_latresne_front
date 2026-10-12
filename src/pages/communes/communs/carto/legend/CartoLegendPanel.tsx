@@ -46,6 +46,8 @@ type Props<Def extends LegendLayerCatalogDef> = {
   layers: readonly Def[];
   layersForFamily: (familyId: string) => Def[];
   filters: CartoLegendFiltersApi<Def>;
+  /** Contenu déplié à la place de la liste de classes, par id de couche. */
+  layerPanels?: Record<string, ReactNode>;
 };
 
 function layerById<Def extends LegendLayerCatalogDef>(
@@ -66,6 +68,7 @@ export default function CartoLegendPanel<Def extends LegendLayerCatalogDef>({
   layers,
   layersForFamily,
   filters,
+  layerPanels,
 }: Props<Def>) {
   const layerMap = useMemo(() => layerById(layers), [layers]);
   const { categories, standaloneLayerIds } = useMemo(
@@ -297,6 +300,7 @@ export default function CartoLegendPanel<Def extends LegendLayerCatalogDef>({
                 onClassColorChange={(classKey, color) =>
                   handleClassColorChange(def.id, classKey, color)
                 }
+                panel={layerPanels?.[def.id]}
               />
             );
           })}
@@ -339,6 +343,7 @@ export default function CartoLegendPanel<Def extends LegendLayerCatalogDef>({
             onClassColorChange={(classKey, color) =>
               handleClassColorChange(def.id, classKey, color)
             }
+            panel={layerPanels?.[def.id]}
           />
         );
       })}
@@ -488,6 +493,7 @@ function LayerRow({
   onToggleAllClasses,
   classColors,
   onClassColorChange,
+  panel,
 }: {
   def: LegendLayerCatalogDef;
   layerOn: boolean;
@@ -501,8 +507,9 @@ function LayerRow({
   onToggleAllClasses: (on: boolean, keys: string[]) => void;
   classColors?: Record<string, string>;
   onClassColorChange?: (classKey: string, color: string) => void;
+  panel?: ReactNode;
 }) {
-  const hasSub = layerHasClassList(def);
+  const hasSub = layerHasClassList(def) || !!panel;
   const colorLegendOnly = layerColorLegendOnly(def);
   const groupsReady = activeKeys !== undefined || !!def.staticGroupLegend;
   const prepared = prepareClassListForDisplay(items, LEGEND_CLASS_TOP_K);
@@ -536,7 +543,9 @@ function LayerRow({
 
       {hasSub && expanded && layerOn ? (
         <div className="carto-legend-shell__classes">
-          {colorLegendOnly ? (
+          {panel ? (
+            panel
+          ) : colorLegendOnly ? (
             <div className="carto-legend-shell__color-list">
               {def.colorLegend?.map((item) => (
                 <div key={item.label} className="carto-legend-shell__color-item">

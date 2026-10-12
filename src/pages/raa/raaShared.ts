@@ -121,6 +121,15 @@ export function isConcerne(it: RaaItem) {
   return it.statut === "analyse" && it.niveau_alerte === "ROUGE";
 }
 
+/** RAA « concerne la commune » pas encore marqué comme lu. */
+export function isUnreadConcerne(it: RaaItem) {
+  return isConcerne(it) && it.vu !== true;
+}
+
+export function countUnreadConcerne(items: RaaItem[]) {
+  return items.filter(isUnreadConcerne).length;
+}
+
 export function isASurveiller(it: RaaItem) {
   return it.statut === "analyse" && it.niveau_alerte === "ORANGE";
 }

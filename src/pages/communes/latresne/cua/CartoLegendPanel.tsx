@@ -23,6 +23,7 @@ type Props = {
   onAfterSync?: (map: maplibregl.Map) => void;
   onLegendHarvesting?: (active: boolean) => void;
   embedded?: boolean;
+  layerPanels?: Record<string, React.ReactNode>;
 };
 
 const filters = {

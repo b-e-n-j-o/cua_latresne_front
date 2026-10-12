@@ -1,8 +1,13 @@
+import { useState } from "react";
 import { Loader2, Map as MapIcon, X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import * as turf from "@turf/turf";
 import type { FullIntersectionsReport } from "../../../../types/fullIntersections";
 import type { ParcelleResumeRef } from "../../../../types/sigResume";
+import { NotFoundError, filiationApi } from "../../../historique/filiationApi";
+import { parseRef } from "../../../historique/libelles";
 import FullIntersectionsPanel from "./FullIntersectionsPanel";
+import AutorisationsParcelleTab from "../../communs/carto/autorisations/AutorisationsParcelleTab";
 import ParcelleCuaGenerateAction from "../../communs/carto/tools/ParcelleCuaGenerateAction";
 import ParcelleTerrainActions from "../../communs/carto/tools/ParcelleTerrainActions";
 import DraftUfParcelleList from "../../communs/carto/tools/DraftUfParcelleList";
@@ -109,6 +114,65 @@ function StudyZoneModeBanner({
       >
         <X className="w-4 h-4" />
       </button>
+    </div>
+  );
+}
+
+const INSEE_PAR_COMMUNE: Record<string, string> = {
+  argeles: "66008",
+  latresne: "33234",
+};
+
+function HistoriqueParcelleLink({
+  communeSlug,
+  section,
+  numero,
+  insee,
+}: {
+  communeSlug: string;
+  section: string;
+  numero: string;
+  insee?: string;
+}) {
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [erreur, setErreur] = useState<string | null>(null);
+  const code = insee?.trim() || INSEE_PAR_COMMUNE[communeSlug];
+  if (!code || !(communeSlug in INSEE_PAR_COMMUNE)) return null;
+
+  const ouvrir = async () => {
+    setErreur(null);
+    const idu = parseRef(`${section} ${numero}`, code);
+    if (!idu) {
+      setErreur("Référence cadastrale illisible.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const version = await filiationApi.versionActuelle(communeSlug, idu);
+      navigate(`/${communeSlug}/historique?v=${version}`);
+    } catch (err) {
+      setErreur(
+        err instanceof NotFoundError
+          ? "Cette parcelle n'est pas dans le cadastre actuel de l'historique."
+          : "Impossible d'ouvrir l'historique pour le moment.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => void ouvrir()}
+        disabled={loading}
+        className="text-xs text-blue-700 underline underline-offset-2 hover:text-blue-900 disabled:opacity-60"
+      >
+        {loading ? "Ouverture de l'historique…" : "Historique de la parcelle"}
+      </button>
+      {erreur ? <p className="mt-1 text-[11px] text-amber-800">{erreur}</p> : null}
     </div>
   );
 }
@@ -238,6 +302,25 @@ export default function ParcelleResumePanel({
               ) : null}
             </div>
           )}
+          {!isUf ? (
+            <div className="mt-2">
+              <HistoriqueParcelleLink
+                communeSlug={communeSlug}
+                section={parcelles[0].section}
+                numero={parcelles[0].numero}
+                insee={parcelles[0].insee}
+              />
+              <AutorisationsParcelleTab
+                communeSlug={communeSlug}
+                section={parcelles[0].section}
+                numero={parcelles[0].numero}
+                insee={parcelles[0].insee}
+                onOpen={(id) =>
+                  window.dispatchEvent(new CustomEvent("kerelia-open-aut", { detail: { id } }))
+                }
+              />
+            </div>
+          ) : null}
         </div>
       )}
 

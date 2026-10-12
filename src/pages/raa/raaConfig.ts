@@ -1,5 +1,12 @@
 /** Profils UI veille RAA — alignés sur api/raa/raa_config.py côté backend. */
 
+/**
+ * Badge rouge (non lus « concerne la commune ») sur l’onglet Veille.
+ * Remettre à `true` quand le scraping préfecture est de nouveau opérationnel.
+ */
+export const RAA_NAV_BADGE_ENABLED = false;
+
+
 export type RaaCommuneSlug = "argeles" | "latresne";
 
 export type RaaCommuneConfig = {

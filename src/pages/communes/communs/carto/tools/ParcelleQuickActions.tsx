@@ -1,6 +1,7 @@
 import type { ParcelleResumeRef } from "../../../../../types/sigResume";
 import ParcelleCuaGenerateAction from "./ParcelleCuaGenerateAction";
 import ParcelleTerrainActions from "./ParcelleTerrainActions";
+import AutorisationsParcelleTab from "../autorisations/AutorisationsParcelleTab";
 
 type Props = {
   communeSlug: string;
@@ -59,6 +60,18 @@ export default function ParcelleQuickActions({
         }))}
         unionGeometry={unionGeometry}
       />
+
+      {parcelles.length === 1 ? (
+        <AutorisationsParcelleTab
+          communeSlug={communeSlug}
+          section={parcelles[0].section}
+          numero={parcelles[0].numero}
+          insee={parcelles[0].insee || insee}
+          onOpen={(id) =>
+            window.dispatchEvent(new CustomEvent("kerelia-open-aut", { detail: { id } }))
+          }
+        />
+      ) : null}
     </div>
   );
 }

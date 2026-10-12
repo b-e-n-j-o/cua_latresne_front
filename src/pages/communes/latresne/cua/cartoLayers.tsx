@@ -5,6 +5,7 @@ import {
   CARTO_OUTLINE_WIDTH,
   CARTO_OUTLINE_WIDTH_EMPHASIS,
 } from "../../communs/carto/cartoLayerStyle";
+import { AUT_COLOR_LEGEND } from "../../communs/carto/autorisations/autorisationsMap";
 
 /**
  * Catalogue des couches carto (config déclarative).
@@ -17,6 +18,7 @@ import {
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const TILES_BASE = `${SUPABASE_URL}/storage/v1/object/public/pmtiles/latresne`;
+const API_BASE = (import.meta.env.VITE_API_BASE || "http://localhost:8000").replace(/\/$/, "");
 
 // ---------------------------------------------------------------------------
 // Familles (légende repliable — aligné Argelès)
@@ -29,6 +31,7 @@ export const CARTO_FAMILIES = [
   { id: "risques", title: "Risques" },
   { id: "environnement", title: "Environnement" },
   { id: "reseaux", title: "Réseaux" },
+  { id: "urbanisme", title: "Urbanisme" },
   { id: "cadastre", title: "Cadastre" },
 ] as const;
 
@@ -379,8 +382,10 @@ export interface CartoLayerDef {
   title: string;         // libellé du toggle
   defaultVisible: boolean;
   family?: CartoFamilyId;
-  pmtilesUrl: string;    // URL complète du .pmtiles
-  sourceLayer: string;   // = `-nln` du script de génération
+  pmtilesUrl?: string;
+  /** Tuiles MVT {z}/{x}/{y} servies par l'API (à la place d'un PMTiles). */
+  tiles?: string[];
+  sourceLayer: string;
   /** Attribut affiché au survol (majuscules). */
   tooltipField?: string;
   /** Attribut pour sous-filtres / légende (libelle, suptype…). */
@@ -448,6 +453,15 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
     ],
   },
   {
+    id: "autorisations",
+    title: "Autorisations d'urbanisme",
+    family: "urbanisme",
+    defaultVisible: true,
+    sourceLayer: "",
+    colorLegend: AUT_COLOR_LEGEND,
+    layers: [],
+  },
+  {
     id: "parcelles",
     title: "Cadastre",
     family: "cadastre",
@@ -486,6 +500,44 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
         },
         paint: {
           "text-color": "#1a1a1a",
+          "text-halo-color": "#ffffff",
+          "text-halo-width": 1.4,
+        },
+      },
+    ],
+  },
+  {
+    id: "subdivisions",
+    title: "Subdivisions cadastrales",
+    family: "cadastre",
+    defaultVisible: false,
+    tiles: [`${API_BASE}/communes/latresne/subdivisions/{z}/{x}/{y}.mvt`],
+    sourceLayer: "subdivisions",
+    layers: [
+      {
+        id: "subdivisions-fill",
+        type: "fill",
+        minzoom: 13,
+        paint: { "fill-color": "#7c3aed", "fill-opacity": 0.18 },
+      },
+      {
+        id: "subdivisions-outline",
+        type: "line",
+        minzoom: 13,
+        paint: { "line-color": "#5b21b6", "line-width": 1.2 },
+      },
+      {
+        id: "subdivisions-labels",
+        type: "symbol",
+        minzoom: 16,
+        layout: {
+          "text-field": ["concat", ["get", "parcelle"], " ", ["coalesce", ["get", "lettre"], ""]] as maplibregl.ExpressionSpecification,
+          "text-size": 11,
+          "text-font": ["Noto Sans Regular"],
+          "text-allow-overlap": false,
+        },
+        paint: {
+          "text-color": "#4c1d95",
           "text-halo-color": "#ffffff",
           "text-halo-width": 1.4,
         },

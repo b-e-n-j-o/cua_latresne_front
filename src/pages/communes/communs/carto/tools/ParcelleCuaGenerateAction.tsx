@@ -42,6 +42,7 @@ export default function ParcelleCuaGenerateAction({
   const [carteUrl, setCarteUrl] = useState<string | null>(null);
   const [carte3dUrl, setCarte3dUrl] = useState<string | null>(null);
   const [slug, setSlug] = useState<string | null>(null);
+  const [includeDxf, setIncludeDxf] = useState(false);
 
   const ready = Boolean(viewerUrl || docxUrl);
 
@@ -66,6 +67,7 @@ export default function ParcelleCuaGenerateAction({
         unionGeometry,
         userId,
         userEmail,
+        includeDxf,
       });
 
       if (result.slug) {
@@ -169,6 +171,25 @@ export default function ParcelleCuaGenerateAction({
               Annuler
             </button>
           </div>
+
+          <label className="flex items-start gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={includeDxf}
+              onChange={(e) => setIncludeDxf(e.target.checked)}
+              disabled={loading}
+              className="mt-0.5 rounded border-emerald-400 text-green-600 focus:ring-emerald-500 disabled:opacity-60"
+            />
+            <span>
+              <span className="block text-xs font-medium text-emerald-900">
+                Pack DXF pour architectes
+              </span>
+              <span className="block text-[11px] text-emerald-800/80">
+                Génère et stocke le plan CAO (2D + terrain 3D). Plus long, fichiers lourds —
+                à cocher seulement si un architecte en a besoin.
+              </span>
+            </span>
+          </label>
         </div>
       )}
 

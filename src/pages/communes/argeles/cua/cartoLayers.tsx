@@ -5,6 +5,7 @@ import {
   CARTO_OUTLINE_WIDTH,
   CARTO_OUTLINE_WIDTH_EMPHASIS,
 } from "../../communs/carto/cartoLayerStyle";
+import { AUT_COLOR_LEGEND } from "../../communs/carto/autorisations/autorisationsMap";
 
 /**
  * Catalogue PMTiles Argelès — config déclarative.
@@ -16,6 +17,7 @@ import {
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const TILES_BASE = `${SUPABASE_URL}/storage/v1/object/public/pmtiles/argeles`;
+const API_BASE = (import.meta.env.VITE_API_BASE || "http://localhost:8000").replace(/\/$/, "");
 
 // ---------------------------------------------------------------------------
 // Familles (légende repliable)
@@ -28,6 +30,7 @@ export const CARTO_FAMILIES = [
   { id: "risques", title: "Risques" },
   { id: "environnement", title: "Environnement" },
   { id: "reseaux", title: "Réseaux" },
+  { id: "urbanisme", title: "Urbanisme" },
   { id: "cadastre", title: "Cadastre" },
 ] as const;
 
@@ -256,6 +259,8 @@ export interface CartoLayerDef {
   defaultVisible: boolean;
   /** Absent = pas de tuiles (ex. cadastre GeoJSON seul). */
   pmtilesUrl?: string;
+  /** Tuiles MVT {z}/{x}/{y} servies par l'API (à la place d'un PMTiles). */
+  tiles?: string[];
   sourceLayer: string;
   family?: CartoFamilyId;
   tooltipField?: string;
@@ -722,6 +727,15 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
       "type"
     ),
   },
+  {
+    id: "autorisations",
+    title: "Autorisations d'urbanisme",
+    family: "urbanisme",
+    defaultVisible: true,
+    sourceLayer: "",
+    colorLegend: AUT_COLOR_LEGEND,
+    layers: [],
+  },
   // —— Cadastre ——
   {
     id: "parcelles",
@@ -730,6 +744,44 @@ export const CARTO_LAYERS: CartoLayerDef[] = [
     defaultVisible: true,
     sourceLayer: "",
     layers: [],
+  },
+  {
+    id: "subdivisions",
+    title: "Subdivisions cadastrales",
+    family: "cadastre",
+    defaultVisible: false,
+    tiles: [`${API_BASE}/communes/argeles/subdivisions/{z}/{x}/{y}.mvt`],
+    sourceLayer: "subdivisions",
+    layers: [
+      {
+        id: "argeles-subdivisions-fill",
+        type: "fill",
+        minzoom: 13,
+        paint: { "fill-color": "#7c3aed", "fill-opacity": 0.18 },
+      },
+      {
+        id: "argeles-subdivisions-outline",
+        type: "line",
+        minzoom: 13,
+        paint: { "line-color": "#5b21b6", "line-width": 1.2 },
+      },
+      {
+        id: "argeles-subdivisions-labels",
+        type: "symbol",
+        minzoom: 16,
+        layout: {
+          "text-field": ["concat", ["get", "parcelle"], " ", ["coalesce", ["get", "lettre"], ""]] as maplibregl.ExpressionSpecification,
+          "text-size": 11,
+          "text-font": ["Noto Sans Regular"],
+          "text-allow-overlap": false,
+        },
+        paint: {
+          "text-color": "#4c1d95",
+          "text-halo-color": "#ffffff",
+          "text-halo-width": 1.4,
+        },
+      },
+    ],
   },
   {
     id: "batiments",

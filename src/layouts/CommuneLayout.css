@@ -114,6 +114,25 @@
   opacity: 1;
 }
 
+.commune-portal__nav-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 0.95rem;
+  height: 0.95rem;
+  padding: 0 0.2rem;
+  border-radius: 999px;
+  background: #e74c3c;
+  color: #fff;
+  font-family: var(--font-kerelia);
+  font-size: 0.58rem;
+  font-weight: 700;
+  line-height: 0.95rem;
+  text-align: center;
+  pointer-events: none;
+  box-shadow: 0 0 0 1.5px var(--kerelia-black);
+}
+
 .commune-portal__nav-footer {
   padding-bottom: 0.25rem;
   position: relative;
@@ -218,6 +237,12 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.commune-portal__content > * {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
 }
 
 .commune-portal-fallback {

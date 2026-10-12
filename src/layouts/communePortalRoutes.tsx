@@ -11,6 +11,7 @@ import CuaCataloguePage from "../pages/communes/argeles/cua/CuaCataloguePage";
 import LatresneProjectPage from "../pages/communes/latresne/cua/ProjectPage";
 import ArgelesProjectPage from "../pages/communes/argeles/cua/ProjectPage";
 import VeilleRaaPage from "../pages/raa/Raa";
+import VeilleCadastrePage from "../pages/raa/VeilleCadastrePage";
 import { isRaaCommuneSlug } from "../pages/raa/raaConfig";
 import {
   defaultToolPath,
@@ -125,7 +126,22 @@ export function CommuneRaaRoute() {
   return <VeilleRaaPage communeSlug={communeSlug} />;
 }
 
-function CommuneToolUnavailable({ tool }: { tool: "cua" | "chat" | "reglements" | "documents" | "raa" }) {
+export function CommuneCadastreRoute() {
+  const { communeSlug } = useParams<{ communeSlug: string }>();
+  const portal = getCommunePortal(communeSlug);
+
+  if (!portal?.tools.includes("cadastre") || !communeSlug || !isRaaCommuneSlug(communeSlug)) {
+    return <CommuneToolUnavailable tool="cadastre" />;
+  }
+
+  return <VeilleCadastrePage communeSlug={communeSlug} />;
+}
+
+function CommuneToolUnavailable({
+  tool,
+}: {
+  tool: "cua" | "chat" | "reglements" | "documents" | "raa" | "cadastre";
+}) {
   const { communeSlug } = useParams<{ communeSlug: string }>();
   const portal = getCommunePortal(communeSlug);
   const label =
@@ -137,7 +153,9 @@ function CommuneToolUnavailable({ tool }: { tool: "cua" | "chat" | "reglements" 
           ? "Règlements"
           : tool === "raa"
             ? "Veille des arrêtés RAA"
-            : "Documents officiels";
+            : tool === "cadastre"
+              ? "Veille cadastrale"
+              : "Documents officiels";
   const fallback = portal && isCommunePortalSlug(communeSlug) ? defaultToolPath(communeSlug) : "/";
 
   return (

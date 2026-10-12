@@ -150,19 +150,26 @@ export default function ProjectPage() {
   const dxfFile = useMemo(() => {
     const fromFiles =
       files.find((f) => f.file_kind === "topo_dxf" && (f.public_url || f.storage_path)) ||
-      files.find((f) => (f.filename || "").toLowerCase().endsWith(".dxf") && (f.public_url || f.storage_path));
+      files.find((f) => {
+        const name = (f.filename || "").toLowerCase();
+        return (
+          (name.endsWith(".dxf") || name.endsWith(".zip") || name.includes("pack_terrain") || name.includes("pack_cao")) &&
+          (f.public_url || f.storage_path)
+        );
+      });
     if (fromFiles) return fromFiles;
 
     const p = project as HistoryPipeline & { topo_dxf_url?: string; metadata?: { topo_dxf_url?: string } };
     const url = p?.topo_dxf_url || p?.metadata?.topo_dxf_url;
     if (!url) return null;
+    const zipName = url.toLowerCase().includes(".zip") ? "topo_mnt_pack_cao.zip" : "topo_mnt.dxf";
     return {
       id: "pipeline-topo-dxf",
       file_kind: "topo_dxf",
-      filename: "topo_mnt.dxf",
+      filename: zipName,
       public_url: url,
       storage_bucket: "visualisation",
-      storage_path: slug ? `${slug}/topo_mnt.dxf` : "",
+      storage_path: slug ? `${slug}/${zipName}` : "",
     } satisfies ProjectFile;
   }, [files, project, slug]);
 

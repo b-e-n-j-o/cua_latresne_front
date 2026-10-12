@@ -65,15 +65,17 @@ export function ensureCartoLayerMounted(
   def: CartoLayerDef,
   beforeId?: string
 ): void {
-  if (!def.pmtilesUrl || !def.layers.length) return;
+  if ((!def.pmtilesUrl && !def.tiles?.length) || !def.layers.length) return;
 
   const insertBefore = beforeId ?? findOverlayBeforeId(map);
 
   if (!map.getSource(def.id)) {
-    map.addSource(def.id, {
-      type: "vector",
-      url: `pmtiles://${def.pmtilesUrl}`,
-    });
+    map.addSource(
+      def.id,
+      def.tiles?.length
+        ? { type: "vector", tiles: def.tiles }
+        : { type: "vector", url: `pmtiles://${def.pmtilesUrl}` },
+    );
   }
 
   for (const sub of def.layers) {

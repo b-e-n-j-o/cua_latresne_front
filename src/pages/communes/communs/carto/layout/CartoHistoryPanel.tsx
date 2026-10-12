@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState, type ComponentType, type ComponentProps } from "react";
 import { ChevronDown, ChevronRight, Clock, MapPin, Search, Trash2 } from "lucide-react";
 import { type HistoryPipeline } from "../tools/HistoryPipelineCard";
+import AutorisationUrbanismeCard, {
+  type AutorisationUrbanismeItem,
+} from "../tools/AutorisationUrbanismeCard";
+import { autorisationsApi, type AutProps } from "../autorisations/autorisationsApi";
 import ProjectHistoryCard from "./ProjectHistoryCard";
 import { formatCerfaParcelleRefs } from "../history/cerfaParcelleRefs";
 import { CARTO_SHOW_CIF_UI } from "../cartoAgentUiFlags";
@@ -49,9 +53,11 @@ export type CartoHistoryPanelProps = {
   hoveredIdentiteProjectId?: string | null;
   onSelectIdentite?: (projectId: string) => void;
   onHoverIdentite?: (projectId: string | null) => void;
-  historySidebarTab?: "cua" | "cif";
-  onHistorySidebarTabChange?: (tab: "cua" | "cif") => void;
+  historySidebarTab?: "cua" | "cif" | "aut";
+  onHistorySidebarTabChange?: (tab: "cua" | "cif" | "aut") => void;
   onDeleteIdentiteProject?: (projectId: string) => Promise<void>;
+  /** Ouvre l'onglet Autorisations et déplie cette fiche (clic carte). */
+  focusAutId?: string | null;
   /** Affiché en en-tête ; filtrage API à brancher plus tard */
   communeSlug?: string;
   /** Carte projet personnalisée par commune (défaut : ProjectHistoryCard partagé) */
@@ -88,21 +94,18 @@ export default function CartoHistoryPanel({
   historySidebarTab: controlledTab,
   onHistorySidebarTabChange,
   onDeleteIdentiteProject,
+  focusAutId = null,
   communeSlug,
   ProjectCard = ProjectHistoryCard,
   variant = "default",
 }: CartoHistoryPanelProps) {
   const isLeft = variant === "left";
-  const [internalTab, setInternalTab] = useState<"cua" | "cif">("cua");
+  const [internalTab, setInternalTab] = useState<"cua" | "cif" | "aut">("cua");
   const tabControlled =
     controlledTab !== undefined && typeof onHistorySidebarTabChange === "function";
-  const productTab: "cua" | "cif" = CARTO_SHOW_CIF_UI
-    ? tabControlled
-      ? controlledTab!
-      : internalTab
-    : "cua";
-  const setProductTab = (t: "cua" | "cif") => {
-    if (!CARTO_SHOW_CIF_UI) return;
+  const productTab: "cua" | "cif" | "aut" = tabControlled ? controlledTab! : internalTab;
+  const setProductTab = (t: "cua" | "cif" | "aut") => {
+    if (t === "cif" && !CARTO_SHOW_CIF_UI) return;
     if (tabControlled) onHistorySidebarTabChange!(t);
     else setInternalTab(t);
   };
@@ -112,6 +115,29 @@ export default function CartoHistoryPanel({
   const [updatingSlug, setUpdatingSlug] = useState<string | null>(null);
   const [deletingSlug, setDeletingSlug] = useState<string | null>(null);
   const [deletingIdentiteId, setDeletingIdentiteId] = useState<string | null>(null);
+  const [autItems, setAutItems] = useState<AutorisationUrbanismeItem[] | null>(null);
+  const [autError, setAutError] = useState<string | null>(null);
+  const [selectedAutId, setSelectedAutId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!focusAutId) return;
+    setProductTab("aut");
+    setSelectedAutId(focusAutId);
+  }, [focusAutId]);
+
+  useEffect(() => {
+    if (!selectedAutId || !autItems) return;
+    const item = autItems.find((row) => row.id === selectedAutId);
+    if (!item) return;
+    const key = `aut:${formatMonthGroupLabel(item.date)}`;
+    setOpenMonthGroups((prev) => (prev[key] ? prev : { ...prev, [key]: true }));
+    const timer = window.setTimeout(() => {
+      document
+        .querySelector(`[data-aut-id="${CSS.escape(selectedAutId)}"]`)
+        ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [selectedAutId, autItems]);
 
   useEffect(() => {
     if (!selectedSlug) return;
@@ -192,6 +218,76 @@ export default function CartoHistoryPanel({
     return Array.from(groups.entries()).map(([month, items]) => ({ month, items }));
   }, [matched, others, searchTerm]);
 
+  useEffect(() => {
+    if (productTab !== "aut" || !communeSlug || autItems) return;
+    let alive = true;
+    Promise.all([
+      autorisationsApi.geojson(communeSlug),
+      autorisationsApi.nonLocalisees(communeSlug).catch(() => []),
+    ])
+      .then(([geo, nl]) => {
+        if (!alive) return;
+        const byId = new Map<string, AutorisationUrbanismeItem>();
+        for (const f of geo.points.features ?? []) {
+          const p = (f.properties ?? {}) as AutProps;
+          const id = String(p.id ?? f.id ?? "");
+          if (!id) continue;
+          byId.set(id, {
+            id,
+            categorie: p.categorie,
+            type_dau: p.type_dau,
+            etat: p.etat,
+            date: p.date,
+            adresse: null,
+            parcelles: null,
+            localisee: true,
+          });
+        }
+        for (const r of nl) {
+          if (byId.has(r.id)) continue;
+          byId.set(r.id, {
+            id: r.id,
+            categorie: r.categorie,
+            type_dau: r.type_dau,
+            etat: r.etat,
+            date: r.date,
+            adresse: r.adresse,
+            parcelles: r.parcelles_declarees,
+            localisee: false,
+          });
+        }
+        const list = [...byId.values()].sort((a, b) => String(b.date ?? "").localeCompare(String(a.date ?? "")));
+        setAutItems(list);
+      })
+      .catch((err: Error) => {
+        if (alive) setAutError(err.message || "Chargement impossible");
+      });
+    return () => {
+      alive = false;
+    };
+  }, [productTab, communeSlug, autItems]);
+
+  const filteredAut = useMemo(() => {
+    const rows = autItems ?? [];
+    if (!searchTerm.trim()) return rows;
+    const term = searchTerm.toLowerCase();
+    return rows.filter((r) =>
+      `${r.id} ${r.type_dau ?? ""} ${r.adresse ?? ""} ${r.parcelles ?? ""} ${r.etat} ${r.categorie}`
+        .toLowerCase()
+        .includes(term),
+    );
+  }, [autItems, searchTerm]);
+
+  const groupedAut = useMemo(() => {
+    const groups = new Map<string, AutorisationUrbanismeItem[]>();
+    for (const row of filteredAut) {
+      const key = formatMonthGroupLabel(row.date);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(row);
+    }
+    return Array.from(groups.entries()).map(([month, items]) => ({ month, items }));
+  }, [filteredAut]);
+
   const groupedIdentite = useMemo(() => {
     const groups = new Map<string, IdentiteFonciereHistoryRow[]>();
     for (const row of filteredIdentite) {
@@ -241,17 +337,26 @@ export default function CartoHistoryPanel({
           <p className="carto-history-panel__commune carto-history-panel__commune--left">{communeSlug}</p>
         ) : null}
 
-        {CARTO_SHOW_CIF_UI ? (
-          <div className="carto-history-panel__tabs" role="tablist">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={productTab === "cua"}
-              className={`carto-history-panel__tab${productTab === "cua" ? " carto-history-panel__tab--active" : ""}`}
-              onClick={() => setProductTab("cua")}
-            >
-              Certificat URBA
-            </button>
+        <div className="carto-history-panel__tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={productTab === "cua"}
+            className={`carto-history-panel__tab${productTab === "cua" ? " carto-history-panel__tab--active" : ""}`}
+            onClick={() => setProductTab("cua")}
+          >
+            Certificat URBA
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={productTab === "aut"}
+            className={`carto-history-panel__tab${productTab === "aut" ? " carto-history-panel__tab--active" : ""}`}
+            onClick={() => setProductTab("aut")}
+          >
+            Autorisations d'urbanisme
+          </button>
+          {CARTO_SHOW_CIF_UI ? (
             <button
               type="button"
               role="tab"
@@ -261,13 +366,17 @@ export default function CartoHistoryPanel({
             >
               Identité foncière
             </button>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
 
         <p className="carto-history-panel__meta">
           {productTab === "cua"
             ? `${rows.length} dossier${rows.length > 1 ? "s" : ""} Certificat URBA`
-            : `${identiteRows.length} identité${identiteRows.length > 1 ? "s" : ""} foncière${identiteRows.length > 1 ? "s" : ""}`}
+            : productTab === "aut"
+              ? autItems
+                ? `${autItems.length} autorisation${autItems.length > 1 ? "s" : ""} d'urbanisme`
+                : "Chargement des autorisations…"
+              : `${identiteRows.length} identité${identiteRows.length > 1 ? "s" : ""} foncière${identiteRows.length > 1 ? "s" : ""}`}
         </p>
 
         <label className="carto-history-panel__search-wrap">
@@ -279,20 +388,72 @@ export default function CartoHistoryPanel({
             placeholder={
               productTab === "cua"
                 ? "Rechercher un dossier…"
-                : "Rechercher une identité…"
+                : productTab === "aut"
+                  ? "Rechercher une autorisation…"
+                  : "Rechercher une identité…"
             }
             className="carto-history-panel__search"
             aria-label={
               productTab === "cua"
                 ? "Rechercher un dossier dans l'historique"
-                : "Rechercher une identité foncière dans l'historique"
+                : productTab === "aut"
+                  ? "Rechercher une autorisation d'urbanisme"
+                  : "Rechercher une identité foncière dans l'historique"
             }
           />
         </label>
       </div>
 
       <div className="carto-history-panel__body">
-        {productTab === "cua" ? (
+        {productTab === "aut" ? (
+          <div className="carto-history-panel__list">
+            {autError ? <p className="carto-history-panel__empty">{autError}</p> : null}
+            {!autItems && !autError ? <p className="carto-history-panel__empty">Chargement…</p> : null}
+            {autItems && autItems.length === 0 ? (
+              <p className="carto-history-panel__empty">Aucune autorisation d'urbanisme</p>
+            ) : null}
+            {autItems && groupedAut.length === 0 && searchTerm.trim() ? (
+              <p className="carto-history-panel__empty">Aucun résultat pour « {searchTerm} »</p>
+            ) : null}
+            {groupedAut.map((group) => {
+              const monthOpen = isMonthGroupOpen(`aut:${group.month}`);
+              return (
+                <div key={group.month} className="carto-history-panel__group">
+                  <button
+                    type="button"
+                    className="carto-history-panel__month-btn"
+                    onClick={() => toggleMonthGroup(`aut:${group.month}`)}
+                    aria-expanded={monthOpen}
+                  >
+                    {monthOpen ? <ChevronDown size={12} aria-hidden /> : <ChevronRight size={12} aria-hidden />}
+                    {group.month}
+                    <span className="carto-history-panel__month-count">({group.items.length})</span>
+                  </button>
+                  {monthOpen
+                    ? group.items.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          data-aut-id={item.id}
+                          className={`cua-history-card${selectedAutId === item.id ? " cua-history-card--selected" : ""}`}
+                          onClick={() => {
+                            setSelectedAutId(item.id);
+                            window.dispatchEvent(new CustomEvent("kerelia-open-aut", { detail: { id: item.id } }));
+                          }}
+                        >
+                          <AutorisationUrbanismeCard
+                            item={item}
+                            communeSlug={communeSlug || ""}
+                            expanded={selectedAutId === item.id}
+                          />
+                        </button>
+                      ))
+                    : null}
+                </div>
+              );
+            })}
+          </div>
+        ) : productTab === "cua" ? (
           <>
             {onCreateNew ? (
               <button type="button" className="carto-history-panel__new-btn" onClick={() => onCreateNew()}>

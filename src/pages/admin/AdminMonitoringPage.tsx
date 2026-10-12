@@ -7,6 +7,10 @@ import supabase from "../../supabaseClient";
 import { fetchCommuneAccess } from "../../auth/communeAccess";
 import { apiFetch } from "../../api/apiFetch";
 import AdminLayout from "./AdminLayout";
+import AdminRaaMonitoring, {
+  type LlmTotals,
+  type RaaMonitoringPayload,
+} from "./AdminRaaMonitoring";
 
 type DayPoint = { day: string; count: number };
 
@@ -103,6 +107,8 @@ type MonitoringPayload = {
     by_commune: UsersCommune[];
     sans_acces: AccessUser[];
   };
+  raa?: RaaMonitoringPayload;
+  llm?: LlmTotals;
 };
 
 type AdminTab = "activite" | "acces";
@@ -253,8 +259,11 @@ export default function AdminMonitoringPage() {
     for (const c of cuaByCommune) map.set(c.slug, c.label);
     for (const c of chatByCommune) map.set(c.slug, c.label);
     for (const c of usersByCommune) map.set(c.slug, c.label);
+    for (const c of asArray<{ slug: string; label: string }>(data?.raa?.by_commune)) {
+      map.set(c.slug, c.label);
+    }
     return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1], "fr"));
-  }, [cuaByCommune, chatByCommune, usersByCommune]);
+  }, [cuaByCommune, chatByCommune, usersByCommune, data?.raa?.by_commune]);
 
   const filteredUserGroups = useMemo(() => {
     if (commune === "all") return usersByCommune;
@@ -294,7 +303,7 @@ export default function AdminMonitoringPage() {
         <h1 className="m-0 mb-2 text-[1.75rem] font-semibold tracking-[-0.01em]">Suivi interne</h1>
         <p className="m-0 max-w-[720px] text-sm leading-relaxed text-[#0b131f]/60">
           {tab === "activite"
-            ? "Générations de certificats d’urbanisme et conversations LLM, toutes communes."
+            ? "Générations de certificats d’urbanisme, conversations LLM et coûts des analyses RAA, toutes communes."
             : "Comptes authentifiés et accès commune (table user_commune_access), avec l’email du compte Auth."}
           {data?.generated_at ? ` Actualisé ${fmtWhen(data.generated_at)}.` : ""}
         </p>
@@ -581,6 +590,10 @@ export default function AdminMonitoringPage() {
               </div>
             </section>
           </div>
+
+          {data.raa && (
+            <AdminRaaMonitoring raa={data.raa} llm={data.llm} commune={commune} />
+          )}
         </>
       )}
     </Shell>

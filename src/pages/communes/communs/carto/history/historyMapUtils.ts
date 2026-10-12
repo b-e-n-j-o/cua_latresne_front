@@ -155,7 +155,13 @@ export function pickCuaHistoryPingFeature(
 ): GeoJSON.Feature | undefined {
   const layers = CUA_HISTORY_PICK_LAYER_IDS.filter((id) => map.getLayer(id));
   if (!layers.length) return undefined;
-  const hits = map.queryRenderedFeatures(point, { layers, radius }) as GeoJSON.Feature[];
+  // Le cadastre (remplissage invisible) capte le pixel sous le curseur.
+  // On interroge un carré de la taille du halo, pas seulement ce pixel.
+  const box: [[number, number], [number, number]] = [
+    [point.x - radius, point.y - radius],
+    [point.x + radius, point.y + radius],
+  ];
+  const hits = map.queryRenderedFeatures(box, { layers }) as GeoJSON.Feature[];
   return hits[0];
 }
 

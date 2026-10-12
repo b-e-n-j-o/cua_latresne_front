@@ -72,15 +72,17 @@ export function ensureCartoLayerMounted(
   def: CartoLayerDef,
   beforeId?: string
 ): void {
-  if (!def.pmtilesUrl || !def.layers.length) return;
+  if ((!def.pmtilesUrl && !def.tiles?.length) || !def.layers.length) return;
 
   const insertBefore = beforeId ?? findOverlayBeforeId(map);
 
   if (!map.getSource(def.id)) {
-    map.addSource(def.id, {
-      type: "vector",
-      url: `pmtiles://${def.pmtilesUrl}`,
-    });
+    map.addSource(
+      def.id,
+      def.tiles?.length
+        ? { type: "vector", tiles: def.tiles }
+        : { type: "vector", url: `pmtiles://${def.pmtilesUrl}` },
+    );
   }
 
   for (const sub of def.layers) {
@@ -114,12 +116,12 @@ export function syncCartoOnMap(
   for (const def of CARTO_LAYERS) {
     if (!def.layers.length) continue;
 
+    const on = !!layerVisible[def.id];
+
     // Sources conservées en mémoire : masquer = visibility:none (tuiles en cache MapLibre)
-    if (def.pmtilesUrl) {
+    if ((def.pmtilesUrl || def.tiles?.length) && (on || map.getSource(def.id))) {
       ensureCartoLayerMounted(map, def, beforeId);
     }
-
-    const on = !!layerVisible[def.id];
 
     const layoutVis: "visible" | "none" = on ? "visible" : "none";
 

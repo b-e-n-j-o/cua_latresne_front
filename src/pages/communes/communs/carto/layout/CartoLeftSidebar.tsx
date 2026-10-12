@@ -120,6 +120,11 @@ export default function CartoLeftSidebar({
   historyTitle = "Historique des dossiers",
 }: CartoLeftSidebarProps) {
   const [historyOpen, setHistoryOpen] = useState(defaultHistoryOpen);
+  useEffect(() => {
+    const onOpen = () => setHistoryOpen(true);
+    window.addEventListener("kerelia-open-aut", onOpen);
+    return () => window.removeEventListener("kerelia-open-aut", onOpen);
+  }, []);
 
   useEffect(() => {
     if (history.selectedSlug || history.selectedIdentiteProjectId) {

@@ -39,6 +39,9 @@ import { CARTO_SHOW_CIF_UI } from "../../communs/carto/cartoAgentUiFlags";
 import { CARTO_LAYERS } from "./cartoLayers";
 import { syncCartoOnMap } from "./cartoFilters";
 import CartoLegendPanel from "./CartoLegendPanel";
+import { AUT_CLICK_LAYERS, AUT_LAYER_IDS } from "../../communs/carto/autorisations/autorisationsMap";
+import { chargerSubdivisionsCible } from "../../communs/carto/subdivisionsCible";
+import AutorisationsUrbanismeLayer from "../../communs/carto/autorisations/AutorisationsUrbanismeLayer";
 import { appendCartoTooltipLine, attachCartoHoverHandlers } from "../../communs/carto/cartoTooltips";
 
 const cartoProtocol = new pmtiles.Protocol();
@@ -120,6 +123,9 @@ function moveLayerToTop(map: maplibregl.Map, layerId: string) {
 }
 
 function bringCadastreHitLayersToFront(map: maplibregl.Map) {
+  const stack = map.getStyle()?.layers;
+  const tail = stack?.slice(-CUA_HISTORY_LAYER_IDS.length).map((l) => l.id) ?? [];
+  if (CUA_HISTORY_LAYER_IDS.every((id, i) => tail[i] === id)) return;
   const overlayWithoutPings = MAP_UI_TOP_LAYER_IDS.filter(
     (id) => !CUA_HISTORY_LAYER_IDS.includes(id as (typeof CUA_HISTORY_LAYER_IDS)[number]),
   );
@@ -128,6 +134,8 @@ function bringCadastreHitLayersToFront(map: maplibregl.Map) {
     cadastreGridLayerIds: CADASTRE_GRID_LAYER_IDS,
     overlayLayerIds: overlayWithoutPings,
   });
+  for (const id of AUT_LAYER_IDS) moveLayerToTop(map, id);
+  bringCuaHistoryLayersToFront(map);
 }
 
 /** Grille cadastre GeoJSON (hit-test). Visuel = PMTiles `parcelles-*` via légende. */
@@ -170,10 +178,15 @@ function queryCadastreHitAtPoint(
   map: maplibregl.Map,
   point: maplibregl.PointLike
 ): { layerId: (typeof CADASTRE_HIT_LAYER_IDS)[number]; feature: maplibregl.MapGeoJSONFeature } | null {
-  const layers = CADASTRE_HIT_LAYER_IDS.filter((id) => isCadastreLayerInteractive(map, id));
+  const layers = [
+    ...AUT_CLICK_LAYERS.filter((id) => map.getLayer(id)),
+    ...CADASTRE_HIT_LAYER_IDS.filter((id) => isCadastreLayerInteractive(map, id)),
+  ];
   if (!layers.length) return null;
-  const hits = map.queryRenderedFeatures(point, { layers: [...layers] });
+  const hits = map.queryRenderedFeatures(point, { layers });
   if (!hits.length) return null;
+  const topId = hits[0].layer?.id;
+  if (topId && (AUT_CLICK_LAYERS as readonly string[]).includes(topId)) return null;
   const layerId = hits[0].layer?.id as (typeof CADASTRE_HIT_LAYER_IDS)[number] | undefined;
   if (!layerId || !CADASTRE_HIT_LAYER_IDS.includes(layerId)) return null;
   return { layerId, feature: hits[0] };
@@ -262,7 +275,20 @@ export default function LatresnePage() {
   const [ufState, setUfState] = useState<UFState | null>(null);
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
   const [rightLegendOpen, setRightLegendOpen] = useState(true);
-  const [historySidebarTab, setHistorySidebarTab] = useState<"cua" | "cif">("cua");
+  const [focusAutId, setFocusAutId] = useState<string | null>(null);
+  const [historySidebarTab, setHistorySidebarTab] = useState<"cua" | "cif" | "aut">("cua");
+  useEffect(() => {
+    const onOpen = (ev: Event) => {
+      const id = (ev as CustomEvent<{ id?: string }>).detail?.id;
+      if (!id) return;
+      setLeftSidebarOpen(true);
+      setHistorySidebarTab("aut");
+      setLayerVisible((v) => ({ ...v, autorisations: true }));
+      setFocusAutId(id);
+    };
+    window.addEventListener("kerelia-open-aut", onOpen);
+    return () => window.removeEventListener("kerelia-open-aut", onOpen);
+  }, []);
   
   // Mode UF actif par défaut : sélection au clic sur le cadastre (comme Argelès)
   const [ufBuilderMode, setUfBuilderMode] = useState(true);
@@ -298,7 +324,7 @@ export default function LatresnePage() {
   const cartoHoverDetachRef = useRef<(() => void) | null>(null);
   const cuaHistoryPointerDetachRef = useRef<(() => void) | null>(null);
   const showHistoryPingsRef = useRef(true);
-  const historySidebarTabRef = useRef<"cua" | "cif">("cua");
+  const historySidebarTabRef = useRef<"cua" | "cif" | "aut">("cua");
   const handleSelectHistoryFromSlugRef = useRef<(slug: string) => void>(() => {});
   const handleSelectIdentiteProjectRef = useRef<(projectId: string) => void>(() => {});
   const setHoveredHistorySlugRef = useRef<(slug: string | null) => void>(() => {});
@@ -597,15 +623,18 @@ export default function LatresnePage() {
     });
     mapRef.current = map;
 
+    map.on("idle", () => bringCadastreHitLayersToFront(map));
     map.on("load", async () => {
       map.setZoom(14);
       setCurrentZoom(14);
 
-      try {
-        map.setPaintProperty("water", "fill-opacity", 0.45);
-        map.setPaintProperty("landcover", "fill-opacity", 0.35);
-        map.setPaintProperty("building", "fill-opacity", 0.25);
-      } catch {}
+      for (const [id, opacity] of [
+        ["water", 0.45],
+        ["landcover", 0.35],
+        ["building", 0.25],
+      ] as const) {
+        if (map.getLayer(id)) map.setPaintProperty(id, "fill-opacity", opacity);
+      }
 
       // Charger le cadastre depuis l'API (base), avec fallback local en dev.
       setIsLoadingCadastre(true);
@@ -989,6 +1018,7 @@ export default function LatresnePage() {
           onHistoryPingHover({ ...e, features: [pingFeature] });
           return;
         }
+        if (map.getLayer("aut-points") && map.queryRenderedFeatures(e.point, { layers: ["aut-points"] }).length) return;
         if (isHoveringHistoryPingRef.current) return;
         if (ufStateRef.current) return;
         if (!e.features?.length) return;
@@ -1047,6 +1077,8 @@ export default function LatresnePage() {
         const props = (feature.properties ?? {}) as Record<string, unknown>;
         const geometry = feature.geometry;
         if (!geometry) return;
+
+        chargerSubdivisionsCible(map, "latresne", geometry as GeoJSON.Geometry);
 
         const normalizedSection = normalizeUfSection(props.section);
         const normalizedNumero = normalizeUfNumero(props.numero);
@@ -1158,6 +1190,8 @@ export default function LatresnePage() {
             return;
           }
         }
+        const autLayers = AUT_CLICK_LAYERS.filter((id) => map.getLayer(id));
+        if (autLayers.length && map.queryRenderedFeatures(e.point, { layers: autLayers }).length) return;
         const hit = queryCadastreHitAtPoint(map, e.point);
         if (!hit) return;
         const { feature, layerId } = hit;
@@ -1745,13 +1779,27 @@ export default function LatresnePage() {
             onSelectIdentite: handleSelectIdentiteProject,
             onHoverIdentite: setHoveredIdentiteProjectId,
             historySidebarTab,
-            onHistorySidebarTabChange: setHistorySidebarTab,
+            onHistorySidebarTabChange: (tab) => {
+              setHistorySidebarTab(tab);
+              if (tab === "aut") setLayerVisible((v) => ({ ...v, autorisations: true }));
+            },
             onDeleteIdentiteProject: handleDeleteIdentiteProject,
+            focusAutId,
           }}
         />
 
         <div className="flex-1 relative min-h-0 min-w-0">
           <div ref={containerRef} className="w-full h-full" />
+          {mapReady && mapRef.current ? (
+            <AutorisationsUrbanismeLayer
+              map={mapRef.current}
+              communeSlug="latresne"
+              layerVisible={layerVisible.autorisations !== false}
+              cadastre={cadastreDataRef.current}
+              onLayersReady={handleCartoAfterSync}
+              onHover={setTooltip}
+            />
+          ) : null}
         
           <MapTooltipOverlay tooltip={tooltip} />
           <MapLoadingOverlay isLoadingCadastre={isLoadingCadastre} />

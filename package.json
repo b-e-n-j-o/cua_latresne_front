@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@dagrejs/dagre": "^3.1.1",
     "@deck.gl/core": "^9.3.2",
     "@deck.gl/geo-layers": "^9.3.2",
     "@deck.gl/layers": "^9.3.2",
@@ -25,6 +26,7 @@
     "@tinymce/tinymce-react": "^6.3.0",
     "@turf/turf": "^6.5.0",
     "@types/three": "^0.182.0",
+    "@xyflow/react": "^12.12.0",
     "airtable": "^0.12.2",
     "clsx": "^2.1.1",
     "d3-geo": "^3.1.1",

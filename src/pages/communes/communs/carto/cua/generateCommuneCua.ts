@@ -15,6 +15,7 @@ export type GenerateCommuneCuaOptions = {
   unionGeometry?: GeoJSON.Geometry;
   userId?: string | null;
   userEmail?: string | null;
+  includeDxf?: boolean;
 };
 
 function buildAutoNumeroCu(refs: CommuneCuaParcelleRef[]): string {
@@ -122,6 +123,7 @@ async function generateLatresneCua(options: GenerateCommuneCuaOptions): Promise<
       union_geometry: options.unionGeometry,
       user_id: options.userId || undefined,
       user_email: options.userEmail || undefined,
+      include_dxf: Boolean(options.includeDxf),
     }),
   });
 
@@ -148,6 +150,7 @@ export async function generateCommuneCua(
       refs: options.refs,
       numeroCu: options.numeroCu,
       demandeurNom: options.demandeurNom,
+      includeDxf: options.includeDxf,
     });
   }
 

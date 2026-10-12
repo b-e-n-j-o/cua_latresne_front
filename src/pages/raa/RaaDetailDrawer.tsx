@@ -3,6 +3,7 @@ import type { RaaCommuneConfig } from "./raaConfig";
 import {
   fmtJour,
   isNouveau,
+  isUnreadConcerne,
   natureMeta,
   pdfUrlAtPage,
   pertinenceMeta,
@@ -204,7 +205,7 @@ export default function RaaDetailDrawer({
 
         <span className="rv__spacer" />
 
-        {nouveau && (
+        {(nouveau || isUnreadConcerne(item)) && (
           <button type="button" className="rv__vu" onClick={onMarquerVu} title="Marquer comme lu">
             Marquer comme lu
           </button>

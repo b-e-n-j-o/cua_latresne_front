@@ -17,6 +17,7 @@ import LidarViewerPage from "./pages/visualisations_de_test/lidar/LidarViewerPag
 import MntViewerPage from "./pages/visualisations_de_test/mnt/MntViewerPage";
 import LatresneTilesPage from "./pages/communes/latresne/cua/LatresnePagePMTiles";
 import CommuneLayout, { CommunePortalEntry } from "./layouts/CommuneLayout";
+import HistoriqueFiliationPage from "./pages/historique/HistoriqueFiliationPage";
 import {
   CommuneCatalogueRoute,
   CommuneCuaRoute,
@@ -25,6 +26,7 @@ import {
   CommuneReglementsRoute,
   CommuneDocumentsRoute,
   CommuneRaaRoute,
+  CommuneCadastreRoute,
 } from "./layouts/communePortalRoutes";
 import DemoRequestPage from "./pages/website/DemoRequestPage";
 import MarkdownBatchPage from "./pages/tools/MarkdownBatchPage";
@@ -133,6 +135,8 @@ export default function App() {
           <Route path="reglements" element={<CommuneReglementsRoute />} />
           <Route path="documents" element={<CommuneDocumentsRoute />} />
           <Route path="raa" element={<CommuneRaaRoute />} />
+          <Route path="cadastre" element={<CommuneCadastreRoute />} />
+          <Route path="historique" element={<HistoriqueFiliationPage />} />
         </Route>
         <Route path="*" element={<div>Page introuvable</div>} />
       </Routes>
