@@ -3,7 +3,7 @@
  * À terme : alimenter depuis l’API / droits utilisateur.
  */
 
-export type CommunePortalSlug = "latresne" | "argeles" | "france";
+export type CommunePortalSlug = "latresne" | "argeles" | "larochelle" | "france";
 
 export type PortalToolId = "cua" | "chat" | "reglements" | "documents" | "raa" | "cadastre" | "historique";
 
@@ -25,6 +25,11 @@ export const COMMUNE_PORTAL: Record<CommunePortalSlug, CommunePortalEntry> = {
     slug: "argeles",
     label: "Argelès-sur-Mer",
     tools: ["cua", "chat", "reglements", "documents", "raa", "cadastre", "historique"],
+  },
+  larochelle: {
+    slug: "larochelle",
+    label: "La Rochelle",
+    tools: ["cua"],
   },
   france: {
     slug: "france",
@@ -48,7 +53,7 @@ export function defaultToolPath(slug: CommunePortalSlug): string {
 }
 
 /** Communes avec une page CUA dédiée (pas le template chat). */
-export const CUA_PAGE_SLUGS = ["latresne", "argeles"] as const;
+export const CUA_PAGE_SLUGS = ["latresne", "argeles", "larochelle"] as const;
 export type CuaPageSlug = (typeof CUA_PAGE_SLUGS)[number];
 
 export function isCuaPageSlug(slug: string | undefined): slug is CuaPageSlug {

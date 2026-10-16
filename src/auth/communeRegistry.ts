@@ -5,12 +5,14 @@ import type { CommunePortalSlug } from "../layouts/communePortalConfig";
 export const INSEE_TO_SLUG: Record<string, CommunePortalSlug> = {
   "33234": "latresne",
   "66008": "argeles",
+  "17300": "larochelle",
   "33531": "mios",
 };
 
 export const SLUG_TO_INSEE: Record<CommunePortalSlug, string> = {
   latresne: "33234",
   argeles: "66008",
+  larochelle: "17300",
   mios: "33531",
   france: "",
 };

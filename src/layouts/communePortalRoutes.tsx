@@ -7,6 +7,7 @@ import PluChat from "../pages/plu-chat/PluChat";
 import type { PluCommuneSlug } from "../pages/plu-chat/communeConfig";
 import LatresneCuaPage from "../pages/communes/latresne/cua/LatresnePage";
 import ArgelesCuaPage from "../pages/communes/argeles/cua/ArgelesPage";
+import LaRochelleCarto from "../pages/communes/la_rochelle/LarochelleCarto";
 import CuaCataloguePage from "../pages/communes/argeles/cua/CuaCataloguePage";
 import LatresneProjectPage from "../pages/communes/latresne/cua/ProjectPage";
 import ArgelesProjectPage from "../pages/communes/argeles/cua/ProjectPage";
@@ -21,9 +22,22 @@ import {
   type CuaPageSlug,
 } from "./communePortalConfig";
 
+function LarochelleCuaPage() {
+  const baseUrl = import.meta.env.VITE_PMTILES_LR_BASE as string | undefined;
+  if (!baseUrl?.trim()) {
+    return (
+      <div className="commune-portal-fallback">
+        <p>Tuiles introuvables : renseignez VITE_PMTILES_LR_BASE.</p>
+      </div>
+    );
+  }
+  return <LaRochelleCarto baseUrl={baseUrl} height="100%" />;
+}
+
 const CUA_PAGES: Record<CuaPageSlug, ComponentType> = {
   latresne: LatresneCuaPage,
   argeles: ArgelesCuaPage,
+  larochelle: LarochelleCuaPage,
 };
 
 function isPluChatCommune(slug: string | undefined): slug is PluCommuneSlug {
