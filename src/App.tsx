@@ -27,6 +27,7 @@ import {
   CommuneDocumentsRoute,
   CommuneRaaRoute,
   CommuneCadastreRoute,
+  LarochellePublicCuaPage,
 } from "./layouts/communePortalRoutes";
 import DemoRequestPage from "./pages/website/DemoRequestPage";
 import MarkdownBatchPage from "./pages/tools/MarkdownBatchPage";
@@ -71,6 +72,7 @@ const PUBLIC_EXACT_ROUTES = [
   "/outils/outils-pilotage-sig",
   "/outils/base-de-donnees-sig",
   "/outils/visualisation-mnt-lidar",
+  "/larochelle/cua",
 ];
 const PUBLIC_PREFIX_ROUTES = ["/m/", "/cua", "/maps"];
 
@@ -100,6 +102,7 @@ export default function App() {
         <Route path="/lidar" element={<LidarViewerPage />} />
         <Route path="/mnt" element={<MntViewerPage />} />
         <Route path="/carto" element={<LatresneTilesPage />} />
+        <Route path="/larochelle/cua" element={<LarochellePublicCuaPage />} />
         <Route path="/urbanisme/certificats-durbanisme" element={<CertificatsUrbanismePage />} />
         <Route path="/urbanisme/carte-didentite-fonciere" element={<CarteIdentiteFoncierePage />} />
         <Route path="/urbanisme/veille-reglementaire" element={<VeilleReglementairePage />} />

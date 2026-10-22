@@ -22,7 +22,7 @@ import {
   type CuaPageSlug,
 } from "./communePortalConfig";
 
-function LarochelleCuaPage() {
+function LarochelleCartoPage({ height }: { height: string }) {
   const baseUrl = import.meta.env.VITE_PMTILES_LR_BASE as string | undefined;
   if (!baseUrl?.trim()) {
     return (
@@ -31,7 +31,16 @@ function LarochelleCuaPage() {
       </div>
     );
   }
-  return <LaRochelleCarto baseUrl={baseUrl} height="100%" />;
+  return <LaRochelleCarto baseUrl={baseUrl} height={height} />;
+}
+
+function LarochelleCuaPage() {
+  return <LarochelleCartoPage height="100%" />;
+}
+
+/** Carte seule, sans compte : /larochelle/cua. Les autres communes restent derrière AuthGate. */
+export function LarochellePublicCuaPage() {
+  return <LarochelleCartoPage height="100dvh" />;
 }
 
 const CUA_PAGES: Record<CuaPageSlug, ComponentType> = {

@@ -3,7 +3,10 @@
  *
  * Tout est piloté par `legende_carto.json` (généré par pmtiles/legende_carto.py) :
  * sources PMTiles, groupes et familles de légende, couleurs, filtres, zooms, visibilité par défaut.
- * Ajouter / reclasser une famille = régénérer le JSON, aucune modification ici.
+ * Ajouter / reclasser une famille = régénérer le JSON, aucune modification du rendu ici.
+ *
+ * La colonne de gauche ajoute la recherche cadastrale, la sélection d'une unité foncière
+ * (parcelles non nécessairement contiguës) et une ébauche de carte d'identité foncière.
  *
  * Dépendances : maplibre-gl, pmtiles (déjà dans le projet).
  * Usage :  <LaRochelleCarto baseUrl={import.meta.env.VITE_PMTILES_LR_BASE} />
@@ -12,47 +15,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { ChevronDown, ChevronRight, Eye, EyeOff } from "lucide-react";
 import * as pmtiles from "pmtiles";
-
-// ---------------------------------------------------------------------------
-// Types du JSON de légende
-// ---------------------------------------------------------------------------
-type Geom = "surf" | "lin" | "pct";
-type Style = "zonage" | "defaut" | "sup" | "cadastre" | "limites" | "etiquettes";
-
-interface Couche {
-  source: string;
-  source_layer: string;
-  geom: Geom;
-  minzoom: number;
-  filter?: maplibregl.FilterSpecification;
-}
-interface Item {
-  id: string;
-  label: string;
-  couleur: string;
-  visible: boolean;
-  style: Style;
-  nb?: number;
-  champ_etiquette?: string;
-  couleur_par?: { champ: string; valeurs: Record<string, string>; defaut: string };
-  couches: Couche[];
-}
-interface Groupe {
-  code: string;
-  label: string;
-  items: Item[];
-}
-interface LegendeCarto {
-  titre: string;
-  bounds: [number, number, number, number];
-  sources: Record<string, string>;
-  groupes: Groupe[];
-}
+import RightSidebarPatch from "../communs/carto/layout/RightSidebarPatch";
+import "../communs/carto/legend/cartoLegendShell.css";
+import "../communs/carto/layout/CartoLeftSidebar.css";
+import type { Groupe, Item, LegendeCarto, ParcelleSel, RapportCroisement, Style } from "./cartoTypes";
+import ParcellePanel from "./ParcellePanel";
+import { analyserSelection } from "./analyserParcelles";
+import { empriseGeometrie, lireParcelleCliquee, MAX_PARCELLES } from "./parcellesLr";
 
 // ---------------------------------------------------------------------------
 // Constantes de rendu
 // ---------------------------------------------------------------------------
+const HIT_PARCELLES = "lr-parcelles-hit";
 const IGN_STYLE = "https://data.geopf.fr/annexes/ressources/vectorTiles/styles/PLAN.IGN/standard.json";
 const FONT = ["Noto Sans Regular"];
 const FILL_OPACITY: Record<Style, number> = {
@@ -226,6 +202,35 @@ function firstSymbolLayerId(map: maplibregl.Map): string | undefined {
   return map.getStyle()?.layers?.find((l) => l.type === "symbol")?.id;
 }
 
+const GEOJSON_VIDE: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
+
+function boiteAutour(point: { x: number; y: number }, marge = 4): [[number, number], [number, number]] {
+  return [
+    [point.x - marge, point.y - marge],
+    [point.x + marge, point.y + marge],
+  ];
+}
+
+function coucheParcelles(legende: LegendeCarto) {
+  for (const g of legende.groupes) {
+    const item = g.items.find((i) => i.id === "parcelles");
+    const couche = item?.couches.find((c) => c.geom === "surf");
+    if (couche) return couche;
+  }
+  return null;
+}
+
+function selectionGeojson(parcelles: ParcelleSel[]): GeoJSON.FeatureCollection {
+  return {
+    type: "FeatureCollection",
+    features: parcelles.map((p) => ({
+      type: "Feature" as const,
+      geometry: p.geometry,
+      properties: { cle: p.cle },
+    })),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Composant
 // ---------------------------------------------------------------------------
@@ -248,7 +253,57 @@ export default function LaRochelleCarto({
   const [opacite, setOpacite] = useState(1);
   const [loading, setLoading] = useState(true);
   const [panneau, setPanneau] = useState(true);
+  const [panneauParcelles, setPanneauParcelles] = useState(true);
+  const [mapReady, setMapReady] = useState(false);
+  const [parcelles, setParcelles] = useState<ParcelleSel[]>([]);
+  const [rapport, setRapport] = useState<RapportCroisement | null>(null);
+  const [analyseEnCours, setAnalyseEnCours] = useState(false);
+  const [analyseErreur, setAnalyseErreur] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const root = baseUrl.replace(/\/$/, "");
+  const parcellesRef = useRef<ParcelleSel[]>([]);
+  const clickTimer = useRef<number | null>(null);
+  const basculerRef = useRef<(feature: maplibregl.MapGeoJSONFeature) => void>(() => {});
+  parcellesRef.current = parcelles;
+
+  basculerRef.current = (feature) => {
+    const map = mapRef.current;
+    if (!map) return;
+    const parcelle = lireParcelleCliquee(map, feature);
+    if (!parcelle) return;
+    const prev = parcellesRef.current;
+    if (prev.some((p) => p.cle === parcelle.cle)) {
+      setMessage(null);
+      setParcelles(prev.filter((p) => p.cle !== parcelle.cle));
+      return;
+    }
+    if (prev.length >= MAX_PARCELLES) {
+      setMessage(`${MAX_PARCELLES} parcelles maximum pour une unité foncière.`);
+      return;
+    }
+    setMessage(null);
+    setParcelles([...prev, parcelle]);
+    if (map.getZoom() < 15.5) {
+      map.fitBounds(empriseGeometrie(parcelle.geometry), { padding: 80, maxZoom: 17, duration: 450 });
+    }
+  };
+
+  const ajouterDepuisRecherche = (parcelle: ParcelleSel) => {
+    const prev = parcellesRef.current;
+    if (!prev.some((p) => p.cle === parcelle.cle)) {
+      if (prev.length >= MAX_PARCELLES) {
+        setMessage(`${MAX_PARCELLES} parcelles maximum pour une unité foncière.`);
+        return;
+      }
+      setParcelles([...prev, parcelle]);
+    }
+    setMessage(null);
+    mapRef.current?.fitBounds(empriseGeometrie(parcelle.geometry), { padding: 80, maxZoom: 17, duration: 700 });
+  };
+
+  const cadrerParcelle = (parcelle: ParcelleSel) => {
+    mapRef.current?.fitBounds(empriseGeometrie(parcelle.geometry), { padding: 80, maxZoom: 17, duration: 600 });
+  };
 
   // 1. Légende
   useEffect(() => {
@@ -299,9 +354,93 @@ export default function LaRochelleCarto({
         // aplats et lignes sous les toponymes IGN ; nos étiquettes par-dessus tout
         map.addLayer(d.spec, d.rang < RANG.labels ? beforeId : undefined);
       }
+
+      const parcelle = coucheParcelles(legende);
+      if (parcelle && !map.getLayer(HIT_PARCELLES)) {
+        map.addLayer({
+          id: HIT_PARCELLES,
+          type: "fill",
+          source: parcelle.source,
+          "source-layer": parcelle.source_layer,
+          minzoom: parcelle.minzoom,
+          paint: { "fill-color": "#1f2937", "fill-opacity": 0.012 },
+        });
+      }
+      if (!map.getSource("lr-selection")) {
+        map.addSource("lr-selection", { type: "geojson", data: selectionGeojson(parcellesRef.current) });
+        map.addLayer({
+          id: "lr-selection-fill",
+          type: "fill",
+          source: "lr-selection",
+          paint: { "fill-color": "#d97706", "fill-opacity": 0.35 },
+        });
+        map.addLayer({
+          id: "lr-selection-line",
+          type: "line",
+          source: "lr-selection",
+          paint: { "line-color": "#c2410c", "line-width": 2.4 },
+        });
+      }
+      if (!map.getSource("lr-hover")) {
+        map.addSource("lr-hover", { type: "geojson", data: GEOJSON_VIDE });
+        map.addLayer({
+          id: "lr-hover-fill",
+          type: "fill",
+          source: "lr-hover",
+          paint: { "fill-color": "#2563eb", "fill-opacity": 0.18 },
+        });
+      }
+
+      const couchesClic = [HIT_PARCELLES, parcelle ? `parcelles::${parcelle.source_layer}::line` : ""]
+        .filter((id) => !!id && !!map.getLayer(id));
+      let hoverCle = "";
+      map.on("mousemove", (e) => {
+        const hits = couchesClic.length
+          ? map.queryRenderedFeatures(boiteAutour(e.point), { layers: couchesClic })
+          : [];
+        map.getCanvas().style.cursor = hits.length ? "pointer" : "";
+        const feature = hits[0];
+        const cle = feature ? `${feature.id ?? ""}:${(feature.properties as { idu?: string } | null)?.idu ?? ""}` : "";
+        if (cle === hoverCle) return;
+        hoverCle = cle;
+        const src = map.getSource("lr-hover") as maplibregl.GeoJSONSource | undefined;
+        const geom = feature?.geometry;
+        if (!src) return;
+        src.setData(
+          geom
+            ? { type: "FeatureCollection", features: [{ type: "Feature", geometry: geom, properties: {} }] }
+            : GEOJSON_VIDE,
+        );
+      });
+      map.on("mouseout", () => {
+        hoverCle = "";
+        map.getCanvas().style.cursor = "";
+        (map.getSource("lr-hover") as maplibregl.GeoJSONSource | undefined)?.setData(GEOJSON_VIDE);
+      });
+      map.on("click", (e) => {
+        if (!couchesClic.length) return;
+        const point: [number, number] = [e.point.x, e.point.y];
+        if (clickTimer.current) window.clearTimeout(clickTimer.current);
+        clickTimer.current = window.setTimeout(() => {
+          clickTimer.current = null;
+          const hits = map.queryRenderedFeatures(
+            [[point[0] - 5, point[1] - 5], [point[0] + 5, point[1] + 5]],
+            { layers: couchesClic },
+          );
+          if (hits[0]) basculerRef.current(hits[0]);
+        }, 220);
+      });
+      map.on("dblclick", () => {
+        if (clickTimer.current) window.clearTimeout(clickTimer.current);
+        clickTimer.current = null;
+      });
+
       setZoom(map.getZoom());
+      setMapReady(true);
     });
     return () => {
+      if (clickTimer.current) window.clearTimeout(clickTimer.current);
+      setMapReady(false);
       map.remove();
       mapRef.current = null;
     };
@@ -339,78 +478,182 @@ export default function LaRochelleCarto({
   const toutMasquer = () =>
     setVisible((s) => Object.fromEntries(Object.keys(s).map((k) => [k, ["parcelles", "communes"].includes(k)])));
 
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapReady || !map) return;
+    const src = map.getSource("lr-selection") as maplibregl.GeoJSONSource | undefined;
+    src?.setData(selectionGeojson(parcelles));
+  }, [parcelles, mapReady]);
+
+  useEffect(() => {
+    if (!mapReady || !legende) return;
+    const map = mapRef.current;
+    if (!parcelles.length || !map) {
+      setRapport(null);
+      setAnalyseEnCours(false);
+      setAnalyseErreur(null);
+      return;
+    }
+    let actif = true;
+    setRapport(null);
+    setAnalyseEnCours(true);
+    setAnalyseErreur(null);
+    const timer = window.setTimeout(() => {
+      void analyserSelection(map, legende, parcelles, () => actif)
+        .then((resultat) => {
+          if (!actif) return;
+          setRapport(resultat);
+          setAnalyseEnCours(false);
+        })
+        .catch((err: unknown) => {
+          if (!actif) return;
+          setAnalyseErreur(err instanceof Error ? err.message : "Analyse impossible.");
+          setAnalyseEnCours(false);
+        });
+    }, 400);
+    return () => {
+      actif = false;
+      window.clearTimeout(timer);
+    };
+  }, [parcelles, legende, mapReady]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapReady || !map) return;
+    const timer = window.setTimeout(() => map.resize(), 50);
+    return () => window.clearTimeout(timer);
+  }, [panneauParcelles, mapReady]);
+
   // -------------------------------------------------------------------------
   return (
-    <div style={{ position: "relative", width: "100%", height, fontFamily: "system-ui, sans-serif" }}>
-      <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
+    <div className="cua-map-workspace" style={{ height }}>
+      {legende && panneauParcelles ? (
+        <ParcellePanel
+          parcelles={parcelles}
+          rapport={rapport}
+          analyseEnCours={analyseEnCours}
+          analyseErreur={analyseErreur}
+          message={message}
+          onAjouter={ajouterDepuisRecherche}
+          onRetirer={(cle) => setParcelles((prev) => prev.filter((p) => p.cle !== cle))}
+          onVider={() => setParcelles([])}
+          onCadrer={cadrerParcelle}
+          onFermer={() => setPanneauParcelles(false)}
+        />
+      ) : legende ? (
+        <button
+          type="button"
+          className="carto-left-sidebar__expand"
+          onClick={() => setPanneauParcelles(true)}
+          aria-label="Afficher le panneau parcelles"
+          title="Parcelles"
+        >
+          <ChevronRight size={18} />
+        </button>
+      ) : null}
+      <div className="flex-1 relative min-h-0 min-w-0">
+      <div ref={containerRef} className="absolute inset-0" />
 
       {erreur && <div style={styles.erreur}>Légende introuvable : {erreur}</div>}
       {loading && legende && <div style={styles.loading}>Chargement des tuiles…</div>}
 
       {legende && (
-        <aside style={{ ...styles.panel, transform: panneau ? "none" : "translateX(calc(100% + 12px))" }}>
-          <header style={styles.header}>
-            <div>
-              <div style={styles.titre}>{legende.titre}</div>
-              <div style={styles.sousTitre}>Zoom {zoom.toFixed(1)}</div>
-            </div>
-            <button style={styles.lien} onClick={toutMasquer} title="Ne garder que cadastre et limites">
-              Tout masquer
-            </button>
-          </header>
-
-          <label style={styles.opacite}>
-            Opacité des aplats
-            <input type="range" min={0.2} max={2} step={0.1} value={opacite}
-              onChange={(e) => setOpacite(Number(e.target.value))} style={{ flex: 1 }} />
-          </label>
-
-          <div style={styles.scroll}>
-            {legende.groupes.map((g) => {
-              const nbOn = g.items.filter((i) => visible[i.id]).length;
-              const open = ouverts[g.code] ?? false;
-              return (
-                <section key={g.code} style={styles.groupe}>
-                  <div style={styles.groupeHead}>
-                    <input type="checkbox" checked={nbOn === g.items.length}
-                      ref={(el) => { if (el) el.indeterminate = nbOn > 0 && nbOn < g.items.length; }}
-                      onChange={() => toggleGroupe(g)} />
-                    <button style={styles.groupeBtn} onClick={() => setOuverts((o) => ({ ...o, [g.code]: !open }))}>
-                      <span>{g.label}</span>
-                      <span style={styles.compteur}>{nbOn}/{g.items.length} {open ? "▾" : "▸"}</span>
-                    </button>
+        <RightSidebarPatch
+          isOpen={panneau}
+          onToggle={() => setPanneau((p) => !p)}
+          legend={
+            <div className="carto-legend-shell">
+              <div className="mb-2 flex items-center justify-between gap-2 text-[10px] text-[#0b131f]/55">
+                <span>Zoom {zoom.toFixed(1)}</span>
+                <button type="button" className="underline" onClick={toutMasquer}>Tout masquer</button>
+              </div>
+              <label className="mb-2 flex items-center gap-2 text-[11px] text-[#0b131f]/65">
+                Opacité
+                <input
+                  type="range"
+                  min={0.2}
+                  max={2}
+                  step={0.1}
+                  value={opacite}
+                  onChange={(e) => setOpacite(Number(e.target.value))}
+                  className="min-w-0 flex-1 accent-[#2e6e62]"
+                />
+              </label>
+              {legende.groupes.map((g) => {
+                const nbOn = g.items.filter((i) => visible[i.id]).length;
+                const open = ouverts[g.code] ?? false;
+                const groupeOn = nbOn > 0;
+                return (
+                  <div key={g.code} className="carto-legend-shell__category">
+                    <div className="carto-legend-shell__row">
+                      <button
+                        type="button"
+                        className="carto-legend-shell__caret"
+                        onClick={() => setOuverts((o) => ({ ...o, [g.code]: !open }))}
+                        aria-label={open ? "Replier" : "Déplier"}
+                      >
+                        {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                      </button>
+                      <button
+                        type="button"
+                        className="carto-legend-shell__row-main"
+                        onClick={() => toggleGroupe(g)}
+                        title="Afficher / masquer la catégorie"
+                      >
+                        <span
+                          className={`carto-legend-shell__label carto-legend-shell__label--category${groupeOn ? "" : " carto-legend-shell__label--off"}`}
+                        >
+                          {g.label}
+                        </span>
+                        <span className="carto-legend-shell__class-count">{nbOn}/{g.items.length}</span>
+                        {groupeOn ? (
+                          <Eye size={11} className="carto-legend-shell__row-eye" />
+                        ) : (
+                          <EyeOff size={11} className="carto-legend-shell__row-eye" />
+                        )}
+                      </button>
+                    </div>
+                    {open ? (
+                      <div className="carto-legend-shell__children">
+                        {g.items.map((it) => {
+                          const minz = Math.min(...it.couches.map((c) => c.minzoom));
+                          const horsZoom = zoom < minz;
+                          const on = !!visible[it.id];
+                          return (
+                            <div key={it.id} className="carto-legend-shell__layer" style={{ opacity: horsZoom ? 0.5 : 1 }}>
+                              <button
+                                type="button"
+                                className="carto-legend-shell__row-main w-full"
+                                onClick={() => toggleItem(it.id)}
+                                title="Afficher / masquer la couche"
+                              >
+                                <Pastille item={it} />
+                                <span className={`carto-legend-shell__label${on ? "" : " carto-legend-shell__label--off"}`}>
+                                  {it.label}
+                                </span>
+                                {horsZoom ? <span className="carto-legend-shell__class-count">dès z{minz}</span> : null}
+                                {it.nb !== undefined ? (
+                                  <span className="carto-legend-shell__class-count">{it.nb.toLocaleString("fr-FR")}</span>
+                                ) : null}
+                                {on ? (
+                                  <Eye size={11} className="carto-legend-shell__row-eye" />
+                                ) : (
+                                  <EyeOff size={11} className="carto-legend-shell__row-eye" />
+                                )}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : null}
                   </div>
-                  {open && (
-                    <ul style={styles.liste}>
-                      {g.items.map((it) => {
-                        const minz = Math.min(...it.couches.map((c) => c.minzoom));
-                        const horsZoom = zoom < minz;
-                        return (
-                          <li key={it.id}>
-                            <label style={{ ...styles.item, opacity: horsZoom ? 0.5 : 1 }}>
-                              <input type="checkbox" checked={!!visible[it.id]} onChange={() => toggleItem(it.id)} />
-                              <Pastille item={it} />
-                              <span style={{ flex: 1 }}>{it.label}</span>
-                              {horsZoom && <span style={styles.badge}>dès z{minz}</span>}
-                              {it.nb !== undefined && <span style={styles.nb}>{it.nb.toLocaleString("fr-FR")}</span>}
-                            </label>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </section>
-              );
-            })}
-          </div>
-        </aside>
+                );
+              })}
+            </div>
+          }
+        />
       )}
-
-      {legende && (
-        <button style={styles.toggle} onClick={() => setPanneau((p) => !p)}>
-          {panneau ? "Masquer la légende" : "Légende"}
-        </button>
-      )}
+      </div>
     </div>
   );
 }
@@ -419,51 +662,29 @@ export default function LaRochelleCarto({
 function Pastille({ item }: { item: Item }) {
   const geoms = new Set(item.couches.map((c) => c.geom));
   const c = item.couleur_par ? Object.values(item.couleur_par.valeurs)[0] : item.couleur;
-  if (item.style === "etiquettes") return <span style={{ ...styles.pastille, fontSize: 10, fontWeight: 700 }}>Ab</span>;
+  const base: React.CSSProperties = {
+    width: 11, height: 11, flex: "0 0 auto", borderRadius: 2,
+    display: "inline-flex", alignItems: "center", justifyContent: "center",
+  };
+  if (item.style === "etiquettes") return <span style={{ ...base, fontSize: 9, fontWeight: 700 }}>Ab</span>;
   if (item.style === "cadastre" || item.style === "limites")
-    return <span style={{ ...styles.pastille, border: `2px solid ${c}`, background: "transparent" }} />;
+    return <span style={{ ...base, border: `1.5px solid ${c}`, background: "transparent" }} />;
   if (geoms.has("surf"))
     return (
       <span style={{
-        ...styles.pastille, background: `${c}66`,
+        ...base, background: `${c}66`,
         border: `1.5px ${item.style === "sup" ? "dashed" : "solid"} ${c}`,
       }} />
     );
-  if (geoms.has("lin")) return <span style={{ ...styles.pastille, height: 3, marginTop: 6, background: c, borderRadius: 2 }} />;
-  return <span style={{ ...styles.pastille, width: 10, height: 10, borderRadius: "50%", background: c, border: "1px solid #fff", boxShadow: "0 0 0 1px #0002" }} />;
+  if (geoms.has("lin")) return <span style={{ ...base, height: 3, background: c }} />;
+  return <span style={{ ...base, borderRadius: "50%", background: c, border: "1px solid rgba(11,19,31,0.12)" }} />;
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  panel: {
-    position: "absolute", top: 12, right: 12, bottom: 60, width: 340, display: "flex", flexDirection: "column",
-    background: "rgba(255,255,255,0.97)", borderRadius: 10, boxShadow: "0 4px 24px rgba(0,0,0,0.18)",
-    transition: "transform .25s ease", zIndex: 2, overflow: "hidden",
-  },
-  header: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "12px 14px 8px", borderBottom: "1px solid #eee" },
-  titre: { fontWeight: 650, fontSize: 14, color: "#1d1d1f" },
-  sousTitre: { fontSize: 11, color: "#888", marginTop: 2 },
-  lien: { border: "none", background: "none", color: "#2563eb", fontSize: 12, cursor: "pointer", padding: 0 },
-  opacite: { display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#555", padding: "8px 14px", borderBottom: "1px solid #eee" },
-  scroll: { overflowY: "auto", flex: 1, padding: "4px 0 8px" },
-  groupe: { borderBottom: "1px solid #f2f2f2" },
-  groupeHead: { display: "flex", alignItems: "center", gap: 6, padding: "6px 14px" },
-  groupeBtn: {
-    flex: 1, display: "flex", justifyContent: "space-between", border: "none", background: "none",
-    fontSize: 13, fontWeight: 600, color: "#222", cursor: "pointer", padding: "2px 0", textAlign: "left",
-  },
-  compteur: { fontSize: 11, color: "#999", fontWeight: 400 },
-  liste: { listStyle: "none", margin: 0, padding: "0 14px 6px 34px" },
-  item: { display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#333", padding: "3px 0", cursor: "pointer" },
-  pastille: { width: 16, height: 12, flex: "0 0 auto", borderRadius: 2, display: "inline-flex", alignItems: "center", justifyContent: "center" },
-  badge: { fontSize: 10, color: "#777", background: "#f1f1f1", borderRadius: 4, padding: "1px 4px" },
-  nb: { fontSize: 10, color: "#aaa", minWidth: 34, textAlign: "right" },
-  toggle: {
-    position: "absolute", bottom: 24, right: 12, zIndex: 3, border: "none", borderRadius: 8, padding: "6px 10px",
-    background: "#fff", boxShadow: "0 2px 8px rgba(0,0,0,.2)", fontSize: 12, cursor: "pointer",
-  },
   loading: {
     position: "absolute", top: 12, left: "50%", transform: "translateX(-50%)", zIndex: 2, fontSize: 12,
-    background: "rgba(255,255,255,.95)", borderRadius: 6, padding: "4px 10px", boxShadow: "0 1px 6px rgba(0,0,0,.15)",
+    background: "rgba(255,255,255,0.58)", backdropFilter: "blur(16px)", borderRadius: 8,
+    padding: "4px 10px", boxShadow: "0 1px 6px rgba(11,19,31,.12)", color: "#0b131f",
   },
   erreur: {
     position: "absolute", top: 12, left: 60, zIndex: 3, background: "#fee2e2", color: "#991b1b",
