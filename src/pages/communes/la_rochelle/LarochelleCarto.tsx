@@ -522,7 +522,7 @@ export default function LaRochelleCarto({
     if (!mapReady || !map) return;
     const timer = window.setTimeout(() => map.resize(), 50);
     return () => window.clearTimeout(timer);
-  }, [panneauParcelles, mapReady]);
+  }, [panneauParcelles, panneau, mapReady]);
 
   // -------------------------------------------------------------------------
   return (
@@ -551,8 +551,8 @@ export default function LaRochelleCarto({
           <ChevronRight size={18} />
         </button>
       ) : null}
-      <div className="flex-1 relative min-h-0 min-w-0">
-      <div ref={containerRef} className="absolute inset-0" />
+      <div className="relative min-h-0 min-w-0 flex-1">
+      <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
 
       {erreur && <div style={styles.erreur}>Légende introuvable : {erreur}</div>}
       {loading && legende && <div style={styles.loading}>Chargement des tuiles…</div>}
