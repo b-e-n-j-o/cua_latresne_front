@@ -31,17 +31,7 @@ import {
 import DemoRequestPage from "./pages/website/DemoRequestPage";
 import MarkdownBatchPage from "./pages/tools/MarkdownBatchPage";
 import LlmPlaygroundPage from "./pages/tools/LlmPlaygroundPage";
-import {
-  CertificatsUrbanismePage,
-  CarteIdentiteFoncierePage,
-  VeilleReglementairePage,
-  ScoringCompensationPage,
-  EtudesEnvironnementalesPage,
-  BancarisationSuiviERCPage,
-  OutilsPilotageSIGPage,
-  BaseDonneesSIGPage,
-  VisualisationMNTLiDARPage,
-} from "./pages/website/websitePages";
+import { editorialPages, EditorialRegistryPage } from "./pages/website/websitePages";
 
 const HistoryPage = () => (
   <HistoryPanel apiBase={import.meta.env.VITE_API_BASE || ""} />
@@ -61,15 +51,7 @@ const PUBLIC_EXACT_ROUTES = [
   "/mnt",
   "/carto",
   "/maps",
-  "/urbanisme/certificats-durbanisme",
-  "/urbanisme/carte-didentite-fonciere",
-  "/urbanisme/veille-reglementaire",
-  "/environnement/scoring-compensation-ecologique",
-  "/environnement/etudes-environnementales",
-  "/environnement/bancarisation-suivi-erc",
-  "/outils/outils-pilotage-sig",
-  "/outils/base-de-donnees-sig",
-  "/outils/visualisation-mnt-lidar",
+  ...editorialPages.map((page) => page.path),
   "/larochelle/cua",
 ];
 const PUBLIC_PREFIX_ROUTES = ["/m/", "/cua", "/maps"];
@@ -100,15 +82,9 @@ export default function App() {
         <Route path="/mnt" element={<MntViewerPage />} />
         <Route path="/carto" element={<LatresneTilesPage />} />
         <Route path="/larochelle/cua" element={<LarochellePublicCuaPage />} />
-        <Route path="/urbanisme/certificats-durbanisme" element={<CertificatsUrbanismePage />} />
-        <Route path="/urbanisme/carte-didentite-fonciere" element={<CarteIdentiteFoncierePage />} />
-        <Route path="/urbanisme/veille-reglementaire" element={<VeilleReglementairePage />} />
-        <Route path="/environnement/scoring-compensation-ecologique" element={<ScoringCompensationPage />} />
-        <Route path="/environnement/etudes-environnementales" element={<EtudesEnvironnementalesPage />} />
-        <Route path="/environnement/bancarisation-suivi-erc" element={<BancarisationSuiviERCPage />} />
-        <Route path="/outils/outils-pilotage-sig" element={<OutilsPilotageSIGPage />} />
-        <Route path="/outils/base-de-donnees-sig" element={<BaseDonneesSIGPage />} />
-        <Route path="/outils/visualisation-mnt-lidar" element={<VisualisationMNTLiDARPage />} />
+        {editorialPages.map((page) => (
+          <Route key={page.path} path={page.path} element={<EditorialRegistryPage entry={page} />} />
+        ))}
         <Route path="/m/:slug" element={<RedirectSlugPage />} />
         <Route path="*" element={<div>Page introuvable</div>} />
       </Routes>

@@ -1,12 +1,13 @@
-# CLAUDE.md — Édition de la landing Kerelia
+# CLAUDE.md — Édition du site vitrine Kerelia
 
 > **Ces règles s'appliquent quand l'utilisateur est Christophe.**
 > Si l'utilisateur est Ben (CTO, mainteneur du code), elles ne s'appliquent pas :
 > ses instructions sont dans `CLAUDE.local.md`.
 
 Ce fichier est lu automatiquement par Claude Code à chaque session. Il décrit
-comment aider **Christophe (CEO de Kerelia, non-développeur)** à modifier la
-page d'accueil du site, en autonomie, sans casser le reste de l'application.
+comment aider **Christophe (CEO de Kerelia, non-développeur)** à faire évoluer
+le **site vitrine** (page d'accueil et pages éditoriales) en autonomie, sans
+casser l'application.
 
 Le code est maintenu par **Ben**. Christophe travaille sur une copie locale
 (zip envoyé par Ben) et lui transmet ses modifications sous forme de fichier
@@ -17,87 +18,121 @@ Le code est maintenu par **Ben**. Christophe travaille sur une copie locale
 ## 1. Ton rôle
 
 - Christophe décrit ce qu'il veut en langage naturel (« change le titre »,
-  « ajoute un membre à l'équipe », « remplace cette image »). Tu fais les
-  modifications, tu lui montres le résultat dans le navigateur, tu itères.
+  « crée une page sur la veille réglementaire », « refais cette section avec
+  un visuel en deux colonnes »). Tu fais les modifications, tu lui montres le
+  résultat dans le navigateur, tu itères.
 - Il n'est pas développeur : explique ce que tu fais en une phrase simple,
   sans jargon. Ne lui demande jamais de taper des commandes : lance-les toi-même.
-- Tu es responsable de ne rien casser. En cas de doute, demande-lui avant.
+- Sur le site vitrine, **il est libre** : ne le bride pas aux éléments visuels
+  existants, propose et construis ce qu'il demande.
+- Tu es responsable de ne pas casser l'application. En cas de doute, demande.
 
-## 2. Périmètre — RÈGLE ABSOLUE
+## 2. Périmètre
 
-**À privilégier : la grande majorité des demandes se font ici.**
-- `src/pages/website/landingpage/content/**` — tout le contenu éditorial de la
-  landing et du formulaire de démo, un fichier par section (textes, liens,
-  listes, équipe, partenaires, domaines, chemins des images et vidéos…).
-  `index.ts` réexporte tout.
+### Zone libre : le site vitrine
 
-**Tu peux modifier (mise en page, style) :**
-- `src/pages/website/landingpage/LandingPage.tsx`, `landingPageSections.tsx`
-- `src/pages/website/landingpage/components/**` (sauf restrictions ci-dessous)
-- `src/pages/website/landingpage/kereliaLandingPage.css`, `components/**/*.css`
-- `public/images/landing/**` — **nouvelles** images de la landing (créer le dossier si besoin)
-- `public/logos-banniere/**` — logos partenaires (ajout/remplacement)
-- `public/videos/nos-domaines/**` — vidéos des panneaux domaines (ajout/remplacement)
+Christophe est libre de faire évoluer le site vitrine comme il le souhaite :
+nouveaux composants, nouvelles sections, nouveaux styles, nouvelles pages,
+suppression de pages, refonte visuelle, animations… Cette zone comprend :
 
-**Médias existants ailleurs dans `public/`** (`benjamin.png`, `christophe.png`,
-`bg-bdx-mtropole.png`, logos Kerelia…) : ne pas les écraser ni les supprimer,
-certains servent aussi à l'application. Pour remplacer une image, ajoute la
-nouvelle dans `public/images/landing/` et change son chemin dans `content/`.
+- `src/pages/website/**` — landing (`landingpage/`, y compris `content/`,
+  `components/`, `hooks/`, `lib/`), pages éditoriales (`editorial/`),
+  formulaire de démo (textes et apparence), header/footer du site
+- le **registre des pages éditoriales** dans `src/pages/website/websitePages.tsx`
+- `public/images/landing/**`, `public/images/website/**`,
+  `public/logos-banniere/**`, `public/videos/**` — médias du site
+  (créer les dossiers si besoin)
+- `public/sitemap.xml` — à tenir à jour quand une page est créée ou supprimée
 
-**Uniquement en passant par `content/` (pas la logique du composant) :**
-- `components/KereliaSiteHeader.tsx` — ne pas toucher à l'affichage
-  connecté/déconnecté, au bouton de connexion ni à tout ce qui concerne la session.
-- `src/pages/website/DemoRequestPage.tsx` — ne pas toucher à l'envoi du
-  formulaire, aux noms des champs envoyés (`email`, `subject`, `message`) ni
-  aux appels réseau.
+Contenu de la landing : de préférence dans `src/pages/website/landingpage/content/`.
 
-**Interdit sans accord explicite de Ben** (animations GSAP/Lenis fragiles) :
-- `src/pages/website/landingpage/hooks/**`
-- `src/pages/website/landingpage/lib/**`
+### Pages éditoriales
 
-**Tu ne modifies JAMAIS :**
-- `src/pages/website/set-password/**` (authentification)
-- `src/pages/website/websitePages.ts`, `src/pages/website/placeholders/**` (routing)
-- dans `public/` : `fonts/`, `tinymce/`, `data/`, `geojson/`, `svgs/`, `icons/`,
-  `assets/`, `images/france-map-frames/`, favicons, `robots.txt`, `sitemap.xml`,
-  `landing_page.html`, `og.jpg`
-- tout ce qui est hors de `src/pages/website/` et des dossiers `public/` autorisés ci-dessus :
-  pages applicatives (CUA, KerERC, KerFoncier…), auth, Supabase, API, `App.tsx`,
-  `index.html`, `vite.config.*`, `tsconfig*`, `package.json`, `pnpm-lock.yaml`, `.env*`
-- ce fichier `CLAUDE.md` et `DEMARRAGE_CHRIS.md`
+Le modèle de blocs (`editorial/types.ts`, `EditorialPage.tsx`) est un **point
+de départ, pas une contrainte**. Si Christophe veut un rendu qu'aucun bloc ne
+permet :
+- crée un **nouveau type de bloc** réutilisable (type dans `types.ts` +
+  composant dans `editorial/components/`), ou
+- donne à la page **son propre composant** avec une mise en page libre
+  (déclaré dans le registre avec `component` au lieu de `content`).
 
-**Relèvent de Ben** (à noter dans `DEMANDES-POUR-BEN.md`, ne pas faire) :
-- les libellés du bouton de session (« connexion » / « mon espace ») — ils
-  viennent du hook d'auth ;
-- les champs du formulaire de démo et ce qu'il envoie ;
-- les animations, la carte de France animée, le scroll ;
-- toute nouvelle page, toute modification de l'application ;
-- **toute nouvelle dépendance** (`pnpm add`, `npm install <paquet>`…).
+Avant de modifier un bloc existant, vérifie les autres pages qui l'utilisent.
 
-**Si une demande sort du périmètre** : ne la fais pas. Explique simplement à
-Christophe que ça touche à l'application, et ajoute la demande dans
-`DEMANDES-POUR-BEN.md` (à la racine, format indiqué dans le fichier). C'est le
-seul fichier hors périmètre que tu as le droit de modifier.
+### Créer / supprimer des pages éditoriales
+
+Christophe est libre de créer, renommer ou supprimer des pages éditoriales.
+
+**Créer une page :**
+1. Le contenu (blocs) ou le composant dédié dans `src/pages/website/editorial/`.
+2. L'entrée dans le registre (`websitePages.tsx`) — URL en minuscules avec
+   tirets, sans accents (ex. `/urbanisme/carte-identite-fonciere`).
+3. Si Christophe le souhaite : les liens vers la page (menu du header,
+   footer, landing).
+4. Ajouter l'URL dans `public/sitemap.xml`.
+
+**Supprimer une page :**
+1. Retirer l'entrée du registre, puis le contenu/composant de la page.
+2. Chercher et retirer **tous les liens** vers son URL :
+   `grep -rn "/l-url-de-la-page" src/ public/sitemap.xml`
+   Si un lien est trouvé hors de `src/pages/website/` (dans l'application),
+   ne le touche pas : signale-le dans `DEMANDES-POUR-BEN.md`.
+3. Retirer l'URL de `public/sitemap.xml`.
+4. Prévenir Christophe : si la page était déjà en ligne et référencée sur
+   Google, une redirection peut être utile → noter dans `DEMANDES-POUR-BEN.md`.
+
+Ne supprime **jamais** une page qui n'est pas éditoriale (/cua, pages
+applicatives, set-password, démo), même si Christophe le demande : explique-lui
+pourquoi.
+
+### Ce qui fait tourner l'application — INTERDIT
+
+- La page métier **/cua** et toutes les pages applicatives (CUA, KerERC,
+  KerFoncier, cartes, espaces connectés…) et leurs composants
+- **L'authentification et la session** : `src/pages/website/set-password/**`,
+  les hooks d'auth, la logique connecté/déconnecté et le bouton de connexion
+  du header (tu peux changer son apparence, pas son comportement, ses libellés
+  « connexion » / « mon espace » ni sa destination)
+- **Formulaire de démo** : noms des champs envoyés (`email`, `subject`,
+  `message`), requête d'envoi, appels réseau (textes et apparence : libres)
+- Supabase, appels API, données
+- `App.tsx` et le routing de l'application (les pages éditoriales passent
+  uniquement par le registre de `websitePages.tsx`)
+- Configuration du projet : `index.html`, `vite.config.*`, `tsconfig*`,
+  `package.json`, `pnpm-lock.yaml`, `.env*`
+- **Dépendances** : pas de `pnpm add` / `npm install <paquet>`
+- Fichiers partagés avec l'application : tout `src/` hors `pages/website/`,
+  et dans `public/` : `fonts/`, `tinymce/`, `data/`, `geojson/`, `svgs/`,
+  `icons/`, `assets/`, `images/france-map-frames/`, favicons, `robots.txt`,
+  `og.jpg`, `landing_page.html`, et les **images existantes à la racine de
+  `public/`** (ne pas les écraser ni les supprimer, certaines servent à
+  l'application : pour remplacer une image, ajoute la nouvelle dans
+  `public/images/website/` et change son chemin dans le code du site)
+- `CLAUDE.md`, `DEMARRAGE_CHRIS.md`
+
+**Si une demande touche à cette zone** (nouvelle librairie, parcours de
+connexion, modification de l'appli…) : ne la fais pas. Explique-le simplement
+à Christophe et ajoute la demande dans `DEMANDES-POUR-BEN.md` (à la racine,
+format indiqué dans le fichier).
 
 ## 3. Règles techniques
 
-- Stack : React + TypeScript + Vite + Tailwind v4 (`@tailwindcss/vite`), gestionnaire **pnpm**.
-- **Contenu ≠ code** : tout texte, lien, liste ou chemin de média va dans le
-  fichier de `content/` de la section concernée, jamais en dur dans un
-  composant. Respecte les types exportés : si le build casse, c'est souvent
-  qu'un champ manque ou est mal typé.
-- Contenu riche (gras, lien dans un paragraphe) : utilise le format déjà en
-  place dans `content/`, pas de JSX dans les fichiers de contenu.
-- Styles de la landing **scopés sous `.kerelia-landing`**. Toute nouvelle règle
-  CSS doit l'être aussi (`.kerelia-landing .ma-classe { … }`). Jamais de règle
-  globale sur `body`, `*`, `a`, `button`, `h1`… : ça casse les autres pages.
-- Pas de `!important` : augmente la spécificité avec `.kerelia-landing`.
+- Stack : React + TypeScript + Vite + Tailwind v4 (`@tailwindcss/vite`),
+  gestionnaire **pnpm**.
+- **CSS toujours scopé — règle non négociable.** Styles de la landing sous
+  `.kerelia-landing`, pages éditoriales sous `.kerelia-editorial` (ou une
+  classe propre à la page). Jamais de règle globale sur `body`, `*`, `a`,
+  `button`, `h1`… : ça casse /cua et les autres pages de l'application.
+- Pas de `!important` : augmente la spécificité avec la classe de scope.
+- Contenu ≠ code (recommandé) : quand c'est simple, mets les textes dans des
+  fichiers de contenu (`landingpage/content/`, contenu en blocs des pages
+  éditoriales). Pas bloquant si une mise en page particulière l'exige.
+- Christophe peut créer de nouveaux styles et éléments visuels. Garde par
+  défaut la typographie et la palette Kerelia, sauf demande contraire.
 - Images : `.webp` ou `.jpg` optimisés, < 300 Ko si possible, dans
-  `public/images/landing/`, référencées dans le fichier de `content/` de la section. Toujours un `alt` descriptif en français.
-- Respecte le style existant (couleurs, typographies, espacements). Pour une
-  nouvelle section, inspire-toi des sections existantes.
+  `public/images/website/` (ou `public/images/landing/` pour la landing).
+  Toujours un `alt` descriptif en français.
 - Responsive : vérifie le rendu **desktop (> 834 px)** ET **mobile (~390 px)**.
-  Sous 834 px, le fond photo du hero est volontairement masqué.
+  Sous 834 px, le fond photo du hero de la landing est volontairement masqué.
 - Textes en français, orthographe soignée. N'invente jamais de chiffres,
   clients, références ou témoignages : demande les vrais à Christophe.
 
@@ -119,7 +154,7 @@ Vérifie dans cet ordre :
      disponible : `npm install -g pnpm`.
    - Si `node_modules` est absent : `pnpm install --frozen-lockfile`
      (ne jamais modifier `pnpm-lock.yaml`).
-4. **Aperçu** — lance `pnpm dev` en tâche de fond et ouvre la page d'accueil
+4. **Aperçu** — lance `pnpm dev` en tâche de fond et ouvre la page concernée
    (en général http://localhost:5173/). Laisse-le tourner : les modifications
    s'affichent automatiquement.
 5. **Modifs en attente** — si `git status` ou `git log envoye..HEAD` montrent
@@ -131,7 +166,7 @@ Vérifie dans cet ordre :
 - Après chaque série de changements validée par Christophe, commit local
   avec un message clair en français :
   ```bash
-  git add -A && git commit -m "Landing : nouveau titre du hero"
+  git add -A && git commit -m "Site : nouvelle page veille réglementaire"
   ```
   « Annule la dernière modif » → `git revert HEAD` (ou `git reset --hard HEAD~1`
   si ce commit n'a pas encore été envoyé à Ben).
@@ -151,19 +186,24 @@ Quand Christophe est satisfait et veut publier :
    BASE=$(git rev-parse -q --verify envoye || echo baseline)
    git diff --name-only $BASE HEAD
    ```
-   Tous doivent être autorisés par la section 2 (plus éventuellement
-   `DEMANDES-POUR-BEN.md`). Sinon, annule la partie hors périmètre avant d'envoyer.
-3. **Générer le patch** :
+   Tous doivent appartenir à la zone libre de la section 2 (plus
+   éventuellement `DEMANDES-POUR-BEN.md`). Sinon, annule la partie hors
+   périmètre avant d'envoyer.
+3. **Vérifier que l'application n'est pas impactée** : ouvre /cua dans
+   l'aperçu et vérifie que son apparence n'a pas changé (signe d'une règle CSS
+   non scopée).
+4. **Générer le patch** :
    ```bash
    git add -A && git commit -m "<résumé>"   # si des modifs ne sont pas commitées
    BASE=$(git rev-parse -q --verify envoye || echo baseline)
-   git diff --binary $BASE HEAD > modifs-landing-$(date +%Y%m%d-%H%M).patch
+   git diff --binary $BASE HEAD > modifs-site-$(date +%Y%m%d-%H%M).patch
    git tag -f envoye
    ```
-4. **Résumé pour Ben** — rédige une liste à puces simple en français des
-   modifications (+ mention des nouvelles entrées dans `DEMANDES-POUR-BEN.md`
-   s'il y en a), que Christophe collera dans son message.
-5. Dis à Christophe où se trouve le fichier `.patch` (chemin complet) et :
+5. **Résumé pour Ben** — rédige une liste à puces simple en français des
+   modifications (pages créées/supprimées en premier, puis le reste, + les
+   nouvelles entrées de `DEMANDES-POUR-BEN.md` s'il y en a), que Christophe
+   collera dans son message.
+6. Dis à Christophe où se trouve le fichier `.patch` (chemin complet) et :
    « Envoie ce fichier à Ben avec ce résumé. Si tu en envoies plusieurs,
    précise l'ordre : ils doivent être appliqués dans l'ordre. »
 
@@ -177,7 +217,8 @@ qu'il n'y a pas de modifications non envoyées dans l'ancien dossier
 ## 8. Ce que tu ne fais jamais
 
 - Supprimer ou réécrire massivement des fichiers sans le dire à Christophe.
-- Toucher à quoi que ce soit hors du périmètre de la section 2.
+- Toucher à la zone INTERDIT de la section 2.
+- Écrire une règle CSS globale (non scopée).
 - Mettre des secrets, clés ou mots de passe dans le code ou dans un patch.
 - Lancer des commandes de publication (Vercel, `git push`, déploiement) :
   la mise en ligne, c'est Ben.
