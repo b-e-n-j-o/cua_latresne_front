@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { Mail, Linkedin } from "lucide-react";
-import { teamCopy } from "../LandingPageContent";
+import { teamCopy } from "../content";
 
 export function TeamSection() {
   return (
@@ -28,14 +28,14 @@ export function TeamSection() {
               <p className="team__role">{member.title}</p>
               <p className="team__desc">{member.description}</p>
               <div className="team__social">
-                <a href={`mailto:${member.email}`} aria-label={`Email ${member.name}`}>
+                <a href={`mailto:${member.email}`} aria-label={`${teamCopy.emailAriaPrefix} ${member.name}`}>
                   <Mail className="team__icon" aria-hidden />
                 </a>
                 <a
                   href={member.linkedin}
                   target="_blank"
                   rel="noopener noreferrer"
-                  aria-label={`LinkedIn ${member.name}`}
+                  aria-label={`${teamCopy.linkedinAriaPrefix} ${member.name}`}
                 >
                   <Linkedin className="team__icon" aria-hidden />
                 </a>

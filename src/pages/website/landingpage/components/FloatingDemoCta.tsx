@@ -1,4 +1,4 @@
-import { demoContactCtaCopy } from "../LandingPageContent";
+import { demoContactCtaCopy } from "../content";
 import { cn } from "../lib/cn";
 
 type FloatingDemoCtaProps = {

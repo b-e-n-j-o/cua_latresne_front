@@ -3,22 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useLandingSessionCTA } from "../../../../auth/useLandingSessionCTA";
 import { KERELIA_LOGO_SRC } from "../lib/constants";
 import { cn } from "../lib/cn";
-
-// ─── Profils visiteurs ───────────────────────────────────────────────────────
-
-type VisitorProfile = {
-  label: string;
-  href: string;
-};
-
-const VISITOR_PROFILES: VisitorProfile[] = [
-  { label: "Une collectivité territoriale", href: "/profil/collectivite" },
-  { label: "Un service de l'État", href: "/profil/etat" },
-  { label: "Un bureau d'études", href: "/profil/bureau-etudes" },
-  { label: "Un aménageur ou porteur de projet", href: "/profil/amenageur" },
-  { label: "Un opérateur de compensation", href: "/profil/operateur-compensation" },
-  { label: "Une profession du foncier", href: "/profil/foncier" },
-];
+import { headerCopy, type NavSection } from "../content";
 
 // ─── Composant "Vous êtes..." ────────────────────────────────────────────────
 
@@ -58,13 +43,13 @@ function VousEtesDropdown({ isOpen, onToggle, onClose, onAfterNavigate }: VousEt
         aria-expanded={isOpen}
         onClick={onToggle}
       >
-        Vous êtes…
+        {headerCopy.vousEtesLabel}
         <ChevronIcon open={isOpen} />
       </button>
       {isOpen && (
         <div className="kh__dropdown" role="menu">
-          <ul className="kh__dropdown-list" aria-label="Sélectionnez votre profil">
-            {VISITOR_PROFILES.map((profile) => (
+          <ul className="kh__dropdown-list" aria-label={headerCopy.vousEtesMenuAriaLabel}>
+            {headerCopy.profiles.map((profile) => (
               <li key={profile.href}>
                 <button
                   type="button"
@@ -92,54 +77,7 @@ function VousEtesDropdown({ isOpen, onToggle, onClose, onAfterNavigate }: VousEt
   );
 }
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type NavItem = {
-  label: string;
-  href: string;
-};
-
-type NavSection = {
-  id: string;
-  label: string;
-  sectionLabel: string;
-  items: NavItem[];
-};
-
-// ─── Données nav ──────────────────────────────────────────────────────────────
-
-const NAV_SECTIONS: NavSection[] = [
-  {
-    id: "urbanisme",
-    label: "Urbanisme réglementaire",
-    sectionLabel: "01 — URBANISME RÉGLEMENTAIRE",
-    items: [
-      { label: "Certificat d'urbanisme (CUa)", href: "/urbanisme/certificats-durbanisme" },
-      { label: "Carte d'identité foncière (CIF)", href: "/urbanisme/carte-didentite-fonciere" },
-      { label: "Veille réglementaire", href: "/urbanisme/veille-reglementaire" },
-    ],
-  },
-  {
-    id: "environnement",
-    label: "Environnement",
-    sectionLabel: "02 — ÉTUDES ENVIRONNEMENTALES",
-    items: [
-      { label: "Pré-études environnementales", href: "/environnement/etudes-environnementales" },
-      { label: "Bancarisation et suivi ERC", href: "/environnement/bancarisation-suivi-erc" },
-      { label: "Recherche foncière de compensation", href: "/environnement/scoring-compensation-ecologique" },
-    ],
-  },
-  {
-    id: "outils",
-    label: "Ingénierie SIG",
-    sectionLabel: "03 — OUTILS & DATA SIG",
-    items: [
-      { label: "Base de données géospatiales", href: "/outils/base-de-donnees-sig" },
-      { label: "Outils SIG", href: "/outils/outils-pilotage-sig" },
-      { label: "Visualisation MNT / LiDAR", href: "/outils/visualisation-mnt-lidar" },
-    ],
-  },
-];
+const NAV_SECTIONS: readonly NavSection[] = headerCopy.sections;
 
 // ─── Composant flèche ─────────────────────────────────────────────────────────
 
@@ -325,15 +263,15 @@ export function KereliaSiteHeader({ headerClassName }: KereliaSiteHeaderProps) {
   return (
     <header ref={headerRef} className={cn(headerClassName, mobileNavOpen && "is-mobile-nav-open")} id="kh">
       <div className="kh__inner">
-        <a href="/" className="kh__brand" aria-label="Kerelia accueil">
+        <a href="/" className="kh__brand" aria-label={headerCopy.brandAriaLabel}>
           <span className="kh__lockup">
             <img src={KERELIA_LOGO_SRC} alt="" />
           </span>
-          <span className="kh__word">KERELIA</span>
+          <span className="kh__word">{headerCopy.brandWord}</span>
         </a>
 
         <div className="kh__nav-group">
-          <nav id="kh-main-nav" className="kh__nav" aria-label="Navigation principale">
+          <nav id="kh-main-nav" className="kh__nav" aria-label={headerCopy.navAriaLabel}>
             <VousEtesDropdown
               isOpen={activeDropdown === "vous-etes"}
               onToggle={() => toggleDropdown("vous-etes")}
@@ -384,7 +322,7 @@ export function KereliaSiteHeader({ headerClassName }: KereliaSiteHeaderProps) {
         <button
           type="button"
           className="kh__burger"
-          aria-label={mobileNavOpen ? "Fermer le menu" : "Ouvrir le menu"}
+          aria-label={mobileNavOpen ? headerCopy.closeMenuLabel : headerCopy.openMenuLabel}
           aria-expanded={mobileNavOpen}
           aria-controls="kh-main-nav"
           onClick={toggleMobileNav}

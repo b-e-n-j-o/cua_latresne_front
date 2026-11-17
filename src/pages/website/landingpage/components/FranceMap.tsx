@@ -4,6 +4,7 @@
  * Les images ne sont téléchargées que quand la section approche du viewport.
  */
 import { useEffect, useRef, useState } from "react";
+import { aboutCopy } from "../content";
 
 const TOTAL_FRAMES      = 12;
 const FRAME_DURATION_MS = 1200;
@@ -75,7 +76,7 @@ export default function FranceMap() {
           key={src}
           className="about__map-img"
           src={ready ? src : i === 0 ? src : undefined}
-          alt={i === 0 ? "Expansion Kerelia — de la Nouvelle-Aquitaine à la couverture nationale" : ""}
+          alt={i === 0 ? aboutCopy.mapAlt : ""}
           aria-hidden={i !== 0}
           width={480}
           height={520}

@@ -1,14 +1,26 @@
+export interface DomaineModalCopy {
+  intro: string;
+  body: readonly string[];
+  imageAlt: string;
+  imageSrc: string;
+}
+
 export interface DomaineItem {
-    num: string;
-    titre: string;
-    sousTitre: string;
-    modal: {
-      intro: string;       // paragraphe d'accroche (grand, gauche)
-      body: string[];      // paragraphes de corps (droite / dessous)
-      imageAlt?: string;   // alt text de l'image (src à brancher plus tard)
-      imageSrc?: string;   // chemin ou URL de l'image illustrative
-    };
-  }
+  num: string;
+  titre: string;
+  sousTitre: string;
+  modal: DomaineModalCopy;
+}
+
+export type DomainesListCopy = {
+  title: string;
+  listAriaLabel: string;
+  screenLabel: string;
+  sectionId: string;
+  separatorLabel: string;
+  separatorBeforeIndex: number;
+  closeLabel: string;
+};
   
   export const DOMAINES: DomaineItem[] = [
     {
@@ -109,5 +121,15 @@ export interface DomaineItem {
     },
   ];
   
-  /** Index de séparation : les lignes 0–3 sont des "services", 4–5 des "capacités transversales" */
-  export const SEPARATOR_BEFORE_INDEX = 4;
+/** Index de séparation : les lignes 0–3 sont des "services", 4–5 des "capacités transversales" */
+export const SEPARATOR_BEFORE_INDEX = 4;
+
+export const domainesListCopy = {
+  title: "En détail",
+  listAriaLabel: "Domaines d'intervention",
+  screenLabel: "04 Domaines",
+  sectionId: "domaines-intervention",
+  separatorLabel: "Expertise transversale",
+  separatorBeforeIndex: SEPARATOR_BEFORE_INDEX,
+  closeLabel: "Fermer",
+} satisfies DomainesListCopy;

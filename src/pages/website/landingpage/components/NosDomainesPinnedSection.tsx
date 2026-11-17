@@ -6,7 +6,7 @@ import {
   etudesSectionCopy,
   nosDomainesPinLabels,
   nosDomainesSectionMeta,
-} from "../LandingPageContent";
+} from "../content";
 import { cn } from "../lib/cn";
 
 type NosDomainesPinnedSectionProps = {

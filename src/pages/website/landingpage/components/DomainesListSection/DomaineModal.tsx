@@ -1,6 +1,6 @@
 import { useEffect, useCallback } from "react";
 import type Lenis from "lenis";
-import type { DomaineItem } from "./DomainesContent";
+import { domainesListCopy, type DomaineItem } from "../../content";
 
 interface DomaineModalProps {
   domaine: DomaineItem | null;
@@ -53,7 +53,7 @@ export function DomaineModal({ domaine, onClose, lenis }: DomaineModalProps) {
             <button
               className="domaine-modal__close"
               onClick={onClose}
-              aria-label="Fermer"
+              aria-label={domainesListCopy.closeLabel}
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                 <path d="M3 3L13 13M13 3L3 13" stroke="currentColor" strokeWidth="1.25" strokeLinecap="square" />

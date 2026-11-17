@@ -1,11 +1,5 @@
 import { FormEvent, useState } from "react";
-
-const SUBJECT_OPTIONS = [
-  { value: "urbanisme", label: "Urbanisme & documents d'urbanisme" },
-  { value: "environnement", label: "Environnement & données" },
-  { value: "sig", label: "Outils SIG / intégration" },
-  { value: "autre", label: "Autre" },
-] as const;
+import { demoRequestCopy } from "./landingpage/content";
 
 /**
  * Page publique « demande de démo » — formulaire visuel ; envoi réel à brancher plus tard.
@@ -15,7 +9,7 @@ export default function DemoRequestPage() {
 
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setNotice("Merci pour votre intérêt. L'envoi en ligne sera activé prochainement — en attendant, écrivez-nous à contact@kerelia.fr.");
+    setNotice(demoRequestCopy.notice);
   };
 
   return (
@@ -39,7 +33,7 @@ export default function DemoRequestPage() {
         }}
       >
         <a
-          href="/"
+          href={demoRequestCopy.backHref}
           style={{
             color: "rgba(255,255,255,0.45)",
             fontSize: 12,
@@ -47,7 +41,7 @@ export default function DemoRequestPage() {
             letterSpacing: "0.08em",
           }}
         >
-          ← KERELIA
+          {demoRequestCopy.backLabel}
         </a>
       </div>
 
@@ -75,7 +69,7 @@ export default function DemoRequestPage() {
             marginBottom: 20,
           }}
         >
-          FORMULAIRE DE CONTACT
+          {demoRequestCopy.badge}
         </span>
 
         <h1
@@ -87,21 +81,21 @@ export default function DemoRequestPage() {
             letterSpacing: "-0.02em",
           }}
         >
-          Demander une démonstration
+          {demoRequestCopy.title}
         </h1>
         <p style={{ fontSize: 15, color: "rgba(255,255,255,0.5)", lineHeight: 1.65, margin: "0 0 36px" }}>
-          Décrivez votre besoin : dites-nous qui vous êtes et ce que vous recherchez, nous reviendrons vers vous rapidement.
+          {demoRequestCopy.intro}
         </p>
 
         <form onSubmit={onSubmit} style={{ display: "flex", flexDirection: "column", gap: 22 }}>
           <label style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13, color: "rgba(255,255,255,0.75)" }}>
-            Adresse e-mail professionnelle
+            {demoRequestCopy.emailLabel}
             <input
               type="email"
               name="email"
               autoComplete="email"
               required
-              placeholder="vous@organisation.fr"
+              placeholder={demoRequestCopy.emailPlaceholder}
               style={{
                 padding: "12px 14px",
                 borderRadius: 8,
@@ -115,7 +109,7 @@ export default function DemoRequestPage() {
           </label>
 
           <label style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13, color: "rgba(255,255,255,0.75)" }}>
-            Type de sujet
+            {demoRequestCopy.subjectLabel}
             <select
               name="subject"
               required
@@ -131,9 +125,9 @@ export default function DemoRequestPage() {
               }}
             >
               <option value="" disabled>
-                Choisir un type de sujet
+                {demoRequestCopy.subjectPlaceholder}
               </option>
-              {SUBJECT_OPTIONS.map((o) => (
+              {demoRequestCopy.subjectOptions.map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
                 </option>
@@ -142,11 +136,12 @@ export default function DemoRequestPage() {
           </label>
 
           <label style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13, color: "rgba(255,255,255,0.75)" }}>
-            Présentation / contexte <span style={{ fontWeight: 400, color: "rgba(255,255,255,0.35)" }}>(facultatif)</span>
+            {demoRequestCopy.messageLabel}{" "}
+            <span style={{ fontWeight: 400, color: "rgba(255,255,255,0.35)" }}>{demoRequestCopy.messageOptional}</span>
             <textarea
               name="message"
               rows={4}
-              placeholder="Projet, collectivité, volumétrie…"
+              placeholder={demoRequestCopy.messagePlaceholder}
               style={{
                 padding: "12px 14px",
                 borderRadius: 8,
@@ -176,7 +171,7 @@ export default function DemoRequestPage() {
               cursor: "pointer",
             }}
           >
-            Envoyer la demande
+            {demoRequestCopy.submitLabel}
           </button>
         </form>
 
@@ -199,9 +194,9 @@ export default function DemoRequestPage() {
         ) : null}
 
         <p style={{ marginTop: 40, fontSize: 13, color: "rgba(255,255,255,0.35)" }}>
-          Déjà client ou partenaire ?{" "}
-          <a href="/login" style={{ color: "#EFD57A", textDecoration: "none" }}>
-            Identification
+          {demoRequestCopy.alreadyClient}{" "}
+          <a href={demoRequestCopy.loginHref} style={{ color: "#EFD57A", textDecoration: "none" }}>
+            {demoRequestCopy.loginLabel}
           </a>
         </p>
       </div>

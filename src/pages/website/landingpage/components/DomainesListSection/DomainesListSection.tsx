@@ -1,6 +1,6 @@
 import { Fragment, useState } from "react";
 import type Lenis from "lenis";
-import { DOMAINES, SEPARATOR_BEFORE_INDEX, type DomaineItem } from "./DomainesContent";
+import { DOMAINES, SEPARATOR_BEFORE_INDEX, domainesListCopy, type DomaineItem } from "../../content";
 import { DomaineModal } from "./DomaineModal";
 import "./DomainesListSection.css";
 
@@ -14,21 +14,21 @@ export function DomainesListSection({ lenis }: DomainesListSectionProps) {
   return (
     <section
       className="domaines-list"
-      id="domaines-intervention"
+      id={domainesListCopy.sectionId}
       data-bg="dark"
-      data-screen-label="04 Domaines"
+      data-screen-label={domainesListCopy.screenLabel}
     >
       <div className="domaines-list__head">
-        <h2 className="domaines-list__title">En détail</h2>
+        <h2 className="domaines-list__title">{domainesListCopy.title}</h2>
         <div className="domaines-list__rule" aria-hidden="true" />
       </div>
 
-      <ol className="domaines-list__rows" aria-label="Domaines d'intervention">
+      <ol className="domaines-list__rows" aria-label={domainesListCopy.listAriaLabel}>
         {DOMAINES.map((domaine, index) => (
           <Fragment key={domaine.num}>
             {index === SEPARATOR_BEFORE_INDEX && (
               <li className="domaines-list__separator" aria-hidden="true">
-                <span className="domaines-list__separator-label">Expertise transversale</span>
+                <span className="domaines-list__separator-label">{domainesListCopy.separatorLabel}</span>
               </li>
             )}
 

@@ -17,6 +17,7 @@ import {
 } from "./landingPageSections";
 import { FloatingDemoCta } from "./components/FloatingDemoCta";
 import { KereliaSiteHeader } from "./components/KereliaSiteHeader";
+import { landingPageMeta } from "./content";
 
 export default function LandingPage() {
   const { lenisRef, lenis } = useLandingLenis();
@@ -34,7 +35,7 @@ export default function LandingPage() {
 
   useEffect(() => {
     const prev = document.title;
-    document.title = "Kerelia — Cabinet d'expertise géospatiale";
+    document.title = landingPageMeta.documentTitle;
     return () => {
       document.title = prev;
     };

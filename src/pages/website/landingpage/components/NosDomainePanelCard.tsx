@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { NosDomainePanelModel } from "../LandingPageContent";
+import type { NosDomainePanelModel } from "../content";
 import { KereliaTertiary } from "./KereliaUi";
 
 type NosDomainePanelCardProps = {

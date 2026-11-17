@@ -11,7 +11,8 @@ import {
   metricsCopy,
   methodologyCopy,
   sourcesPartnershipsCopy,
-} from "./LandingPageContent";
+  landingPageMeta,
+} from "./content";
 import type Lenis from "lenis";
 import { NosDomainesPinnedSection } from "./components/NosDomainesPinnedSection";
 import { cn } from "./lib/cn";
@@ -43,7 +44,7 @@ export function HeroSection() {
   }, []);
 
   return (
-    <section ref={ref} className="hero" data-bg="dark" data-screen-label="01 Hero">
+    <section ref={ref} className="hero" data-bg="dark" data-screen-label={landingPageMeta.heroScreenLabel}>
       {showHeroBg ? (
         <div className="hero__bg" aria-hidden="true">
           <img src={HERO_BACKGROUND_IMAGE_SRC} alt="" decoding="async" fetchPriority="high" />
@@ -91,7 +92,7 @@ export function SourcesPartnershipsSection({ sectionRef, visible }: SourcesPartn
       className={cn("sources-block", visible && "is-visible")}
       id="sources"
       data-bg="dark"
-      data-screen-label="02 Sources & Partenariats"
+      data-screen-label={landingPageMeta.sourcesScreenLabel}
     >
       <header className="sources-block__head sources-block__reveal">
         <h2 className="sources-block__title">{title}</h2>
@@ -136,7 +137,7 @@ type MethodologySectionProps = {
 
 export function MethodologySection({ stepsRef, methodVisible }: MethodologySectionProps) {
   return (
-    <section className="method" id="methodologie" data-bg="dark" data-screen-label="05 Souveraineté & Conformité">
+    <section className="method" id="methodologie" data-bg="dark" data-screen-label={landingPageMeta.methodologyScreenLabel}>
       <div className="method__head">
         <h2 className="method__title">{methodologyCopy.title}</h2>
         <KereliaRule center />
@@ -167,7 +168,7 @@ export function EtudesSection({ lenis }: EtudesSectionProps) {
 
 export function MetricsSection() {
   return (
-    <section className="metrics" id="chiffres" data-bg="dark" data-screen-label="07 Chiffres & Témoignages">
+    <section className="metrics" id="chiffres" data-bg="dark" data-screen-label={landingPageMeta.metricsScreenLabel}>
       <div className="metrics__head">
         <h2 className="metrics__title">{metricsCopy.title}</h2>
         <KereliaRule center />
@@ -196,7 +197,7 @@ export function MetricsSection() {
 
 export function AboutSection() {
   return (
-    <section className="about" id="apropos" data-bg="dark" data-screen-label="06 Qui sommes-nous">
+    <section className="about" id="apropos" data-bg="dark" data-screen-label={landingPageMeta.aboutScreenLabel}>
       <div className="about__grid">
         <div className="about__content">
           <h2 className="about__title">{aboutCopy.title[0]}</h2>
@@ -221,7 +222,7 @@ export function AboutSection() {
 
 export function ContactCtaSection() {
   return (
-    <section className="ctafinal" id="contact" data-bg="dark" data-screen-label="07 Contact">
+    <section className="ctafinal" id="contact" data-bg="dark" data-screen-label={landingPageMeta.contactScreenLabel}>
       <div className="ctafinal__inner">
         <h2 className="ctafinal__title">
           {contactCopy.titleBeforeEm}
@@ -245,7 +246,7 @@ export function ContactCtaSection() {
 export function SiteFooterSection() {
   return (
     <>
-      <footer className="kfoot" data-bg="yellow" data-screen-label="08 Footer">
+      <footer className="kfoot" data-bg="yellow" data-screen-label={landingPageMeta.footerScreenLabel}>
         <div className="kfoot__grid">
           <div>
             <h2 className="kfoot__title">{footerCopy.title}</h2>
