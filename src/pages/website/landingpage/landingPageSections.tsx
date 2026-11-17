@@ -183,11 +183,8 @@ export function MetricsSection() {
       </div>
       <div className="metrics__testimonials">
         {metricsCopy.testimonials.map((t) => (
-          <blockquote key={t.name} className="metrics__quote">
+          <blockquote key={t.quote} className="metrics__quote">
             <p className="metrics__quote-text">&ldquo;{t.quote}&rdquo;</p>
-            <footer className="metrics__quote-footer">
-              <strong>{t.name}</strong> &mdash; {t.title}, {t.org}
-            </footer>
           </blockquote>
         ))}
       </div>
